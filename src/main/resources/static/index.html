@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Social Login Test</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f3efe6;
+            --panel: rgba(255, 252, 246, 0.9);
+            --ink: #1f1a17;
+            --muted: #6f655c;
+            --line: rgba(31, 26, 23, 0.12);
+            --accent: #ffca28;
+            --google: #0f6fff;
+            --kakao: #fee500;
+            --naver: #03c75a;
+            --apple: #111111;
+            --shadow: 0 24px 60px rgba(54, 42, 26, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Pretendard Variable", "SUIT Variable", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at top left, rgba(255, 202, 40, 0.4), transparent 30%),
+                radial-gradient(circle at bottom right, rgba(15, 111, 255, 0.18), transparent 28%),
+                linear-gradient(135deg, #f9f3e6 0%, #efe7d7 100%);
+            padding: 32px 20px;
+        }
+
+        .shell {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            gap: 24px;
+        }
+
+        .hero,
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(10px);
+        }
+
+        .hero {
+            padding: 32px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(31, 26, 23, 0.06);
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 18px 0 14px;
+            font-size: clamp(36px, 6vw, 68px);
+            line-height: 0.95;
+            letter-spacing: -0.05em;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 700px;
+            color: var(--muted);
+            font-size: 18px;
+            line-height: 1.65;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .panel {
+            padding: 24px;
+        }
+
+        .provider {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .provider h2,
+        .status h2 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: -0.03em;
+        }
+
+        .provider p,
+        .note-list li {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        a.button,
+        button.button {
+            appearance: none;
+            border: none;
+            border-radius: 16px;
+            padding: 14px 18px;
+            font: inherit;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+        }
+
+        a.button:hover,
+        button.button:hover {
+            transform: translateY(-2px);
+        }
+
+        .button.google {
+            background: var(--google);
+            color: white;
+            box-shadow: 0 16px 30px rgba(15, 111, 255, 0.22);
+        }
+
+        .button.kakao {
+            background: var(--kakao);
+            color: #201900;
+            box-shadow: 0 16px 30px rgba(254, 229, 0, 0.22);
+        }
+
+        .button.naver {
+            background: var(--naver);
+            color: white;
+            box-shadow: 0 16px 30px rgba(3, 199, 90, 0.22);
+        }
+
+        .button.apple {
+            background: var(--apple);
+            color: white;
+            box-shadow: 0 16px 30px rgba(17, 17, 17, 0.22);
+        }
+
+        .button.ghost {
+            background: white;
+            color: var(--ink);
+            border: 1px solid var(--line);
+        }
+
+        .status-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 14px 0 18px;
+        }
+
+        .pill {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(31, 26, 23, 0.06);
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        pre {
+            margin: 0;
+            padding: 18px;
+            border-radius: 20px;
+            background: #1f1a17;
+            color: #fff6d4;
+            overflow: auto;
+            min-height: 280px;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .note-list {
+            padding-left: 18px;
+            margin: 16px 0 0;
+        }
+
+        .footer {
+            color: var(--muted);
+            font-size: 14px;
+            text-align: center;
+        }
+
+        @media (max-width: 720px) {
+            body {
+                padding: 18px 14px;
+            }
+
+            .hero,
+            .panel {
+                border-radius: 22px;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+<main class="shell">
+    <section class="hero">
+        <span class="eyebrow">Spring Boot 3.5.11 · Java 21</span>
+        <h1>Google + Kakao + Naver + Apple Login Sandbox</h1>
+        <p>
+            이 페이지는 백엔드에서 소셜 로그인이 정상 동작하는지 빠르게 확인하기 위한 테스트 화면입니다.
+            로그인 후 현재 세션의 사용자 정보를 바로 조회할 수 있습니다.
+        </p>
+    </section>
+
+    <section class="grid">
+        <article class="panel provider">
+            <h2>Google Login</h2>
+            <p>Spring Security OAuth2 클라이언트 기본 플로우로 로그인합니다.</p>
+            <div class="button-row">
+                <a class="button google" href="/oauth2/authorization/google">Google 로그인</a>
+            </div>
+            <ul class="note-list">
+                <li>Redirect URI: <code id="googleRedirect"></code></li>
+                <li>필수 환경 변수: <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code></li>
+            </ul>
+        </article>
+
+        <article class="panel provider">
+            <h2>Kakao Login</h2>
+            <p>카카오 전용 Provider 설정으로 같은 OAuth2 로그인 흐름에 연결합니다.</p>
+            <div class="button-row">
+                <a class="button kakao" href="/oauth2/authorization/kakao">Kakao 로그인</a>
+            </div>
+            <ul class="note-list">
+                <li>Redirect URI: <code id="kakaoRedirect"></code></li>
+                <li>필수 환경 변수: <code>KAKAO_CLIENT_ID</code>, <code>KAKAO_CLIENT_SECRET</code></li>
+            </ul>
+        </article>
+
+        <article class="panel provider">
+            <h2>Naver Login</h2>
+            <p>네이버 OAuth2 인증 코드 플로우로 로그인하고 프로필 응답을 확인합니다.</p>
+            <div class="button-row">
+                <a class="button naver" href="/oauth2/authorization/naver">Naver 로그인</a>
+            </div>
+            <ul class="note-list">
+                <li>Redirect URI: <code id="naverRedirect"></code></li>
+                <li>필수 환경 변수: <code>NAVER_CLIENT_ID</code>, <code>NAVER_CLIENT_SECRET</code></li>
+            </ul>
+        </article>
+
+        <article class="panel provider">
+            <h2>Apple Login</h2>
+            <p>Apple OIDC 기반 로그인 흐름을 테스트합니다. 실제 인증은 HTTPS 공개 콜백 URL이 필요합니다.</p>
+            <div class="button-row">
+                <a class="button apple" href="/oauth2/authorization/apple">Apple 로그인</a>
+            </div>
+            <ul class="note-list">
+                <li>Redirect URI: <code id="appleRedirect"></code></li>
+                <li>필수 환경 변수: <code>APPLE_CLIENT_ID</code>, <code>APPLE_CLIENT_SECRET</code></li>
+                <li>주의: Apple은 <code>localhost</code> 콜백을 직접 허용하지 않아 HTTPS 공개 URL이 필요합니다.</li>
+            </ul>
+        </article>
+    </section>
+
+    <section class="panel status">
+        <h2>Current Session</h2>
+        <div class="status-meta">
+            <span class="pill" id="loginState">Checking session...</span>
+        </div>
+        <div class="button-row" style="margin-bottom: 18px;">
+            <button class="button ghost" id="refreshButton" type="button">세션 새로고침</button>
+            <button class="button ghost" id="logoutButton" type="button">로그아웃</button>
+        </div>
+        <pre id="payload">Loading...</pre>
+    </section>
+
+    <p class="footer">테스트 브랜치용 페이지입니다. 운영 설정 전환 전에는 그대로 배포하지 않는 것을 권장합니다.</p>
+</main>
+
+<script>
+    const payload = document.getElementById("payload");
+    const loginState = document.getElementById("loginState");
+    const refreshButton = document.getElementById("refreshButton");
+    const logoutButton = document.getElementById("logoutButton");
+
+    document.getElementById("googleRedirect").textContent = `${window.location.origin}/login/oauth2/code/google`;
+    document.getElementById("kakaoRedirect").textContent = `${window.location.origin}/login/oauth2/code/kakao`;
+    document.getElementById("naverRedirect").textContent = `${window.location.origin}/login/oauth2/code/naver`;
+    document.getElementById("appleRedirect").textContent = `${window.location.origin}/login/oauth2/code/apple`;
+
+    async function refreshSession() {
+        payload.textContent = "Loading...";
+
+        const response = await fetch("/api/auth/me", {
+            credentials: "same-origin"
+        });
+
+        if (response.status === 401) {
+            loginState.textContent = "Not authenticated";
+            payload.textContent = JSON.stringify({
+                authenticated: false,
+                message: "로그인 전입니다. 위 버튼으로 소셜 로그인을 시작해 주세요."
+            }, null, 2);
+            return;
+        }
+
+        if (!response.ok) {
+            loginState.textContent = `Error ${response.status}`;
+            payload.textContent = JSON.stringify({
+                authenticated: false,
+                message: "사용자 정보를 불러오는 중 오류가 발생했습니다."
+            }, null, 2);
+            return;
+        }
+
+        const data = await response.json();
+        loginState.textContent = `Authenticated via ${data.provider}`;
+        payload.textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function logout() {
+        const response = await fetch("/api/logout", {
+            method: "POST",
+            credentials: "same-origin"
+        });
+
+        if (!response.ok && response.status !== 204) {
+            payload.textContent = JSON.stringify({
+                authenticated: false,
+                message: "로그아웃 중 오류가 발생했습니다."
+            }, null, 2);
+            return;
+        }
+
+        await refreshSession();
+    }
+
+    refreshButton.addEventListener("click", refreshSession);
+    logoutButton.addEventListener("click", logout);
+
+    refreshSession();
+</script>
+</body>
+</html>
