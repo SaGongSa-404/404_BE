@@ -1,0 +1,947 @@
+openapi: 3.1.0
+info:
+  title: 404 Mobile API
+  version: 0.1.0
+  description: >
+    Modular monolith baseline contract for the 404 mobile application.
+servers:
+  - url: /api/v1
+tags:
+  - name: Facade - Onboarding
+  - name: Facade - Home
+  - name: Facade - Notification
+  - name: Facade - Settings
+  - name: Auth
+  - name: User
+  - name: House
+  - name: Space
+  - name: Chore
+  - name: Adjustment
+  - name: Notification
+  - name: Review
+paths:
+  /facades/onboarding/bootstrap:
+    get:
+      tags: [Facade - Onboarding]
+      summary: Get onboarding bootstrap payload
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bootstrap payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingBootstrapResponse'
+  /facades/onboarding/house-setup:
+    get:
+      tags: [Facade - Onboarding]
+      summary: Get house setup payload
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: House setup payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingHouseSetupResponse'
+  /facades/home:
+    get:
+      tags: [Facade - Home]
+      summary: Get home screen payload
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Home payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeFacadeResponse'
+  /facades/notifications:
+    get:
+      tags: [Facade - Notification]
+      summary: Get notification feed payload
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Notification feed payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationFacadeResponse'
+  /facades/settings:
+    get:
+      tags: [Facade - Settings]
+      summary: Get settings screen payload
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Settings payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsFacadeResponse'
+  /auth/kakao/login:
+    post:
+      tags: [Auth]
+      summary: Login with Kakao authorization code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KakaoLoginRequest'
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+  /auth/terms/accept:
+    post:
+      tags: [Auth]
+      summary: Accept required terms
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptTermsRequest'
+      responses:
+        '204':
+          description: Accepted
+  /auth/session/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshSessionRequest'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshSessionResponse'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current session
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Logged out
+  /users/me:
+    get:
+      tags: [User]
+      summary: Get my profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: My profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyProfileResponse'
+    patch:
+      tags: [User]
+      summary: Update my profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyProfileResponse'
+    delete:
+      tags: [User]
+      summary: Withdraw user
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Withdrawn
+  /houses:
+    post:
+      tags: [House]
+      summary: Create a house
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHouseRequest'
+      responses:
+        '201':
+          description: House created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateHouseResponse'
+  /houses/join:
+    post:
+      tags: [House]
+      summary: Join house by invite code
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinHouseRequest'
+      responses:
+        '200':
+          description: Joined house
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinHouseResponse'
+  /houses/me:
+    get:
+      tags: [House]
+      summary: Get active house
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active house summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseSummary'
+  /houses/{houseId}/spaces:
+    parameters:
+      - $ref: '#/components/parameters/HouseId'
+    get:
+      tags: [Space]
+      summary: List spaces
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Space list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spaces:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Space'
+    post:
+      tags: [Space]
+      summary: Add space
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpaceRequest'
+      responses:
+        '201':
+          description: Space created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+  /houses/{houseId}/chores:
+    parameters:
+      - $ref: '#/components/parameters/HouseId'
+    post:
+      tags: [Chore]
+      summary: Create chore rule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChoreRequest'
+      responses:
+        '201':
+          description: Chore created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChoreRule'
+  /houses/{houseId}/chores/today:
+    parameters:
+      - $ref: '#/components/parameters/HouseId'
+    get:
+      tags: [Chore]
+      summary: List today chores
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Today chore list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TodayChore'
+  /chore-instances/{choreInstanceId}/completion:
+    parameters:
+      - $ref: '#/components/parameters/ChoreInstanceId'
+    post:
+      tags: [Chore]
+      summary: Complete chore instance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteChoreRequest'
+      responses:
+        '200':
+          description: Chore completed
+    delete:
+      tags: [Chore]
+      summary: Cancel chore completion
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Completion cancelled
+  /houses/{houseId}/adjustments/substitute-requests:
+    parameters:
+      - $ref: '#/components/parameters/HouseId'
+    post:
+      tags: [Adjustment]
+      summary: Request substitute
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubstituteRequest'
+      responses:
+        '201':
+          description: Adjustment request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustmentRequest'
+  /adjustments/{adjustmentRequestId}/accept:
+    parameters:
+      - $ref: '#/components/parameters/AdjustmentRequestId'
+    post:
+      tags: [Adjustment]
+      summary: Accept adjustment request
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Adjustment accepted
+  /adjustments/{adjustmentRequestId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/AdjustmentRequestId'
+    post:
+      tags: [Adjustment]
+      summary: Reject adjustment request
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Adjustment rejected
+  /houses/{houseId}/notifications:
+    parameters:
+      - $ref: '#/components/parameters/HouseId'
+    get:
+      tags: [Notification]
+      summary: List house notifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Notification list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationItem'
+                  nextCursor:
+                    type: string
+                    nullable: true
+  /notifications/{notificationId}/read:
+    parameters:
+      - $ref: '#/components/parameters/NotificationId'
+    post:
+      tags: [Notification]
+      summary: Mark notification as read
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Marked as read
+  /push-devices:
+    post:
+      tags: [Notification]
+      summary: Register push device
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPushDeviceRequest'
+      responses:
+        '201':
+          description: Push device registered
+  /houses/{houseId}/weekly-recaps/latest:
+    parameters:
+      - $ref: '#/components/parameters/HouseId'
+    get:
+      tags: [Review]
+      summary: Get latest weekly recap
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Latest weekly recap
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyRecapResponse'
+  /houses/{houseId}/weekly-recaps/{snapshotId}/satisfaction:
+    parameters:
+      - $ref: '#/components/parameters/HouseId'
+      - $ref: '#/components/parameters/SnapshotId'
+    post:
+      tags: [Review]
+      summary: Submit weekly satisfaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeeklySatisfactionRequest'
+      responses:
+        '204':
+          description: Satisfaction submitted
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    HouseId:
+      in: path
+      name: houseId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ChoreInstanceId:
+      in: path
+      name: choreInstanceId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AdjustmentRequestId:
+      in: path
+      name: adjustmentRequestId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NotificationId:
+      in: path
+      name: notificationId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SnapshotId:
+      in: path
+      name: snapshotId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      in: query
+      name: cursor
+      schema:
+        type: string
+    Limit:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  schemas:
+    OnboardingBootstrapResponse:
+      type: object
+      properties:
+        isNewUser:
+          type: boolean
+        hasActiveHouse:
+          type: boolean
+        activeHouseId:
+          type: string
+          format: uuid
+          nullable: true
+        requiredTermsPending:
+          type: boolean
+        nextStep:
+          type: string
+    OnboardingHouseSetupResponse:
+      type: object
+      properties:
+        house:
+          $ref: '#/components/schemas/HouseSummary'
+        inviteCode:
+          $ref: '#/components/schemas/InviteCode'
+        cleanlinessVote:
+          type: string
+          nullable: true
+        spaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Space'
+        memberCount:
+          type: integer
+    HomeFacadeResponse:
+      type: object
+      properties:
+        house:
+          $ref: '#/components/schemas/HouseSummary'
+        todayChores:
+          type: array
+          items:
+            $ref: '#/components/schemas/TodayChore'
+        dailyProgress:
+          $ref: '#/components/schemas/DailyProgress'
+        openAdjustmentRequests:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdjustmentRequest'
+        myPendingActions:
+          type: integer
+    NotificationFacadeResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationItem'
+        unreadCount:
+          type: integer
+        nextCursor:
+          type: string
+          nullable: true
+    SettingsFacadeResponse:
+      type: object
+      properties:
+        profile:
+          $ref: '#/components/schemas/MyProfileResponse'
+        houseSummary:
+          $ref: '#/components/schemas/HouseSummary'
+        latestWeeklyRecap:
+          $ref: '#/components/schemas/WeeklyRecapResponse'
+        weeklySatisfactionStatus:
+          type: string
+    KakaoLoginRequest:
+      type: object
+      required: [authorizationCode, redirectUri]
+      properties:
+        authorizationCode:
+          type: string
+        redirectUri:
+          type: string
+        deviceId:
+          type: string
+        deviceName:
+          type: string
+    LoginResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        isNewUser:
+          type: boolean
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        requiredTerms:
+          type: array
+          items:
+            type: string
+    AcceptTermsRequest:
+      type: object
+      required: [terms]
+      properties:
+        terms:
+          type: array
+          items:
+            type: object
+            required: [type, version]
+            properties:
+              type:
+                type: string
+              version:
+                type: string
+    RefreshSessionRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    RefreshSessionResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+    MyProfileResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        profileImageUrl:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+    UpdateProfileRequest:
+      type: object
+      properties:
+        nickname:
+          type: string
+        profileImageUrl:
+          type: string
+          nullable: true
+    CreateHouseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        initialCleanlinessVote:
+          type: string
+          nullable: true
+    CreateHouseResponse:
+      type: object
+      properties:
+        houseId:
+          type: string
+          format: uuid
+        membershipId:
+          type: string
+          format: uuid
+        inviteCode:
+          $ref: '#/components/schemas/InviteCode'
+    JoinHouseRequest:
+      type: object
+      required: [inviteCode]
+      properties:
+        inviteCode:
+          type: string
+    JoinHouseResponse:
+      type: object
+      properties:
+        house:
+          $ref: '#/components/schemas/HouseSummary'
+        membershipId:
+          type: string
+          format: uuid
+    HouseSummary:
+      type: object
+      properties:
+        houseId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        cleanlinessLevel:
+          type: string
+          nullable: true
+        memberCount:
+          type: integer
+    InviteCode:
+      type: object
+      properties:
+        code:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateSpaceRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        sortOrder:
+          type: integer
+          nullable: true
+    Space:
+      type: object
+      properties:
+        spaceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sortOrder:
+          type: integer
+    CreateChoreRequest:
+      type: object
+      required: [spaceId, title]
+      properties:
+        spaceId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        estimatedMinutes:
+          type: integer
+          nullable: true
+        defaultAssigneeMembershipId:
+          type: string
+          format: uuid
+          nullable: true
+        recurrence:
+          $ref: '#/components/schemas/Recurrence'
+    ChoreRule:
+      type: object
+      properties:
+        choreRuleId:
+          type: string
+          format: uuid
+        spaceId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        recurrence:
+          $ref: '#/components/schemas/Recurrence'
+    Recurrence:
+      type: object
+      properties:
+        frequency:
+          type: string
+        interval:
+          type: integer
+        daysOfWeek:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: string
+          format: date
+          nullable: true
+    TodayChore:
+      type: object
+      properties:
+        choreInstanceId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        spaceName:
+          type: string
+        assigneeName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+    DailyProgress:
+      type: object
+      properties:
+        completedCount:
+          type: integer
+        totalCount:
+          type: integer
+        completionRate:
+          type: number
+          format: float
+    CompleteChoreRequest:
+      type: object
+      properties:
+        memo:
+          type: string
+          nullable: true
+        proofImageUrl:
+          type: string
+          nullable: true
+    SubstituteRequest:
+      type: object
+      required: [choreInstanceId]
+      properties:
+        choreInstanceId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+    AdjustmentRequest:
+      type: object
+      properties:
+        adjustmentRequestId:
+          type: string
+          format: uuid
+        choreInstanceId:
+          type: string
+          format: uuid
+        requestType:
+          type: string
+        status:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+    NotificationItem:
+      type: object
+      properties:
+        notificationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        isRead:
+          type: boolean
+        occurredAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+    RegisterPushDeviceRequest:
+      type: object
+      required: [platform, pushToken]
+      properties:
+        platform:
+          type: string
+        pushToken:
+          type: string
+        deviceId:
+          type: string
+          nullable: true
+        appVersion:
+          type: string
+          nullable: true
+    WeeklyRecapResponse:
+      type: object
+      properties:
+        snapshotId:
+          type: string
+          format: uuid
+        weekStartDate:
+          type: string
+          format: date
+        weekEndDate:
+          type: string
+          format: date
+        houseStats:
+          type: object
+          additionalProperties: true
+        memberStats:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        satisfactionSubmitted:
+          type: boolean
+    WeeklySatisfactionRequest:
+      type: object
+      required: [score]
+      properties:
+        score:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          nullable: true
