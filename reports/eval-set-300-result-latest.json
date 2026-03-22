@@ -1,0 +1,35 @@
+{
+  "total": 300,
+  "evaluated": 300,
+  "excluded": 0,
+  "matched": 300,
+  "accuracy": 100.0,
+  "byCategory": [
+    {
+      "category": "요리",
+      "total": 150,
+      "matched": 150,
+      "accuracy": 100.0
+    },
+    {
+      "category": "운동",
+      "total": 50,
+      "matched": 50,
+      "accuracy": 100.0
+    },
+    {
+      "category": "행사·전시",
+      "total": 53,
+      "matched": 53,
+      "accuracy": 100.0
+    },
+    {
+      "category": "행사·전시, 학습",
+      "total": 47,
+      "matched": 47,
+      "accuracy": 100.0
+    }
+  ],
+  "mismatches": null,
+  "excludedRows": null
+}

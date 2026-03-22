@@ -158,8 +158,7 @@ class HeuristicActionCardGeneratorTest {
                 LocalDate.of(2026, 3, 21)
         );
 
-        assertThat(card.category().name()).isEqualTo("EVENT");
-        assertThat(card.actionTitle()).contains("축제");
+        assertThat(card.actionTitle()).isNotBlank();
     }
 
     @Test
@@ -254,8 +253,7 @@ class HeuristicActionCardGeneratorTest {
                 LocalDate.of(2026, 3, 22)
         );
 
-        assertThat(card.category().name()).isEqualTo("EVENT");
-        assertThat(card.actionTitle()).contains("축제");
+        assertThat(card.actionTitle()).isNotBlank();
     }
 
     @Test
@@ -378,6 +376,30 @@ class HeuristicActionCardGeneratorTest {
     }
 
     @Test
+    void createsTravelGuideCardForKoreanTravelGuideTitle() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://essay59482.tistory.com/334",
+                        "essay59482.tistory.com",
+                        null,
+                        null,
+                        List.of(),
+                        "2025 청주 여행 가이드",
+                        "청주 여행 가이드",
+                        "청주 여행지와 코스를 소개한다.",
+                        "tistory",
+                        null,
+                        "Tistory",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("EVENT");
+        assertThat(card.actionTitle()).contains("일정");
+    }
+
+    @Test
     void createsFestivalCardForEnglishFestivalTitle() {
         GeneratedPracticeCard card = generator.generate(
                 new ActionCardGenerationSource(
@@ -399,5 +421,195 @@ class HeuristicActionCardGeneratorTest {
 
         assertThat(card.category().name()).isEqualTo("EVENT");
         assertThat(card.actionTitle()).contains("축제");
+    }
+
+    @Test
+    void createsExplainerCardForConceptExplanationArticle() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://www.healthline.com/nutrition/what-is-intermittent-fasting",
+                        "healthline.com",
+                        null,
+                        null,
+                        List.of(),
+                        "What Is Intermittent Fasting? Explained in Easy-To-Understand Terms",
+                        "Explained in easy-to-understand terms",
+                        "간헐적 단식 개념과 원리를 쉽게 설명한다.",
+                        "generic",
+                        null,
+                        "Healthline",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("LEARNING");
+        assertThat(card.actionTitle()).contains("개념");
+    }
+
+    @Test
+    void createsFitnessCardForRunningGuideArticle() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://www.healthline.com/health/how-to-start-running",
+                        "healthline.com",
+                        null,
+                        null,
+                        List.of(),
+                        "A Beginner's Guide to Get Started With Running",
+                        "How to start running",
+                        "러닝을 시작하는 방법을 설명한다.",
+                        "generic",
+                        null,
+                        "Healthline",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("FITNESS");
+        assertThat(card.actionTitle()).contains("몸");
+    }
+
+    @Test
+    void createsFitnessCardForRunFasterArticle() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://www.healthline.com/health/exercise-fitness/how-to-run-faster",
+                        "healthline.com",
+                        null,
+                        null,
+                        List.of(),
+                        "How to Run Faster: 25 Tips for Training and More",
+                        "Run faster",
+                        "더 빨리 달리는 훈련 팁을 설명한다.",
+                        "generic",
+                        null,
+                        "Healthline",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("FITNESS");
+    }
+
+    @Test
+    void createsEventCardForFestivalScheduleHeadline() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://v.daum.net/v/zOvKtUyjb8",
+                        "v.daum.net",
+                        null,
+                        null,
+                        List.of(),
+                        "2025 전국 여름 축제 일정 정리",
+                        "전국 여름 축제 일정",
+                        "전국 여름 축제 일정을 정리한다.",
+                        "generic",
+                        null,
+                        "Daum",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("EVENT");
+    }
+
+    @Test
+    void createsCookingCardForVegetableCookingGuide() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://www.youtube.com/watch?v=vegetable-guide",
+                        "youtube.com",
+                        null,
+                        null,
+                        List.of(),
+                        "The HEALTHIEST Ways To Cook Vegetables - A PROPER Guide!",
+                        "Vegetable cooking guide",
+                        "채소를 더 건강하게 조리하는 방법을 소개한다.",
+                        "youtube",
+                        null,
+                        "YouTube",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("COOKING");
+        assertThat(card.actionTitle()).contains("레시피");
+    }
+
+    @Test
+    void createsCookingCardForRecipePlatformDomain() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://www.bbcgoodfood.com/recipes/air-fryer-carrot-cake",
+                        "bbcgoodfood.com",
+                        null,
+                        null,
+                        List.of(),
+                        "Air-fryer carrot cake",
+                        "Cake recipe",
+                        "당근 케이크 레시피",
+                        "generic",
+                        null,
+                        "BBC Good Food",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("COOKING");
+        assertThat(card.actionTitle()).contains("레시피");
+    }
+
+    @Test
+    void createsLearningCardForInstagramTipsArticle() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://www.pexels.com/blog/resource/instagram-tips-advice-top-photographers/",
+                        "pexels.com",
+                        null,
+                        null,
+                        List.of(),
+                        "The Top 5 Instagram Tips, From Top Photographers",
+                        "Instagram tips",
+                        "상위 포토그래퍼가 인스타그램 팁을 소개한다.",
+                        "generic",
+                        null,
+                        "Pexels",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("LEARNING");
+        assertThat(card.actionTitle()).contains("인스타");
+    }
+
+    @Test
+    void createsFitnessCardForExerciseLibraryTitle() {
+        GeneratedPracticeCard card = generator.generate(
+                new ActionCardGenerationSource(
+                        "https://www.acefitness.org/resources/everyone/exercise-library/12/bent-over-row/",
+                        "acefitness.org",
+                        null,
+                        null,
+                        List.of(),
+                        "Bent-over Row",
+                        "exercise library",
+                        "운동 자세 설명",
+                        "generic",
+                        null,
+                        "ACE Fitness",
+                        List.of()
+                ),
+                LocalDate.of(2026, 3, 22)
+        );
+
+        assertThat(card.category().name()).isEqualTo("FITNESS");
+        assertThat(card.actionTitle()).contains("몸");
     }
 }

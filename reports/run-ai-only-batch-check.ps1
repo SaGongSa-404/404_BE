@@ -1,15 +1,13 @@
 param(
-    [Alias("InputFile")]
     [string]$InputMarkdown = "action_card_links_50_verified_2026-03-22.md",
-    [string]$Port = "18100",
-    [string]$OutputJson = "",
-    [int]$RequestTimeoutSec = 15,
-    [string]$UserId = ""
+    [string]$Port = "18103",
+    [int]$WaitSecondsPerCard = 12,
+    [string]$OutputJson = ""
 )
 
 $ErrorActionPreference = "Stop"
 $jar = Get-ChildItem "apps/api/build/libs/*.jar" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-$proc = Start-Process -FilePath "java.exe" -ArgumentList @("-jar", $jar, "--server.port=$Port", "--app.ai.ollama.background-enhancement-enabled=false") -WorkingDirectory (Get-Location) -PassThru
+$proc = Start-Process -FilePath "java.exe" -ArgumentList @("-jar", $jar, "--server.port=$Port") -WorkingDirectory (Get-Location) -PassThru
 try {
     $deadline = (Get-Date).AddSeconds(45)
     do {
@@ -41,14 +39,12 @@ try {
         "tutorial/docs" = @("학습")
         study = @("학습", "집중")
         event = @("행사·전시")
-        travel = @("학습", "행사·전시")
+        travel = @("행사·전시", "학습")
         exhibition = @("행사·전시")
         "travel phrase" = @("학습")
         cooking = @("요리")
         recipe = @("요리")
         dessert = @("요리")
-        side = @("요리")
-        drink = @("요리")
         breakfast = @("요리")
         lunch = @("요리")
         dinner = @("요리")
@@ -78,73 +74,72 @@ try {
         "web design article" = @("학습")
     }
 
-    if ([string]::IsNullOrWhiteSpace($UserId)) {
-        $UserId = [guid]::NewGuid().ToString()
-    }
-    $headers = @{ "X-User-Id" = $UserId }
+    $headers = @{ "X-User-Id" = "18181818-1818-1818-1818-181818181818" }
     $results = @()
+
     foreach ($row in $rows) {
         $body = @{ url = $row.url } | ConvertTo-Json -Compress
         try {
-            $save = Invoke-RestMethod -Uri "http://localhost:$Port/api/v1/content-links" -Method Post -ContentType "application/json; charset=utf-8" -Headers $headers -Body $body -TimeoutSec $RequestTimeoutSec
+            $save = Invoke-RestMethod -Uri "http://localhost:$Port/api/v1/content-links" -Method Post -ContentType "application/json; charset=utf-8" -Headers $headers -Body $body -TimeoutSec 20
+            $cardId = $save.practiceCard.id
+            $final = $save.practiceCard
+            $status = $final.enhancementStatus
+            $deadlineCard = (Get-Date).AddSeconds($WaitSecondsPerCard)
+            do {
+                if ($status -ne "PENDING") { break }
+                Start-Sleep -Milliseconds 700
+                try {
+                    $final = Invoke-RestMethod -Uri ("http://localhost:$Port/api/v1/practice-cards/{0}" -f $cardId) -Method Get -Headers $headers -TimeoutSec 10
+                    $status = $final.enhancementStatus
+                } catch {}
+            } while ((Get-Date) -lt $deadlineCard)
+
             $expectedLabels = $mapping[$row.expected]
-            $matched = $expectedLabels -contains $save.practiceCard.categoryLabel
+            $matched = ($status -eq "ENHANCED") -and ($expectedLabels -contains $final.categoryLabel)
             $results += [pscustomobject]@{
                 title = $row.title
                 url = $row.url
                 expected = $row.expected
                 expectedLabel = ($expectedLabels -join ", ")
-                actualLabel = $save.practiceCard.categoryLabel
-                evaluationStatus = "EVALUATED"
+                enhancementStatus = $status
+                actualLabel = $final.categoryLabel
                 matched = $matched
-                actionTitle = $save.practiceCard.actionTitle
+                actionTitle = $final.actionTitle
             }
         } catch {
-            $message = $_.Exception.Message
-            $isExcluded = $message -match "Timeout" -or $message -match "timed out" -or $message -match "Response status code does not indicate success: 5" -or $message -match "Response status code does not indicate success: 4"
             $results += [pscustomobject]@{
                 title = $row.title
                 url = $row.url
                 expected = $row.expected
                 expectedLabel = (($mapping[$row.expected]) -join ", ")
-                actualLabel = $isExcluded ? "EXCLUDED" : "ERROR"
-                evaluationStatus = $isExcluded ? "EXCLUDED" : "ERROR"
+                enhancementStatus = "ERROR"
+                actualLabel = "ERROR"
                 matched = $false
-                actionTitle = $message
+                actionTitle = $_.Exception.Message
             }
         }
     }
 
-    $evaluatedResults = $results | Where-Object { $_.evaluationStatus -eq "EVALUATED" }
-    $excludedResults = $results | Where-Object { $_.evaluationStatus -eq "EXCLUDED" }
-
-    $summary = $evaluatedResults | Group-Object expectedLabel | ForEach-Object {
-        $total = $_.Count
-        $matched = ($_.Group | Where-Object matched).Count
+    $summary = $results | Group-Object enhancementStatus | ForEach-Object {
         [pscustomobject]@{
-            category = $_.Name
-            total = $total
-            matched = $matched
-            accuracy = [math]::Round(($matched / [math]::Max($total, 1)) * 100, 2)
+            status = $_.Name
+            count = $_.Count
         }
     }
 
-    $resultPayload = [pscustomobject]@{
+    $payload = [pscustomobject]@{
         total = $results.Count
-        evaluated = $evaluatedResults.Count
-        excluded = $excludedResults.Count
-        matched = ($evaluatedResults | Where-Object matched).Count
-        accuracy = [math]::Round((($evaluatedResults | Where-Object matched).Count / [math]::Max($evaluatedResults.Count, 1)) * 100, 2)
-        byCategory = $summary
-        mismatches = $evaluatedResults | Where-Object { -not $_.matched }
-        excludedRows = $excludedResults
+        enhancedAndMatched = ($results | Where-Object matched).Count
+        aiOnlyAccuracy = [math]::Round((($results | Where-Object matched).Count / [math]::Max($results.Count, 1)) * 100, 2)
+        byEnhancementStatus = $summary
+        results = $results
     } | ConvertTo-Json -Depth 6
 
     if ($OutputJson) {
-        Set-Content -Encoding UTF8 $OutputJson $resultPayload
+        Set-Content -Encoding UTF8 $OutputJson $payload
     }
 
-    $resultPayload
+    $payload
 }
 finally {
     if ($proc -and -not $proc.HasExited) {

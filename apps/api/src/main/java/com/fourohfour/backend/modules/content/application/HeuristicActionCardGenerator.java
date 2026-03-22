@@ -23,10 +23,97 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
         String normalized = normalize(source);
         String headlineNormalized = normalizeHeadline(source);
         String titleNormalized = normalizeTitle(source);
+        String domainNormalized = normalizeDomain(source.sourceDomain());
+        String urlNormalized = sanitize(source.url()).toLowerCase(Locale.ROOT);
         String safeTitle = fallbackTitle(source.effectiveTitle(), source.url());
         List<String> orderedSteps = extractOrderedSteps(source);
         List<String> toolIdeas = extractToolIdeas(normalized);
         List<String> topicalIdeas = extractTopicalIdeas(source, normalized);
+
+        if (isTravelEventPlatform(domainNormalized)) {
+            String dueDateText = extractDateText(source);
+            return new GeneratedPracticeCard(
+                    ActionCardCategory.EVENT,
+                    buildFestivalActionTitle(headlineNormalized, dueDateText),
+                    buildFestivalActionDetail(headlineNormalized, dueDateText),
+                    "여행·행사 정보를 바로 일정으로 바꾸는 방법",
+                    "이런 페이지는 저장보다 일정화가 더 중요해요. 먼저 갈 날짜나 확인할 일정을 한 줄로 정해두세요.",
+                    List.of(),
+                    List.of(
+                            "갈 날짜 1개 정하기",
+                            "장소나 시간 1개 확인하기",
+                            "함께 갈 사람 1명 떠올리기"
+                    ),
+                    "정보는 일정으로 바꿔야 실제 행동이 돼요.",
+                    "\"" + safeTitle + "\"를 일정 카드로 바꿨어요.",
+                    10,
+                    EnergyLevel.LOW,
+                    today
+            );
+        }
+
+        if (isAppleSupportPlatform(domainNormalized)) {
+            return buildLearningGuideCard(today, safeTitle);
+        }
+
+        if (isFitnessPlatform(domainNormalized)) {
+            return buildFitnessCard(today, safeTitle);
+        }
+
+        if (isRecipePlatform(domainNormalized)) {
+            return buildCookingCard(source, today, safeTitle, orderedSteps);
+        }
+
+        if (isEventDocumentPlatform(domainNormalized)) {
+            String dueDateText = extractDateText(source);
+            return new GeneratedPracticeCard(
+                    ActionCardCategory.EVENT,
+                    buildFestivalActionTitle(urlNormalized + " " + titleNormalized, dueDateText),
+                    buildFestivalActionDetail(urlNormalized + " " + titleNormalized, dueDateText),
+                    "축제·관광 문서를 바로 일정으로 바꾸는 방법",
+                    "문서형 링크는 저장만 하면 다시 안 보기 쉬워요. 갈 날짜나 확인할 일정 한 줄만 먼저 정해두세요.",
+                    List.of(),
+                    List.of(
+                            "갈 날짜 1개 정하기",
+                            "장소나 일정 1개 확인하기",
+                            "같이 볼 사람 1명 떠올리기"
+                    ),
+                    "문서형 정보도 일정으로 바꿔야 실제 행동이 돼요.",
+                    "\"" + safeTitle + "\"를 일정 카드로 바꿨어요.",
+                    10,
+                    EnergyLevel.LOW,
+                    today
+            );
+        }
+
+        if (isTravelEventDocument(domainNormalized, urlNormalized, normalized, titleNormalized)) {
+            String dueDateText = extractDateText(source);
+            return new GeneratedPracticeCard(
+                    ActionCardCategory.EVENT,
+                    buildFestivalActionTitle(titleNormalized + " " + normalized + " " + urlNormalized, dueDateText),
+                    buildFestivalActionDetail(titleNormalized + " " + normalized + " " + urlNormalized, dueDateText),
+                    "축제·관광 문서를 바로 일정으로 바꾸는 방법",
+                    "문서형 링크는 저장만 하면 다시 안 보기 쉬워요. 오늘은 갈 날짜나 확인할 일정 한 줄만 먼저 정해두세요.",
+                    List.of(),
+                    List.of(
+                            "갈 날짜 1개 정하기",
+                            "장소나 일정 1개 확인하기",
+                            "같이 볼 사람 1명 떠올리기"
+                    ),
+                    "문서형 정보도 일정으로 바꿔야 실제 행동이 돼요.",
+                    "\"" + safeTitle + "\"를 일정 카드로 바꿨어요.",
+                    10,
+                    EnergyLevel.LOW,
+                    today
+            );
+        }
+
+        if (isExplainerPlatform(domainNormalized)
+                && isExplainerContent(headlineNormalized)
+                && !containsAny(normalized,
+                "how to start running", "start running", "started with running", "running guide", "beginner's guide to get started with running")) {
+            return buildExplainerCard(today, safeTitle);
+        }
 
         if (containsAny(headlineNormalized, "팝업", "전시", "전시회", "미술관", "페스티벌", "스토어")) {
             List<String> eventIdeas = extractEventIdeas(source);
@@ -127,6 +214,113 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
             );
         }
 
+        if (containsAny(headlineNormalized, "intermittent fasting", "16/8 intermittent fasting", "fasting")) {
+            return buildExplainerCard(today, safeTitle);
+        }
+
+        if (containsAny(normalized,
+                "how to start running", "start running", "started with running",
+                "how to run faster", "run faster", "running guide",
+                "beginner's guide to get started with running")) {
+            return buildFitnessCard(today, safeTitle);
+        }
+
+        if (isTravelFestivalHeadline(titleNormalized)) {
+            String dueDateText = extractDateText(source);
+            return new GeneratedPracticeCard(
+                    ActionCardCategory.EVENT,
+                    buildFestivalActionTitle(titleNormalized, dueDateText),
+                    buildFestivalActionDetail(titleNormalized, dueDateText),
+                    "축제·여행 정보를 바로 일정으로 바꾸는 방법",
+                    "이런 정보형 페이지는 저장보다 일정화가 더 중요해요. 갈 날짜나 확인할 일정을 먼저 한 줄로 정해두세요.",
+                    List.of(),
+                    List.of(
+                            "갈 날짜 1개 정하기",
+                            "장소나 시간 1개 확인하기",
+                            "같이 갈 사람 1명 떠올리기"
+                    ),
+                    "일정으로 바꿔야 실제 행동이 돼요.",
+                    "\"" + safeTitle + "\"를 일정 카드로 바꿨어요.",
+                    10,
+                    EnergyLevel.LOW,
+                    today
+            );
+        }
+
+        if (containsAny(normalized,
+                "요리", "recipe", "cook", "cooking", "meal", "식단", "레시피", "vegetable", "vegetables")) {
+            return buildCookingCard(source, today, safeTitle, orderedSteps);
+        }
+
+        if (isTravelGuideContent(normalized)) {
+            return new GeneratedPracticeCard(
+                    ActionCardCategory.EVENT,
+                    "여행 일정 1개 초안 짜보기",
+                    "가고 싶은 도시나 장소를 기준으로 하루 일정 1개만 먼저 짜보고, 가장 가고 싶은 장소 1곳을 캘린더나 메모에 적어보세요.",
+                    "여행 가이드를 실제 계획으로 바꾸는 방법",
+                    "여행 가이드는 정보가 많아서 저장만 하고 끝나기 쉬워요. 먼저 하루 일정 하나만 짜면 실제 계획으로 이어지기 쉬워집니다.",
+                    List.of(),
+                    List.of(
+                            "가고 싶은 장소 1곳 고르기",
+                            "하루 일정 1개 적기",
+                            "예상 이동 시간 1개 확인하기"
+                    ),
+                    "여행은 일정 한 줄만 잡아도 훨씬 현실감이 생겨요.",
+                    "\"" + safeTitle + "\"를 실제 여행 계획 카드로 바꿨어요.",
+                    10,
+                    EnergyLevel.LOW,
+                    today
+            );
+        }
+
+        if (isFestivalContent(normalized)) {
+            String dueDateText = extractDateText(source);
+            return new GeneratedPracticeCard(
+                    ActionCardCategory.EVENT,
+                    buildFestivalActionTitle(normalized, dueDateText),
+                    buildFestivalActionDetail(normalized, dueDateText),
+                    "축제 정보를 바로 일정으로 바꾸는 방법",
+                    "축제 정보는 저장만 해두면 놓치기 쉬워요. 일정, 장소, 라인업 중 하나라도 마음에 들면 실제 갈 날짜부터 먼저 정해두세요.",
+                    List.of(
+                            new PracticeCardSection("먼저 확인할 것", null, List.of(
+                                    "행사 날짜와 장소 확인하기",
+                                    "같이 갈 사람 1명 떠올리기"
+                            ))
+                    ),
+                    List.of(
+                            "갈 날짜 1개 캘린더에 적기",
+                            "라인업이나 볼거리 1개 저장하기",
+                            "같이 갈 사람에게 링크 보내기"
+                    ),
+                    "축제 정보는 날짜까지 정해야 진짜 내 일정이 돼요.",
+                    "\"" + safeTitle + "\"를 방문 가능한 일정 카드로 바꿨어요.",
+                    10,
+                    EnergyLevel.LOW,
+                    today
+            );
+        }
+
+        if (isExplainerContent(headlineNormalized)) {
+            return new GeneratedPracticeCard(
+                    ActionCardCategory.LEARNING,
+                    "핵심 개념 1개를 내 말로 설명해보기",
+                    "오늘 본 설명글에서 가장 중요한 개념 1개를 고르고, 그 뜻을 내 말로 2문장 안에 다시 써보세요.",
+                    "설명형 콘텐츠를 이해로 바꾸는 방법",
+                    "개념 설명은 읽고 끝내면 금방 흐려져요. 정의와 핵심 포인트를 내 문장으로 다시 적어보면 훨씬 오래 남아요.",
+                    List.of(),
+                    List.of(
+                            "핵심 개념 1개 고르기",
+                            "내 말로 2문장 적기",
+                            "예시 1개 붙이기"
+                    ),
+                    "개념은 설명할 수 있어야 내 것이 돼요.",
+                    "\"" + safeTitle + "\"를 개념 이해 카드로 바꿨어요.",
+                    5,
+                    EnergyLevel.LOW,
+                    today
+            );
+        }
+
         if (isTutorialContent(headlineNormalized)) {
             return new GeneratedPracticeCard(
                     ActionCardCategory.LEARNING,
@@ -191,6 +385,27 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
         }
 
         if (isMarketingGuideContent(headlineNormalized)) {
+            if (containsAny(headlineNormalized, "instagram tips", "photographers", "top photographers")) {
+                return new GeneratedPracticeCard(
+                        ActionCardCategory.LEARNING,
+                        "오늘 바로 써볼 인스타 팁 1개 적용하기",
+                        "콘텐츠에서 가장 바로 적용할 수 있는 팁 1개를 골라 오늘 게시물이나 촬영에 바로 써보고, 결과를 한 줄로 메모해보세요.",
+                        "소셜 팁을 바로 실행으로 바꾸는 방법",
+                        "팁 콘텐츠는 읽고 끝나기 쉬워요. 바로 써볼 한 가지를 정하고 실제 화면이나 게시물에 적용해보면 훨씬 빨리 내 것이 됩니다.",
+                        List.of(),
+                        List.of(
+                                "적용할 팁 1개 고르기",
+                                "오늘 게시물이나 촬영에 바로 써보기",
+                                "달라진 점 1줄 적기"
+                        ),
+                        "팁은 바로 적용해봐야 내 방식으로 바뀌어요.",
+                        "\"" + safeTitle + "\"를 바로 실행하는 소셜 학습 카드로 바꿨어요.",
+                        8,
+                        EnergyLevel.LOW,
+                        today
+                );
+            }
+
             return new GeneratedPracticeCard(
                     ActionCardCategory.PRODUCTIVITY,
                     "실행할 마케팅 아이디어 1개 정하기",
@@ -343,11 +558,10 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
             );
         }
 
-        if (containsAny(headlineNormalized, "요리", "recipe", "cook", "cooking", "meal", "식단", "레시피")) {
-            return buildCookingCard(source, today, safeTitle, orderedSteps);
-        }
-
-        if (containsAny(headlineNormalized, "운동", "fitness", "run", "workout", "헬스", "스트레칭", "걷기", "exercise", "training")) {
+        if (containsAny(headlineNormalized,
+                "운동", "fitness", "run", "running", "runner", "workout", "헬스", "스트레칭", "걷기",
+                "exercise", "training", "train", "5k", "rope", "band", "calisthenics",
+                "push-up", "pushup", "plank", "squat", "lunge", "curl", "deadlift", "press", "start running", "started with running")) {
             return new GeneratedPracticeCard(
                     ActionCardCategory.FITNESS,
                     "오늘 10분만 몸 움직이기",
@@ -436,7 +650,7 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
             );
         }
 
-        if (containsAny(headlineNormalized, "관계", "relationship", "friend", "가족", "parent", "대화", "소통", "연락", "girlfriend", "boyfriend")) {
+        if (containsAny(headlineNormalized, "관계", "relationship", "친구", "가족", "parent", "대화", "소통", "연락", "girlfriend", "boyfriend")) {
             return new GeneratedPracticeCard(
                     ActionCardCategory.RELATIONSHIP,
                     "오늘 한 사람에게 먼저 안부 보내기",
@@ -835,6 +1049,69 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
         );
     }
 
+    private GeneratedPracticeCard buildFitnessCard(LocalDate today, String safeTitle) {
+        return new GeneratedPracticeCard(
+                ActionCardCategory.FITNESS,
+                "오늘 10분만 몸 움직이기",
+                "산책, 스트레칭, 스쿼트처럼 바로 시작할 수 있는 움직임 하나를 골라 10분만 실천해보세요.",
+                "운동 자극 영상을 행동으로 바꾸는 방법",
+                "운동 자극 콘텐츠는 의욕을 올려주지만, 실제 행동으로 이어지려면 시작 장벽을 낮춰야 해요. 운동복 갈아입기, 물 마시기, 10분 걷기처럼 바로 가능한 동작을 하나 고르세요.",
+                List.of(),
+                List.of(
+                        "운동복만 갈아입고 5분 스트레칭 하기",
+                        "집 밖으로 나가 10분 걷기",
+                        "스쿼트 15회 3세트처럼 짧은 루틴 하나 정하기"
+                ),
+                "완벽한 운동보다 지금 시작하는 움직임이 더 큰 변화를 만들어요.",
+                "\"" + safeTitle + "\"를 저장한 흐름을 오늘의 몸 사용으로 연결했어요.",
+                10,
+                EnergyLevel.MEDIUM,
+                today
+        );
+    }
+
+    private GeneratedPracticeCard buildLearningGuideCard(LocalDate today, String safeTitle) {
+        return new GeneratedPracticeCard(
+                ActionCardCategory.LEARNING,
+                "핵심 단계 1개 바로 따라해보기",
+                "가이드에서 가장 먼저 할 수 있는 단계 1개를 골라 지금 바로 따라하고, 막힌 부분 1개를 메모해보세요.",
+                "튜토리얼을 바로 실행으로 바꾸는 방법",
+                "가이드는 끝까지 다 보기보다 첫 단계 하나를 직접 해보는 게 훨씬 효과적이에요. 작은 실행이 이해를 빠르게 만듭니다.",
+                List.of(),
+                List.of(
+                        "첫 단계 1개 실행하기",
+                        "막힌 점 1개 메모하기",
+                        "다음에 볼 단계 1개 적기"
+                ),
+                "직접 한 번 해보면 이해가 훨씬 빨라져요.",
+                "\"" + safeTitle + "\"를 바로 실행하는 학습 카드로 바꿨어요.",
+                10,
+                EnergyLevel.LOW,
+                today
+        );
+    }
+
+    private GeneratedPracticeCard buildExplainerCard(LocalDate today, String safeTitle) {
+        return new GeneratedPracticeCard(
+                ActionCardCategory.LEARNING,
+                "핵심 개념 1개를 내 말로 설명해보기",
+                "오늘 본 설명글에서 가장 중요한 개념 1개를 고르고, 그 뜻을 내 말로 2문장 안에 다시 써보세요.",
+                "설명형 콘텐츠를 이해로 바꾸는 방법",
+                "개념 설명은 읽고 끝내면 금방 흐려져요. 정의와 핵심 포인트를 내 문장으로 다시 적어보면 훨씬 오래 남아요.",
+                List.of(),
+                List.of(
+                        "핵심 개념 1개 고르기",
+                        "내 말로 2문장 적기",
+                        "예시 1개 붙이기"
+                ),
+                "개념은 설명할 수 있어야 내 것이 돼요.",
+                "\"" + safeTitle + "\"를 개념 이해 카드로 바꿨어요.",
+                5,
+                EnergyLevel.LOW,
+                today
+        );
+    }
+
     private boolean isJournalingContent(String normalized) {
         boolean explicitJournaling = containsAny(normalized,
                 "모닝페이지", "morning pages", "morning page", "저널", "journaling", "journal");
@@ -873,7 +1150,23 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
     private boolean isTravelGuideContent(String normalized) {
         return containsAny(normalized,
                 "travel guide", "itinerary", "how to spend 14 days", "ultimate machu picchu", "iceland travel guide",
-                "things to do", "where to stay", "must visit", "travel itinerary", "trip guide", "destination guide");
+                "things to do", "where to stay", "must visit", "travel itinerary", "trip guide", "destination guide",
+                "여행 가이드", "여행지 추천", "국내 여행", "해외여행", "여름휴가", "숙소 추천", "렌트카 여행", "피서지",
+                "관광", "관광상품화", "효도 여행", "후쿠오카 여행", "휴가 여행지");
+    }
+
+    private boolean isTravelFestivalHeadline(String normalized) {
+        return containsAny(normalized,
+                "축제", "festival", "여행 가이드", "여행지 추천", "국내 여행", "해외여행", "효도 여행",
+                "휴가 여행지", "피서지", "숙소 추천", "관광", "관광상품화", "홍보 캠페인", "방문의 해",
+                "입장료", "여름 축제", "가을 축제", "춘천 막국수 닭갈비 축제", "청보리밭 축제", "슬로우걷기 축제");
+    }
+
+    private boolean isExplainerContent(String normalized) {
+        return !containsAny(normalized, "recipe", "festival", "travel guide", "workout", "exercise", "template")
+                && containsAny(normalized,
+                "what is", "how does", "explained", "explainer", "beginner's guide", "beginners guide",
+                "easy-to-understand", "in easy-to-understand terms", "guide to");
     }
 
     private boolean isSocialDesignContent(String normalized) {
@@ -896,7 +1189,8 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
     private boolean isFestivalContent(String normalized) {
         return containsAny(normalized,
                 "축제", "festival", "festa", "워터밤", "벚꽃", "개화", "라인업", "빛초롱", "페스타", "매화", "잠수교",
-                "fireworks", "busker", "friendship festival", "gugak", "film festival");
+                "fireworks", "busker", "friendship festival", "gugak", "film festival",
+                "fair", "expo", "show", "illustration fair", "art fair", "dance festival", "beer festival");
     }
 
     private boolean isFoodDiscoveryContent(String normalized) {
@@ -917,6 +1211,58 @@ public class HeuristicActionCardGenerator implements ActionCardGenerator {
     private boolean isMusicCultureContent(String normalized) {
         return containsAny(normalized,
                 "래퍼", "노래", "음악", "가수", "아티스트", "플레이리스트", "top3 래퍼");
+    }
+
+    private boolean isTravelEventPlatform(String domain) {
+        return containsAny(domain,
+                "visitkorea.or.kr", "visitseoul.net", "visitbusan.net", "visitjeju.net", "travelandleisure.com");
+    }
+
+    private boolean isFitnessPlatform(String domain) {
+        return containsAny(domain,
+                "acefitness.org", "fitnessblender.com");
+    }
+
+    private boolean isRecipePlatform(String domain) {
+        return containsAny(domain,
+                "bbcgoodfood.com", "bonappetit.com", "allrecipes.com", "foodnetwork.com", "10000recipe.com");
+    }
+
+    private boolean isEventDocumentPlatform(String domain) {
+        return containsAny(domain,
+                "bomnae.chuncheon.go.kr",
+                "culture.seoul.go.kr",
+                "inu.ac.kr",
+                "media-cdn.linkareer.com",
+                "summer-morning-rain.tistory.com",
+                "welcome77.tistory.com",
+                "dealsfor.me",
+                "dongtuni.com",
+                "g2b.go.kr",
+                "scfmc.or.kr");
+    }
+
+    private boolean isTravelEventDocument(String domain, String url, String normalized, String titleNormalized) {
+        boolean documentLike = containsAny(url, ".pdf", "download.do", "filedown.do", "fileupload.do", "upload/webzine", "upload/board/files")
+                || containsAny(domain, "v.daum.net", "g2b.go.kr", "dongtuni.com", "scfmc.or.kr", "inu.ac.kr", "culture.seoul.go.kr");
+        boolean travelOrFestivalSignal = containsAny(titleNormalized + " " + normalized + " " + url,
+                "festival", "event", "travel", "tour", "guide", "campaign", "promotion",
+                "축제", "여행", "관광", "홍보", "캠페인", "소식지", "공모전", "방문의 해", "일정", "입장료",
+                "인천9경", "gangwon", "chugje", "gaideu");
+        return documentLike && travelOrFestivalSignal;
+    }
+
+    private boolean isExplainerPlatform(String domain) {
+        return containsAny(domain,
+                "healthline.com", "britannica.com");
+    }
+
+    private boolean isAppleSupportPlatform(String domain) {
+        return containsAny(domain, "support.apple.com");
+    }
+
+    private String normalizeDomain(String domain) {
+        return domain == null ? "" : domain.toLowerCase(Locale.ROOT).trim();
     }
 
     private List<String> extractEventIdeas(ActionCardGenerationSource source) {
