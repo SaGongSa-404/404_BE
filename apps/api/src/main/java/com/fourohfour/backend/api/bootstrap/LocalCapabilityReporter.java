@@ -22,9 +22,14 @@ public class LocalCapabilityReporter implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(LocalCapabilityReporter.class);
     private final com.fourohfour.backend.modules.content.infrastructure.OllamaProperties ollamaProperties;
+    private final com.fourohfour.backend.modules.content.infrastructure.OllamaCliRunner ollamaCliRunner;
 
-    public LocalCapabilityReporter(com.fourohfour.backend.modules.content.infrastructure.OllamaProperties ollamaProperties) {
+    public LocalCapabilityReporter(
+            com.fourohfour.backend.modules.content.infrastructure.OllamaProperties ollamaProperties,
+            com.fourohfour.backend.modules.content.infrastructure.OllamaCliRunner ollamaCliRunner
+    ) {
         this.ollamaProperties = ollamaProperties;
+        this.ollamaCliRunner = ollamaCliRunner;
     }
 
     @Override
@@ -34,6 +39,7 @@ public class LocalCapabilityReporter implements ApplicationRunner {
                 commandAvailable(List.of("tesseract")) ? "available" : "unavailable",
                 detectOllamaCli().orElse("unavailable"),
                 detectOllamaHttp().orElse("unreachable"));
+        warmUpOllamaIfNeeded();
     }
 
     private boolean commandAvailable(List<String> command) {
@@ -91,6 +97,40 @@ public class LocalCapabilityReporter implements ApplicationRunner {
             }
         }
         return Optional.empty();
+    }
+
+    private void warmUpOllamaIfNeeded() {
+        if (!ollamaProperties.enabled() || !ollamaProperties.backgroundEnhancementEnabled()) {
+            return;
+        }
+
+        log.info("Ollama startup probe: baseUrl={}, model={}", normalizeBaseUrl(ollamaProperties.baseUrl()), ollamaProperties.model());
+
+        boolean reachable = false;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            if (ollamaCliRunner.canReachServer(Duration.ofSeconds(4))) {
+                reachable = true;
+                break;
+            }
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        if (!reachable) {
+            log.warn("Ollama startup probe failed: {} did not respond in time.", normalizeBaseUrl(ollamaProperties.baseUrl()));
+            return;
+        }
+
+        try {
+            ollamaCliRunner.warmUpModel();
+            log.info("Ollama warm-up completed: model={}", ollamaProperties.model());
+        } catch (Exception exception) {
+            log.warn("Ollama warm-up failed: model={}, reason={}", ollamaProperties.model(), exception.getMessage());
+        }
     }
 
     private String normalizeBaseUrl(String value) {

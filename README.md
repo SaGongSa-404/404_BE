@@ -51,7 +51,7 @@
 - `GEMINI_BASE_URL`: 기본값 `https://generativelanguage.googleapis.com`
 - `SCRAPING_TIMEOUT_MILLIS`: 링크 수집 타임아웃
 - `SCRAPING_USER_AGENT`: 링크 수집용 User-Agent
-- `OLLAMA_MODEL`: 기본값 `gemma:2b`
+- `OLLAMA_MODEL`: 기본값 `qwen3:4b`
 - `OLLAMA_BASE_URL`: 기본값 `http://localhost:11434`
 - `OLLAMA_TIMEOUT_SECONDS`: 기본값 `120`
 - `OLLAMA_MAX_OUTPUT_TOKENS`: 기본값 `320`
@@ -66,7 +66,7 @@
 - `GEMINI_MODEL=gemini-2.5-flash-lite`
 - `GEMINI_BASE_URL=https://generativelanguage.googleapis.com`
 - `SCRAPING_TIMEOUT_MILLIS=7000`
-- `OLLAMA_MODEL=gemma:2b`
+- `OLLAMA_MODEL=qwen3:4b`
 - `OLLAMA_BASE_URL=http://localhost:11434`
 - `OLLAMA_TIMEOUT_SECONDS=120`
 - `OLLAMA_MAX_OUTPUT_TOKENS=320`
@@ -83,7 +83,8 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 예를 들어 WSL에서 열어둔 11434 포트를 윈도우에서 바라봐야 하면 `http://<호스트IP>:11434` 형태로 바꿔주면 된다.
 
-로컬 CPU 환경에서는 `gemma:2b`처럼 가벼운 모델이 실사용에 더 유리하다.
+기본값은 `qwen3:4b`이고, 서버 시작 시 Ollama 연결 확인과 간단한 모델 워밍업을 먼저 시도한다.
+로컬 CPU 환경이 느리면 `gemma:2b`처럼 더 가벼운 모델로 내릴 수 있다.
 응답이 느리면 `OLLAMA_TIMEOUT_SECONDS`를 더 올리거나 `OLLAMA_MAX_OUTPUT_TOKENS`를 더 줄이면 된다.
 
 ## 인증 방식

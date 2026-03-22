@@ -49,13 +49,9 @@ public class OllamaCliRunner {
         }
 
         try {
-            HttpResponse<String> response = httpClient.send(
-                    HttpRequest.newBuilder(URI.create(normalizeBaseUrl(ollamaProperties.baseUrl()) + "/api/generate"))
-                            .timeout(Duration.ofSeconds(ollamaProperties.timeoutSeconds()))
-                            .header("Content-Type", "application/json")
-                            .POST(HttpRequest.BodyPublishers.ofString(buildRequestBody(prompt), StandardCharsets.UTF_8))
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            HttpResponse<String> response = sendGenerateRequest(
+                    buildRequestBody(prompt),
+                    Duration.ofSeconds(ollamaProperties.timeoutSeconds())
             );
 
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -67,7 +63,10 @@ public class OllamaCliRunner {
                 throw new IllegalStateException(
                         "Ollama generation hit max output tokens (" + ollamaProperties.maxOutputTokens() + ").");
             }
-            String output = json.path("response").asText(null);
+            String output = firstNonBlank(
+                    json.path("response").asText(null),
+                    json.path("thinking").asText(null)
+            );
             if (output == null || output.isBlank()) {
                 throw new IllegalStateException("Ollama generation failed: empty response");
             }
@@ -79,6 +78,77 @@ public class OllamaCliRunner {
             }
             throw new IllegalStateException("Ollama invocation failed: " + message, exception);
         }
+    }
+
+    public boolean canReachServer(Duration timeout) {
+        try {
+            HttpResponse<String> response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create(normalizeBaseUrl(ollamaProperties.baseUrl()) + "/api/tags"))
+                            .timeout(timeout)
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            return response.statusCode() >= 200 && response.statusCode() < 300;
+        } catch (Exception exception) {
+            return false;
+        }
+    }
+
+    public void warmUpModel() {
+        if (!ollamaProperties.enabled()) {
+            return;
+        }
+
+        try {
+            HttpResponse<String> response = sendGenerateRequest(
+                    "{\"model\":\"" + escapeJson(ollamaProperties.model()) + "\","
+                            + "\"format\":\"json\","
+                            + "\"prompt\":\"Return exactly {\\\"ok\\\":true}.\","
+                            + "\"options\":{\"temperature\":0,\"num_predict\":32},"
+                            + "\"stream\":false}",
+                    Duration.ofSeconds(Math.min(30, Math.max(10, ollamaProperties.timeoutSeconds())))
+            );
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalStateException("HTTP " + response.statusCode());
+            }
+
+            JsonNode json = objectMapper.readTree(response.body());
+            String output = firstNonBlank(
+                    json.path("response").asText(null),
+                    json.path("thinking").asText(null)
+            );
+            if (output.isBlank()) {
+                throw new IllegalStateException("empty response");
+            }
+        } catch (Exception exception) {
+            String message = exception.getMessage();
+            throw new IllegalStateException(
+                    "Ollama warm-up failed: " + (message == null || message.isBlank() ? "unknown reason" : message),
+                    exception
+            );
+        }
+    }
+
+    private HttpResponse<String> sendGenerateRequest(String requestBody, Duration timeout) throws Exception {
+        return httpClient.send(
+                HttpRequest.newBuilder(URI.create(normalizeBaseUrl(ollamaProperties.baseUrl()) + "/api/generate"))
+                        .timeout(timeout)
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                .build(),
+                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+        );
+    }
+
+    private String firstNonBlank(String... candidates) {
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return "";
     }
 
     private String buildRequestBody(String prompt) {

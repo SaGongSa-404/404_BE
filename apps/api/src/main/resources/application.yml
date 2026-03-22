@@ -28,7 +28,7 @@ app:
     ollama:
       enabled: ${OLLAMA_ENABLED:true}
       background-enhancement-enabled: ${OLLAMA_BACKGROUND_ENHANCEMENT_ENABLED:true}
-      model: ${OLLAMA_MODEL:gemma:2b}
+      model: ${OLLAMA_MODEL:qwen3:4b}
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       executable-path: ${OLLAMA_EXECUTABLE_PATH:}
       timeout-seconds: ${OLLAMA_TIMEOUT_SECONDS:120}
