@@ -1,0 +1,10 @@
+.gradle/
+.tools/
+**/build/
+**/bin/
+*.log
+out/
+.idea/
+.vscode/
+.env.properties
+apps/api/.env.properties

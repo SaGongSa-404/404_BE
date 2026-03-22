@@ -1,0 +1,26 @@
+plugins {
+    id 'org.springframework.boot' version '3.2.5' apply false
+    id 'io.spring.dependency-management' version '1.1.4' apply false
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+
+    group = 'com.fourohfour.backend'
+    version = '0.1.0-SNAPSHOT'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+    }
+}

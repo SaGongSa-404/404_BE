@@ -1,0 +1,2412 @@
+{
+  "total": 300,
+  "matched": 35,
+  "accuracy": 11.67,
+  "byCategory": [
+    {
+      "category": "",
+      "total": 203,
+      "matched": 0,
+      "accuracy": 0.0
+    },
+    {
+      "category": "운동",
+      "total": 50,
+      "matched": 18,
+      "accuracy": 36.0
+    },
+    {
+      "category": "행사·전시, 학습",
+      "total": 47,
+      "matched": 17,
+      "accuracy": 36.17
+    }
+  ],
+  "mismatches": [
+    {
+      "title": "2025 국내 효도 여행지 추천",
+      "url": "https://180517.tistory.com/2",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "감사",
+      "matched": false,
+      "actionTitle": "오늘 감사한 일 3가지 떠올려보기"
+    },
+    {
+      "title": "2025 춘천 막국수 닭갈비 축제 안내",
+      "url": "https://bomnae.chuncheon.go.kr/upload/webzine/493/253-640f874027da.pdf",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "경남 6월 중순 ~7월 30일 축제 + 추천 휴가 여행지",
+      "url": "https://catfather.tistory.com/5",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 행사 1개 일정 정하기"
+    },
+    {
+      "title": "2025 황금연휴 총정리 + 국내·해외 여행지 추천",
+      "url": "https://comesik.tistory.com/71",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "서울시 2025년 주요 축제 일정 1부",
+      "url": "https://culture.seoul.go.kr/culture/cmmn/file/fileDown.do?atchFileId=8593351c886649f49be1b4143b9bdc7b&bbsId=&fileSn=2&menuNo=200051",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "2025 유채꽃 개화 시기 및 축제 정보 총정리",
+      "url": "https://doit01161.tistory.com/entry/2025-%EC%9C%A0%EC%B1%84%EA%BD%83-%EA%B0%9C%ED%99%94-%EC%8B%9C%EA%B8%B0-%EB%B0%8F-%EC%B6%95%EC%A0%9C-%EC%A0%95%EB%B3%B4-%EC%B4%9D%EC%A0%95%EB%A6%AC",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "이번 주 꽃축제 일정 정하기"
+    },
+    {
+      "title": "2025 전국 코스모스 축제 일정 총정리",
+      "url": "https://eatshotgo.tistory.com/110",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "이번 주 꽃축제 일정 정하기"
+    },
+    {
+      "title": "2025 대학 축제 일정 및 라인업 총정리",
+      "url": "https://elysian117.tistory.com/586",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025 전국 대학 축제 라인업 총정리",
+      "url": "https://elysian117.tistory.com/618",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "Korea Grand Festival: From Shopping Deals to Cultural Events!",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?menuSn=177&vcontsId=249247",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "Korea Grand Sale 2026—Shopping, Culture, and Travel Extravaganza!",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?menuSn=177&vcontsId=251502",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "Traditional Korean Holiday of Bountiful Harvest, Chuseok",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?menuSn=219&page=1&sContsTtl=&sort=regDt&vcontsId=231314",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "감사",
+      "matched": false,
+      "actionTitle": "오늘 감사한 일 3가지 떠올려보기"
+    },
+    {
+      "title": "Hyoseok Cultural Festival (평창효석문화제)",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?menuSn=228&vcontsId=103768",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "Sunchang Fermented Food Festival (순창장류축제)",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?menuSn=228&vcontsId=92546",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "Seoul Lantern Festival (서울빛초롱축제)",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?menuSn=586&vcontsId=90101",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "Puppet Festival Chuncheon, a Lake City",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=137958",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "Let's Jongno Festival (종로축제 렛츠종로)",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=176478",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "A Week-long K-contents Festival at Seoul Spring Festa",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=221136",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "Must-Visit Autumn Festivals in Korea",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=229730",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "Explore Korea’s Premier Art Festival: Kiaf, Frieze, Biennale Highlights",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=229887",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "Korean Folk Village Evening Festival (한국민속촌 야간개장 달빛을 더하다)",
+      "url": "https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=60102",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "Welcome back, festivals! Get the Full Experience",
+      "url": "https://english.visitkorea.or.kr/svc/contents/infoHtmlView.do?menuSn=177&vcontsId=138108",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "Seoul International Fireworks Festival",
+      "url": "https://english.visitseoul.net/culture/Seoul-International-Fireworks-Festival/ENP008836",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "Weekly Classic Festival",
+      "url": "https://english.visitseoul.net/events/2024-weeklyclassicfestival/ENPcpqr6v",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "K-Food Festa in Seoul 2024",
+      "url": "https://english.visitseoul.net/events/kfoodfesta/ENP3lfvr5",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "Seoul in Purple – BTS 10th Anniversary FESTA with Seoul",
+      "url": "https://english.visitseoul.net/events/SeoulinPurple/ENPqu0isp",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "Seoul Spring Festival in Parks – Garden Festa & Pop-ups",
+      "url": "https://english.visitseoul.net/eventsx/202-SEOULGARDENFESTA/ENPgo8tq8",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "2024 Seoul Busker Festival",
+      "url": "https://english.visitseoul.net/eventsx/2024-buskerfestival/ENPrz1ia1",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "Seoul Friendship Festival 2025 – Global Food & Culture",
+      "url": "https://english.visitseoul.net/eventsx/2025-Seoul-Friendship-Festival/ENP2l80dq",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "2025 SEOUL SPRING FESTA",
+      "url": "https://english.visitseoul.net/eventsx/2025-seoulspringfesta/ENPof1ady",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "2025 Chemi Street Pop-up | Gangnam Station Street Festival",
+      "url": "https://english.visitseoul.net/eventsx/2025ChemiStreetPopup/ENPuxr3lm",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "K-Food Festival on Hangang Bridge | Seoul Food Picnic 2025",
+      "url": "https://english.visitseoul.net/eventsx/2025PicnicontheBridge/ENP7mh35y",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "마음관리",
+      "matched": false,
+      "actionTitle": "호흡에 3분만 집중해보기"
+    },
+    {
+      "title": "Seoul Gugak Festival 2025",
+      "url": "https://english.visitseoul.net/eventsx/2025SeoulGugakMusicFestival/ENPbmsovc",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "루틴·습관",
+      "matched": false,
+      "actionTitle": "오늘 같은 시간에 1번만 시작해보기"
+    },
+    {
+      "title": "Hanseong Baekje Festival",
+      "url": "https://english.visitseoul.net/eventsx/Hanseong%20Baekje%20Festival/ENP009240",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "2025 청주 여행 가이드",
+      "url": "https://essay59482.tistory.com/334",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "2025 여름휴가 추천 국내 피서지 BEST 7",
+      "url": "https://ghwjd2729.tistory.com/18",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "2025 재즈·클래식 축제 일정 총정리",
+      "url": "https://godhell.tistory.com/entry/%F0%9F%8E%B6-2025-%EC%9E%AC%EC%A6%88%C2%B7%ED%81%B4%EB%9E%98%EC%8B%9D-%EC%B6%95%EC%A0%9C-%EC%9D%BC%EC%A0%95-%EC%B4%9D%EC%A0%95%EB%A6%AC%EF%BD%9C%EC%9D%8C%EC%95%85-%EC%95%A0%ED%98%B8%EA%B0%80-%ED%95%84%EC%88%98-%EA%B0%80%EC%9D%B4%EB%93%9C",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "2025 해외여행 필수 앱 총정리",
+      "url": "https://gomvid.tistory.com/64",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "2025 제주 여름 축제 총정리",
+      "url": "https://hankook-study.tistory.com/172",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "2025 사천 숙소 추천 최고의 여행 경험을 위한 완벽 가이드",
+      "url": "https://hellojourney.tistory.com/42",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "2025 여름 국내 여행지 TOP 7",
+      "url": "https://iconv.tistory.com/23",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "2025 한양대 가을 축제 울림 총정리",
+      "url": "https://insight-finder.tistory.com/205",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025 인천9경 통합 홍보 캠페인",
+      "url": "https://inu.ac.kr/bbs/inu/2611/370555/download.do",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "2025 일본 삿포로 축제 일정 기간 총정리",
+      "url": "https://jhshjs.tistory.com/417",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "감사",
+      "matched": false,
+      "actionTitle": "오늘 감사한 일 3가지 떠올려보기"
+    },
+    {
+      "title": "2025 봄꽃 축제 일정 총정리",
+      "url": "https://kjw6633.tistory.com/561",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "이번 주 꽃축제 일정 정하기"
+    },
+    {
+      "title": "2025 전국 대학 축제 일정 및 라인업 총정리",
+      "url": "https://koreancrazymi.tistory.com/entry/2025%EB%85%84-%EC%A0%84%EA%B5%AD-%EB%8C%80%ED%95%99-%EC%B6%95%EC%A0%9C-%EC%9D%BC%EC%A0%95-%EB%B0%8F-%EB%9D%BC%EC%9D%B8%EC%97%85-%EC%9E%A5%EC%86%8C-%EC%B4%9D%EC%A0%95%EB%A6%AC-5%EC%9B%9426%EC%9D%BC30%EC%9D%BC",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025 여름 전국 축제 일정 한눈에",
+      "url": "https://koreanpost.org/archives/13147",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "2025 기지시줄다리기 축제 총정리",
+      "url": "https://lifeinfo365days.tistory.com/21",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "창원 관광상품화 아이디어 공모전",
+      "url": "https://media-cdn.linkareer.com/activity_manager/applications/615259",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "2025 대학 축제 라인업 총정리",
+      "url": "https://memoguri7.tistory.com/798",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025 세종대 축제 라인업 총정리",
+      "url": "https://pudongsan.tistory.com/entry/2025%EB%85%84-%EC%84%B8%EC%A2%85%EB%8C%80-%EC%B6%95%EC%A0%9C-%EB%9D%BC%EC%9D%B8%EC%97%85-%EC%B4%9D%EC%A0%95%EB%A6%AC-%EC%97%94%EB%AF%B9%EC%8A%A4-%EC%B6%9C%EC%97%B0-%EC%9D%BC%EC%A0%95",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025년 7월 축제 일정 총정리",
+      "url": "https://risingmoon14.tistory.com/399",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "2월 한적한 국내 여행지",
+      "url": "https://roadjournal.tistory.com/17",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "2025년 수도권 대학 축제 일정 총정리",
+      "url": "https://second.bkbrokr.com/entry/2025%EB%85%84-%EC%88%98%EB%8F%84%EA%B6%8C-%EB%8C%80%ED%95%99-%EC%B6%95%EC%A0%9C-%EC%9D%BC%EC%A0%95-%EC%B4%9D%EC%A0%95%EB%A6%AC-%EB%9D%BC%EC%9D%B8%EC%97%85%EA%B9%8C%EC%A7%80-%ED%95%9C%EB%88%88%EC%97%90",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "일본 후쿠오카 여행 가이드",
+      "url": "https://smflrprjaek.tistory.com/268",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "루틴·습관",
+      "matched": false,
+      "actionTitle": "오늘 같은 시간에 1번만 시작해보기"
+    },
+    {
+      "title": "5월 마지막 주 대학 축제 라인업 총정리",
+      "url": "https://smilehappyworld.tistory.com/49",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "여름 국내 렌트카 여행지 추천",
+      "url": "https://srak.tistory.com/821",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "루틴·습관",
+      "matched": false,
+      "actionTitle": "오늘 같은 시간에 1번만 시작해보기"
+    },
+    {
+      "title": "2025 완도 청산도 슬로우걷기 축제 총정리",
+      "url": "https://summer-morning-rain.tistory.com/entry/%EB%B0%94%EB%8B%A4%EC%99%80-%EA%BD%83%EC%9D%98-%EB%A7%8C%EB%82%A8-2025-%EC%99%84%EB%8F%84-%EC%B2%AD%EC%82%B0%EB%8F%84-%EC%8A%AC%EB%A1%9C%EC%9A%B0%EA%B1%B7%EA%B8%B0-%EC%B6%95%EC%A0%9C-%EC%B4%9D%EC%A0%95%EB%A6%AC",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "2025년 7월 전국 축제 총정리",
+      "url": "https://sung0woo.tistory.com/1059",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 축제 1개 일정 정하기"
+    },
+    {
+      "title": "2025 경희대 축제 라인업 총정리",
+      "url": "https://thedayhascom.tistory.com/1401",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025 군산대 축제 라인업. 일정. 시간. 위치. 외부인 입장",
+      "url": "https://thedayhascom.tistory.com/1412",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025 부산외대 축제 라인업 총정리",
+      "url": "https://thedayhascom.tistory.com/1444",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "2025.5.13 전에 워터밤 일정 정하기"
+    },
+    {
+      "title": "2025 대학 축제 일정 라인업 꿀팁 총정리",
+      "url": "https://thejh.co.kr/2025university-festival/",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "2025년 4월 전국 봄 축제 총정리",
+      "url": "https://tourkongdak.tistory.com/343",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "2025.04.02 전에 꽃축제 일정 정하기"
+    },
+    {
+      "title": "2025년 6월 전국 축제 일정과 입장료 안내",
+      "url": "https://v.daum.net/v/YWl5mBLKGz",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "2025.04.26 전에 축제 일정 정하기"
+    },
+    {
+      "title": "2025 전국 여름 축제 일정 정리",
+      "url": "https://v.daum.net/v/zOvKtUyjb8",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "관심 행사 1개 일정 정하기"
+    },
+    {
+      "title": "2025 고창 청보리밭 축제 일정, 주차, 맛집 총정리",
+      "url": "https://welcome77.tistory.com/15",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "2025년 5월 홍익대학교 축제 일정 총정리",
+      "url": "https://wieet54.tistory.com/328",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "행사·전시",
+      "matched": false,
+      "actionTitle": "워터밤 일정 1개 정하기"
+    },
+    {
+      "title": "Lying Pullovers",
+      "url": "https://www.acefitness.org/acefit/exercise-library-details/0/37/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Lying Chest Fly",
+      "url": "https://www.acefitness.org/acefit/exercise-library-details/8/21/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Hammer Curl",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/10/hammer-curl/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "Side Plank - modified",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/100/side-plank-modified/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Single-arm, Single-leg Romanian Dead Lift",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/127/single-arm-single-leg-romanian-dead-lift/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Bent Knee Push-up",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/13/bent-knee-push-up/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Bodyweight Squat",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/135/bodyweight-squat/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "Standing Lunge Stretch",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/137/standing-lunge-stretch/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Bird-dog",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/14/bird-dog/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Lunge with Overhead Press",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/143/lunge-with-overhead-press/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 한 문장을 내 말로 정리하기"
+    },
+    {
+      "title": "Cobra Exercise",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/16/cobra/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Chest Press",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/19/chest-press/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Step-up",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/28/step-up/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Power Push Down",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/286/power-push-down/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Seated Crunch",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/291/seated-crunch/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Front Plank",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/32/front-plank/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Standing Bicep Curl",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/322/standing-bicep-curl/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Bulgarian Split Squat",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/366/bulgarian-split-squat/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Pull-over Crunch",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/380/pull-over-crunch/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Push-up",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/41/push-up/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Glute Bridge",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/49/glute-bridge/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Side Lunge",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/50/side-lunge/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Crunch",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/52/crunch/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Deadlift",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/6/deadlift/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Standing Shoulder Press",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/71/standing-shoulder-press/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Standing Calf Raises - Wall",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/73/standing-calf-raises-wall/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "An error occurred while sending the request."
+    },
+    {
+      "title": "Reverse Ab Crunch",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/76/reverse-crunch/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Forward Lunge",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/8/forward-lunge/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Forward Lunge with Arm Drivers",
+      "url": "https://www.acefitness.org/resources/everyone/exercise-library/95/forward-lunge-with-arm-drivers/",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Air-fryer carrot cake",
+      "url": "https://www.bbcgoodfood.com/recipes/air-fryer-carrot-cake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Any-occasion cake",
+      "url": "https://www.bbcgoodfood.com/recipes/any-occasion-cake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Aromatic chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/aromatic-chicken-curry",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Beef goulash soup",
+      "url": "https://www.bbcgoodfood.com/recipes/beef-goulash-soup",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Fruit cake",
+      "url": "https://www.bbcgoodfood.com/recipes/boiled-fruit-cake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Easy carrot cake",
+      "url": "https://www.bbcgoodfood.com/recipes/carrot-cake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Chicken pot pie",
+      "url": "https://www.bbcgoodfood.com/recipes/chicken-pot-pie",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Chilli chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/chilli-chicken-curry",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Classic spaghetti",
+      "url": "https://www.bbcgoodfood.com/recipes/classic-spaghetti",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Cumberland pie",
+      "url": "https://www.bbcgoodfood.com/recipes/crispy-topped-cumberland-pie",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Cumin-scented chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/cumin-scented-chicken-curry",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Vanilla cake",
+      "url": "https://www.bbcgoodfood.com/recipes/easy-vanilla-cake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Healthy fish pie",
+      "url": "https://www.bbcgoodfood.com/recipes/fish-pie-swede-potato-topping",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "ERROR",
+      "matched": false,
+      "actionTitle": "대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다. (localhost:18100)"
+    },
+    {
+      "title": "Gluten-free banana bread",
+      "url": "https://www.bbcgoodfood.com/recipes/gluten-free-banana-bread",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Healthy banana bread",
+      "url": "https://www.bbcgoodfood.com/recipes/healthy-banana-bread",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Pasta primavera",
+      "url": "https://www.bbcgoodfood.com/recipes/healthy-pasta-primavera",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Hearty winter veg soup",
+      "url": "https://www.bbcgoodfood.com/recipes/hearty-winter-veg-soup",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Home-style chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/home-style-chicken-curry/",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Japanese-style chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/japanese-style-chicken-curry",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Marmalade cake",
+      "url": "https://www.bbcgoodfood.com/recipes/marmalade-cake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "Mauritian chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/mauritian-chicken-curry/",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Nutty chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/nutty-chicken-curry",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Sugar-free carrot cake",
+      "url": "https://www.bbcgoodfood.com/recipes/sugar-free-carrot-cake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Thai green chicken curry",
+      "url": "https://www.bbcgoodfood.com/recipes/thai-green-chicken-curry",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Tomato & mozzarella spaghetti bake",
+      "url": "https://www.bbcgoodfood.com/recipes/tomato-mozzarella-spaghetti-bake",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Artichoke Fritters with Green Goddess Dipping Sauce",
+      "url": "https://www.bonappetit.com/recipe/artichoke-fritters-with-green-goddess-dipping-sauce",
+      "expected": "appetizer",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Arugula-Pistachio Pesto",
+      "url": "https://www.bonappetit.com/recipe/arugula-pistachio-pesto",
+      "expected": "side",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Arugula Salad with Lemon-Parmesan Dressing",
+      "url": "https://www.bonappetit.com/recipe/arugula-salad-with-lemon-parmesan-dressing",
+      "expected": "salad",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Asparagus and Mushroom Tarts",
+      "url": "https://www.bonappetit.com/recipe/asparagus-and-mushroom-tarts",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Baked Brie with Mushrooms and Thyme",
+      "url": "https://www.bonappetit.com/recipe/baked-brie-with-mushrooms-and-thyme",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Baked Penne with Farmhouse Cheddar and Leeks",
+      "url": "https://www.bonappetit.com/recipe/baked-penne-with-farmhouse-cheddar-and-leeks",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Beef Pasties with Caramelized Onions and Stilton Cheese",
+      "url": "https://www.bonappetit.com/recipe/beef-pasties-with-caramelized-onions-and-stilton-cheese",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Beef Tenderloin with Morels and Tarragon-Marsala Sauce",
+      "url": "https://www.bonappetit.com/recipe/beef-tenderloin-with-morels-and-tarragon-marsala-sauce",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Blue Cheese Ravioli with Onion Sauce",
+      "url": "https://www.bonappetit.com/recipe/blue-cheese-ravioli-with-onion-sauce",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Braeburn Apple and Walnut Haroseth",
+      "url": "https://www.bonappetit.com/recipe/braeburn-apple-and-walnut-haroseth",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Braised Lamb Shanks with Spring Vegetables and Mint Gremolata",
+      "url": "https://www.bonappetit.com/recipe/braised-lamb-shanks-with-spring-vegetables-and-mint-gremolata",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Bruschetta with Fava Beans, Greens, and Blood Oranges",
+      "url": "https://www.bonappetit.com/recipe/bruschetta-with-fava-beans-greens-and-blood-oranges",
+      "expected": "appetizer",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Buttermilk Waffles with Cherry-Almond Sauce",
+      "url": "https://www.bonappetit.com/recipe/buttermilk-waffles-with-cherry-almond-sauce",
+      "expected": "breakfast",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Cabernet-Braised Short Ribs with Gorgonzola Polenta and Mixed-Herb Gremolata",
+      "url": "https://www.bonappetit.com/recipe/cabernet-braised-short-ribs-with-gorgonzola-polenta-and-mixed-herb-gremolata",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Caramel-Apple Crisp",
+      "url": "https://www.bonappetit.com/recipe/caramel-apple-crisp",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Caramel-Date Upside-Down Cake",
+      "url": "https://www.bonappetit.com/recipe/caramel-date-upside-down-cake",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Caramel-Nut Tart",
+      "url": "https://www.bonappetit.com/recipe/caramel-nut-tart",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Caramelized Onion, Rosemary, and Pine Nut Topping",
+      "url": "https://www.bonappetit.com/recipe/caramelized-onion-rosemary-and-pine-nut-topping",
+      "expected": "side",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Cauliflower-Spinach Puree",
+      "url": "https://www.bonappetit.com/recipe/cauliflower-spinach-puree",
+      "expected": "side",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chai-Spiced Hot Chocolate",
+      "url": "https://www.bonappetit.com/recipe/chai-spiced-hot-chocolate",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chestnut-Apple Soup",
+      "url": "https://www.bonappetit.com/recipe/chestnut-apple-soup",
+      "expected": "soup",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chicken and White Bean Soup with Herb Swirl",
+      "url": "https://www.bonappetit.com/recipe/chicken-and-white-bean-soup-with-herb-swirl",
+      "expected": "soup",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chocolate-Caramel Easter Eggs",
+      "url": "https://www.bonappetit.com/recipe/chocolate-caramel-easter-eggs",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chocolate Cream Cheese Cupcakes",
+      "url": "https://www.bonappetit.com/recipe/chocolate-cream-cheese-cupcakes",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Coconut Macaroons with Strawberries and Huckleberry Sauce",
+      "url": "https://www.bonappetit.com/recipe/coconut-macaroons-with-strawberries-and-huckleberry-sauce",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Cod Dumplings with Savoy Cabbage Sauté",
+      "url": "https://www.bonappetit.com/recipe/cod-dumplings-with-savoy-cabbage-saut",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Coffee-Caramel Crème Brûlée",
+      "url": "https://www.bonappetit.com/recipe/coffee-caramel-cr-me-br-l-e",
+      "expected": "drink",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Coffee-Chocolate Layer Cake with Mocha-Mascarpone Frosting",
+      "url": "https://www.bonappetit.com/recipe/coffee-chocolate-layer-cake-with-mocha-mascarpone-frosting",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "Couscous with Fennel and Pine Nuts",
+      "url": "https://www.bonappetit.com/recipe/couscous-with-fennel-and-pine-nuts",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Crushed-Blueberry Sauce",
+      "url": "https://www.bonappetit.com/recipe/crushed-blueberry-sauce",
+      "expected": "side",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Dijon-Cilantro Tuna Salad on Whole Grain Bread",
+      "url": "https://www.bonappetit.com/recipe/dijon-cilantro-tuna-salad-on-whole-grain-bread",
+      "expected": "salad",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Double-Ginger Sour Cream Bundt Cake with Ginger-Infused Strawberries",
+      "url": "https://www.bonappetit.com/recipe/double-ginger-sour-cream-bundt-cake-with-ginger-infused-strawberries",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Double R Daiquiri",
+      "url": "https://www.bonappetit.com/recipe/double-r-daiquiri",
+      "expected": "drink",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Eggplant Marinara Ciabatta Pizza",
+      "url": "https://www.bonappetit.com/recipe/eggplant-marinara-ciabatta-pizza",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Fig and Onion Bruschetta",
+      "url": "https://www.bonappetit.com/recipe/fig-and-onion-bruschetta",
+      "expected": "appetizer",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Five-Spice Roast Chicken",
+      "url": "https://www.bonappetit.com/recipe/five-spice-roast-chicken",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Flank Steak with Artichoke-Potato Hash and Aleppo-Pepper Aioli",
+      "url": "https://www.bonappetit.com/recipe/flank-steak-artichoke-potato-hash-aleppo-pepper-aioli",
+      "expected": "drink",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Garland of Spring Vegetables",
+      "url": "https://www.bonappetit.com/recipe/garland-of-spring-vegetables",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Ginger-Scented Rice",
+      "url": "https://www.bonappetit.com/recipe/ginger-scented-rice",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Green Pea Soup with Tarragon and Pea Sprouts",
+      "url": "https://www.bonappetit.com/recipe/green-pea-soup-with-tarragon-and-pea-sprouts",
+      "expected": "soup",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Grilled Chicken Salad with Radishes, Cucumbers, and Tarragon Pesto",
+      "url": "https://www.bonappetit.com/recipe/grilled-chicken-salad-with-radishes-cucumbers-and-tarragon-pesto",
+      "expected": "salad",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Gruyère and Cider Fondue",
+      "url": "https://www.bonappetit.com/recipe/gruy-re-and-cider-fondue",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Halibut on Mashed Fava Beans with Mint",
+      "url": "https://www.bonappetit.com/recipe/halibut-on-mashed-fava-beans-with-mint",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Homemade Falafel",
+      "url": "https://www.bonappetit.com/recipe/homemade-falafel",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Lamb and Eggplant Shepherd's Pie",
+      "url": "https://www.bonappetit.com/recipe/lamb-and-eggplant-shepherd-s-pie",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Lemon and White Chocolate Mousse Parfaits With Strawberries",
+      "url": "https://www.bonappetit.com/recipe/lemon-and-white-chocolate-mousse-parfaits-with-strawberries",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Lemon Cornmeal Cake with Lemon Glaze and Crushed Blueberry Sauce",
+      "url": "https://www.bonappetit.com/recipe/lemon-cornmeal-cake-with-lemon-glaze-and-crushed-blueberry-sauce",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Lemon-Paprika Tilapia with Potato-Rutabaga Mash",
+      "url": "https://www.bonappetit.com/recipe/lemon-paprika-tilapia-with-potato-rutabaga-mash",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Lime Shortbread Cookies with White Chocolate and Almonds",
+      "url": "https://www.bonappetit.com/recipe/lime-shortbread-cookies-with-white-chocolate-and-almonds",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Maloney's Irish Cream",
+      "url": "https://www.bonappetit.com/recipe/maloney-s-irish-cream",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Mashed-Potato Casserole with Smoked Gouda and Bacon",
+      "url": "https://www.bonappetit.com/recipe/mashed-potato-casserole-with-smoked-gouda-and-bacon",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Matzo Brei with Tomatoes and Salsa",
+      "url": "https://www.bonappetit.com/recipe/matzo-brei-with-tomatoes-and-salsa",
+      "expected": "breakfast",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Matzo Stuffing",
+      "url": "https://www.bonappetit.com/recipe/matzo-stuffing",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Mini Crab Cakes",
+      "url": "https://www.bonappetit.com/recipe/mini-crab-cakes",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Mini Matzo Balls",
+      "url": "https://www.bonappetit.com/recipe/mini-matzo-balls",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Mixed Greens with Tangerines and Shaved Fennel",
+      "url": "https://www.bonappetit.com/recipe/mixed-greens-with-tangerines-and-shaved-fennel",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Moroccan-Style Chicken Pie",
+      "url": "https://www.bonappetit.com/recipe/moroccan-style-chicken-pie",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Moroccan-Style Vegetable Stew with Harissa Yogurt Sauce",
+      "url": "https://www.bonappetit.com/recipe/moroccan-style-vegetable-stew-with-harissa-yogurt-sauce",
+      "expected": "soup",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Orange Angel Food Cake with Caramel Sauce and Tropical-Fruit Compote",
+      "url": "https://www.bonappetit.com/recipe/orange-angel-food-cake-caramel-sauce-tropical-fruit-compote",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Orange Aperol Sun",
+      "url": "https://www.bonappetit.com/recipe/orange-aperol-sun",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Oven-Roasted Chicken Thighs with Carrots and Yukon Gold Potatoes",
+      "url": "https://www.bonappetit.com/recipe/oven-roasted-chicken-thighs-with-carrots-and-yukon-gold-potatoes",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Overnight Pizza Dough",
+      "url": "https://www.bonappetit.com/recipe/overnight-pizza-dough",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Pan-Seared Poppy Seed-Crusted Bay Scallop Salad with Romesco Sauce",
+      "url": "https://www.bonappetit.com/recipe/pan-seared-poppy-seed-crusted-bay-scallop-salad-with-romesco-sauce",
+      "expected": "salad",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Pan-Seared Steak with Pizzaiola",
+      "url": "https://www.bonappetit.com/recipe/pan-seared-steak-with-pizzaiola",
+      "expected": "drink",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Parmesan Toasts",
+      "url": "https://www.bonappetit.com/recipe/parmesan-toasts-2",
+      "expected": "breakfast",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Pasta with Peas, Asparagus, Butter Lettuce, and Prosciutto",
+      "url": "https://www.bonappetit.com/recipe/pasta-with-peas-asparagus-butter-lettuce-and-prosciutto",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Pecan-Streusel Coffee Cake",
+      "url": "https://www.bonappetit.com/recipe/pecan-streusel-coffee-cake",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Pizza with Fontina, Potatoes, and Tapenade",
+      "url": "https://www.bonappetit.com/recipe/pizza-fontina-potatoes-tapenade",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Pork Chops and Sugar Snap Peas with Mint Julep Glaze",
+      "url": "https://www.bonappetit.com/recipe/pork-chops-and-sugar-snap-peas-with-mint-julep-glaze",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Potato-Wrapped Halibut with Sautéed Spinach",
+      "url": "https://www.bonappetit.com/recipe/potato-wrapped-halibut-with-saut-ed-spinach",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Radicchio Strudel with Fontina Cheese",
+      "url": "https://www.bonappetit.com/recipe/radicchio-strudel-with-fontina-cheese",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Ramp and Sausage Risotto",
+      "url": "https://www.bonappetit.com/recipe/ramp-and-sausage-risotto",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Ramps and Buttermilk Biscuits With Cracked Coriander",
+      "url": "https://www.bonappetit.com/recipe/ramps-and-buttermilk-biscuits-with-cracked-coriander",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Risotto with Duck and White Balsamic Vinegar",
+      "url": "https://www.bonappetit.com/recipe/risotto-with-duck-and-white-balsamic-vinegar",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Roast Chicken with Matzo Stuffing and Cauliflower-Spinach Puree",
+      "url": "https://www.bonappetit.com/recipe/roast-chicken-with-matzo-stuffing-and-cauliflower-spinach-puree",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Roast Leg of Lamb with Tarragon-Mint Butter",
+      "url": "https://www.bonappetit.com/recipe/roast-leg-of-lamb-with-tarragon-mint-butter",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Roasted Tomato Sauce",
+      "url": "https://www.bonappetit.com/recipe/roasted-tomato-sauce",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Root Vegetable and Mushroom Pie with Rosemary Biscuit Topping",
+      "url": "https://www.bonappetit.com/recipe/root-vegetable-and-mushroom-pie-with-rosemary-biscuit-topping",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Rum, Caramel, and Banana Bread Pudding",
+      "url": "https://www.bonappetit.com/recipe/rum-caramel-and-banana-bread-pudding",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Saffron-Scented Couscous with Pine Nuts",
+      "url": "https://www.bonappetit.com/recipe/saffron-scented-couscous-with-pine-nuts",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Salt-Roasted Shrimp with Scampi Dip",
+      "url": "https://www.bonappetit.com/recipe/salt-roasted-shrimp-with-scampi-dip",
+      "expected": "appetizer",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Sautéed Chicken Cutlets with Asparagus, Spring Onions, and Parsley-Tarragon Gremolata",
+      "url": "https://www.bonappetit.com/recipe/saut-ed-chicken-cutlets-with-asparagus-spring-onions-and-parsley-tarragon-gremolata",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Scrambled Eggs with Ramps, Morels, and Asparagus",
+      "url": "https://www.bonappetit.com/recipe/scrambled-eggs-with-ramps-morels-and-asparagus",
+      "expected": "breakfast",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Seared Salmon with Linguine and Ramp Pesto",
+      "url": "https://www.bonappetit.com/recipe/seared-salmon-with-linguine-and-ramp-pesto",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Seared Sea Scallops on Sautéed Spinach with Hoisin Butter Sauce",
+      "url": "https://www.bonappetit.com/recipe/seared-sea-scallops-on-saut-ed-spinach-with-hoisin-butter-sauce",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Shanghai Soup Dumplings",
+      "url": "https://www.bonappetit.com/recipe/shanghai-soup-dumplings",
+      "expected": "soup",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Shrimp and Andouille Pot Pies",
+      "url": "https://www.bonappetit.com/recipe/shrimp-and-andouille-pot-pies",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Snow Peas with Toasted Almonds",
+      "url": "https://www.bonappetit.com/recipe/snow-peas-toasted-almonds",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "운동",
+      "matched": false,
+      "actionTitle": "오늘 10분만 몸 움직이기"
+    },
+    {
+      "title": "Spanish Grilled Cheese Sandwiches with Manchego and Jamón Serrano",
+      "url": "https://www.bonappetit.com/recipe/spanish-grilled-cheese-sandwiches-with-manchego-and-jam-n-serrano",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Spice-Rubbed Pork Tenderloin with Roasted Baby Carrots",
+      "url": "https://www.bonappetit.com/recipe/spice-rubbed-pork-tenderloin-roasted-baby-carrots",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Spring Vegetable and Mini Matzo Ball Chicken Soup",
+      "url": "https://www.bonappetit.com/recipe/spring-vegetable-and-mini-matzo-ball-chicken-soup",
+      "expected": "soup",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Strawberry Sorbato and Prosecco Floats",
+      "url": "https://www.bonappetit.com/recipe/strawberry-sorbato-and-prosecco-floats",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Tagliatelle with Baby Vegetables and Lemon-Parmesan Sauce",
+      "url": "https://www.bonappetit.com/recipe/tagliatelle-with-baby-vegetables-and-lemon-parmesan-sauce",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Tangerine Semifreddo with Salted Almond Brittle",
+      "url": "https://www.bonappetit.com/recipe/tangerine-semifreddo-with-salted-almond-brittle",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Triple Chocolate Walnut Brownie Cookies",
+      "url": "https://www.bonappetit.com/recipe/triple-chocolate-walnut-brownie-cookies",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Tuna, Asparagus, and New Potato Salad With Chive Vinaigrette and Fried Capers",
+      "url": "https://www.bonappetit.com/recipe/tuna-asparagus-and-new-potato-salad-with-chive-vinaigrette-and-fried-capers",
+      "expected": "salad",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Turtle Ice Cream Pie",
+      "url": "https://www.bonappetit.com/recipe/turtle-ice-cream-pie",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Vanilla Bean-Coconut Cupcakes with Frosting",
+      "url": "https://www.bonappetit.com/recipe/vanilla-bean-coconut-cupcakes-with-frosting",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Vanilla Bean Rice Pudding",
+      "url": "https://www.bonappetit.com/recipe/vanilla-bean-rice-pudding",
+      "expected": "dessert",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Yukon Gold Cinnamon Rolls",
+      "url": "https://www.bonappetit.com/recipe/yukon-gold-cinnamon-rolls",
+      "expected": "main",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "2025 가을 축제 일정 총정리",
+      "url": "https://www.dealsfor.me/Blog/2025nyeon-ga-eul-chugje-iljeong-chongjeongli-gamseong-gwa-sil-yong-i-eouleojin-gaideu",
+      "expected": "event",
+      "expectedLabel": "",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Rising Gangwon 148호",
+      "url": "https://www.dongtuni.com/upload/webzine/153/4c3-77e22ff37ce5.pdf",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "인간관계",
+      "matched": false,
+      "actionTitle": "오늘 한 사람에게 먼저 안부 보내기"
+    },
+    {
+      "title": "At Home Walking Workout - Beginner to Advanced Walking Workout",
+      "url": "https://www.fitnessblender.com/videos/at-home-walking-workout-beginner-to-advanced-walking-workout",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "Apple Pies",
+      "url": "https://www.foodnetwork.com/recipes/apple-pies-recipe-1912336",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Catelli's Chicken Parmesan",
+      "url": "https://www.foodnetwork.com/recipes/catellis-chicken-parmesan-8640808",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chewy Brownies",
+      "url": "https://www.foodnetwork.com/recipes/chewy-brownies-3623229",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chocolate Layer Cake",
+      "url": "https://www.foodnetwork.com/recipes/chocolate-layer-cake-recipe-1937705",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Classic Apple Pie",
+      "url": "https://www.foodnetwork.com/recipes/classic-apple-pie-12342969",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "2-Ingredient Brownies",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/2-ingredient-brownies-8813692",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Apple-Honey Pie",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/apple-honey-pie-11455850",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Apple Pie with Cooked Filling",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/apple-pie-recipe2-1973518",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Classic Brownies",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/classic-brownies-3364900",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Creamy Parmesan Baked Pasta",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/creamy-parmesan-baked-pasta-9491712",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "감사",
+      "matched": false,
+      "actionTitle": "오늘 감사한 일 3가지 떠올려보기"
+    },
+    {
+      "title": "Fudgy Brownies",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/fudgy-brownies-5481839",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Fudgy Chocolate Chunk Brownies",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/fudgy-chocolate-chunk-brownies-2268712",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Garlic-Roasted Chicken",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/garlic-roasted-chicken-recipe-2104193.amp",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Gorgonzola Pasta with Spinach and Walnuts",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/gorgonzola-pasta-with-spinach-and-walnuts-10024399.amp",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Make-Ahead Deep-Dish Apple Pie",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/make-ahead-deep-dish-apple-pie-3364370",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Roast Chicken",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/roast-chicken-7232161",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Toffee-Pecan Skillet Brownies",
+      "url": "https://www.foodnetwork.com/recipes/food-network-kitchen/toffee-pecan-skillet-brownies-8046908",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Fried Chicken",
+      "url": "https://www.foodnetwork.com/recipes/fried-chicken0-2758007",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Fudgy One-Pot Brownies",
+      "url": "https://www.foodnetwork.com/recipes/fudgy-one-pot-brownies-3415275",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Pantry Pasta",
+      "url": "https://www.foodnetwork.com/recipes/geoffrey-zakarian/pantry-pasta-4624972",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Pasta Pomodoro for Two",
+      "url": "https://www.foodnetwork.com/recipes/geoffrey-zakarian/pasta-pomodoro-for-two-4655466.amp",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Chocolate Cheesecake-Stuffed French Toast",
+      "url": "https://www.foodnetwork.com/recipes/giada-de-laurentiis/chocolate-cheesecake-stuffed-french-toast-5176202",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Farmer's Pasta",
+      "url": "https://www.foodnetwork.com/recipes/giada-de-laurentiis/farmers-pasta-recipe-1916063",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Mediterranean Chicken",
+      "url": "https://www.foodnetwork.com/recipes/mediterranean-chicken-3066061",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "Baked Ziti",
+      "url": "https://www.foodnetwork.com/recipes/rachael-ray/baked-ziti-recipe-1943386",
+      "expected": "recipe",
+      "expectedLabel": "",
+      "actualLabel": "요리",
+      "matched": false,
+      "actionTitle": "오늘 이 레시피의 핵심 한 가지 해보기"
+    },
+    {
+      "title": "2025-2026 강원 방문의 해 이달의 추천 여행지 홍보 캠페인",
+      "url": "https://www.g2b.go.kr/fs/fsc/fsca/fileUpload.do?k00=a2MMYzianzwExorC2swMQwxC2swNQwwC2syNgwvZGF0YS9BdHRhY2hmaWxlcy9wbnBlLzIwMjUvMDIvMTkvZmRhMjdhOWJhODQ2NGFlMmE1ZTM3NjdlMDUxNWMyYmYucGRmC2szMQwyLiDsoJzslYjsmpTssq3shJwo44CMMjAyNS0yMDI2IOqwleybkCDrsKnrrLjsnZgg7ZW0IOydtOuLrOydmCDstpTsspwg7Jes7ZaJ7KeAIO2ZjeuztOy6oO2OmOyduOOAjeuMgO2WiSDsmqnsl60pLnBkZgtrMjEMYWZhNmMxMjMtMmJhZi00YjI1LWJhYWUtZDYxNDY1M2FkZGNlLDE%3D",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "How to Train for a 5K: For Beginners and Beyond",
+      "url": "https://www.healthline.com/health/exercise-fitness/train-for-a-5k",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "A Beginner's Guide to Get Started With Running",
+      "url": "https://www.healthline.com/health/how-to-start-running",
+      "expected": "fitness",
+      "expectedLabel": "운동",
+      "actualLabel": "학습",
+      "matched": false,
+      "actionTitle": "핵심 단계 1개 바로 따라해보기"
+    },
+    {
+      "title": "사천시시설관리공단 소식지",
+      "url": "https://www.scfmc.or.kr/upload/board/files/20251208174455-%EB%84%88%EB%82%98%EB%93%A4%EC%9D%B4%202%ED%98%B8_%EC%B5%9C%EC%A2%85_%EC%A0%80%EC%9A%A9%EB%9F%89.pdf",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Aveiro, Portugal, Travel Guide",
+      "url": "https://www.travelandleisure.com/aveiro-portugal-travel-guide-8653376",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "21 Best Things to Do in the Bahamas",
+      "url": "https://www.travelandleisure.com/best-things-to-do-in-the-bahamas-7501485",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Buellton, California Travel Guide to Explore Small-Town Charm",
+      "url": "https://www.travelandleisure.com/buellton-california-small-town-11837611",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Culebra, Puerto Rico, Travel Guide",
+      "url": "https://www.travelandleisure.com/culebra-puerto-rico-travel-guide-11858718",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Curaçao Travel Guide: Top Hotels & Activities",
+      "url": "https://www.travelandleisure.com/curacao-travel-guide-8752833",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Elba, Italy, Travel Guide",
+      "url": "https://www.travelandleisure.com/elba-italy-guide-7482285",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Extremadura, Spain, Travel Guide",
+      "url": "https://www.travelandleisure.com/extremadura-spain-11733304",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "The Bahamas 365-island Chain Guide",
+      "url": "https://www.travelandleisure.com/exumas-bahamas-guide-11915650",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Florence Guide: Tips for Things to Do, Eat, and See",
+      "url": "https://www.travelandleisure.com/florence-italy-destination-guide-8597789",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Frenchtown, New Jersey, Travel Guide",
+      "url": "https://www.travelandleisure.com/frenchtown-new-jersey-guide-11745580",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    },
+    {
+      "title": "Cape Town, South Africa, Travel Guide",
+      "url": "https://www.travelandleisure.com/guide-to-cape-town-south-africa-11714031",
+      "expected": "travel guide",
+      "expectedLabel": "행사·전시, 학습",
+      "actualLabel": "실천",
+      "matched": false,
+      "actionTitle": "오늘 바로 해볼 1가지 정하고 실행하기"
+    }
+  ]
+}

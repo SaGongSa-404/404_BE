@@ -1,0 +1,102 @@
+| # | Title | URL | Platform | Category | 추론된 의도(액션카드용) | 왜 바로 의도가 보이는가. |
+|---|---|---|---|---|---|---|
+| 1 | Triple Chocolate Walnut Brownie Cookies | https://www.bonappetit.com/recipe/triple-chocolate-walnut-brownie-cookies | Bon Appétit | dessert | 디저트 만들기 | 제목에 Triple Chocolate Walnut 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 2 | Matzo Stuffing | https://www.bonappetit.com/recipe/matzo-stuffing | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 3 | Pan-Seared Poppy Seed-Crusted Bay Scallop Salad with Romesco Sauce | https://www.bonappetit.com/recipe/pan-seared-poppy-seed-crusted-bay-scallop-salad-with-romesco-sauce | Bon Appétit | salad | 샐러드 만들기 | 제목 자체가 샐러드 요리라 바로 조리 목적이 읽힘 |
+| 4 | Double R Daiquiri | https://www.bonappetit.com/recipe/double-r-daiquiri | Bon Appétit | drink | 음료 만들기 | 제목에 음료/칵테일 키워드가 있어 바로 마실 것 만드는 의도가 보임 |
+| 5 | Sautéed Chicken Cutlets with Asparagus, Spring Onions, and Parsley-Tarragon Gremolata | https://www.bonappetit.com/recipe/saut-ed-chicken-cutlets-with-asparagus-spring-onions-and-parsley-tarragon-gremolata | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 6 | Cod Dumplings with Savoy Cabbage Sauté | https://www.bonappetit.com/recipe/cod-dumplings-with-savoy-cabbage-saut | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 7 | Green Pea Soup with Tarragon and Pea Sprouts | https://www.bonappetit.com/recipe/green-pea-soup-with-tarragon-and-pea-sprouts | Bon Appétit | soup | 국물요리 끓이기 | 제목에 Soup/St​ew 같은 국물요리 키워드가 직접 들어감 |
+| 8 | Five-Spice Roast Chicken | https://www.bonappetit.com/recipe/five-spice-roast-chicken | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 9 | Lime Shortbread Cookies with White Chocolate and Almonds | https://www.bonappetit.com/recipe/lime-shortbread-cookies-with-white-chocolate-and-almonds | Bon Appétit | dessert | 디저트 만들기 | 제목에 Lime Shortbread Cookies 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 10 | Scrambled Eggs with Ramps, Morels, and Asparagus | https://www.bonappetit.com/recipe/scrambled-eggs-with-ramps-morels-and-asparagus | Bon Appétit | breakfast | 아침식사 준비 | 제목에 아침식사 계열 키워드가 있어 식사 준비 목적이 분명함 |
+| 11 | Cauliflower-Spinach Puree | https://www.bonappetit.com/recipe/cauliflower-spinach-puree | Bon Appétit | side | 사이드/토핑 만들기 | 제목에 소스, 토핑, 퓨레 같은 보조 조리물이 직접 보여 바로 용도가 보임 |
+| 12 | Spring Vegetable and Mini Matzo Ball Chicken Soup | https://www.bonappetit.com/recipe/spring-vegetable-and-mini-matzo-ball-chicken-soup | Bon Appétit | soup | 국물요리 끓이기 | 제목에 Soup/St​ew 같은 국물요리 키워드가 직접 들어감 |
+| 13 | Caramelized Onion, Rosemary, and Pine Nut Topping | https://www.bonappetit.com/recipe/caramelized-onion-rosemary-and-pine-nut-topping | Bon Appétit | side | 사이드/토핑 만들기 | 제목에 소스, 토핑, 퓨레 같은 보조 조리물이 직접 보여 바로 용도가 보임 |
+| 14 | Braeburn Apple and Walnut Haroseth | https://www.bonappetit.com/recipe/braeburn-apple-and-walnut-haroseth | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 15 | Spice-Rubbed Pork Tenderloin with Roasted Baby Carrots | https://www.bonappetit.com/recipe/spice-rubbed-pork-tenderloin-roasted-baby-carrots | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 16 | Double-Ginger Sour Cream Bundt Cake with Ginger-Infused Strawberries | https://www.bonappetit.com/recipe/double-ginger-sour-cream-bundt-cake-with-ginger-infused-strawberries | Bon Appétit | dessert | 디저트 만들기 | 제목에 Double-Ginger Sour Cream 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 17 | Lemon and White Chocolate Mousse Parfaits With Strawberries | https://www.bonappetit.com/recipe/lemon-and-white-chocolate-mousse-parfaits-with-strawberries | Bon Appétit | dessert | 디저트 만들기 | 제목에 Lemon and White 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 18 | Orange Angel Food Cake with Caramel Sauce and Tropical-Fruit Compote | https://www.bonappetit.com/recipe/orange-angel-food-cake-caramel-sauce-tropical-fruit-compote | Bon Appétit | dessert | 디저트 만들기 | 제목에 Orange Angel Food 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 19 | Roast Leg of Lamb with Tarragon-Mint Butter | https://www.bonappetit.com/recipe/roast-leg-of-lamb-with-tarragon-mint-butter | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 20 | Arugula-Pistachio Pesto | https://www.bonappetit.com/recipe/arugula-pistachio-pesto | Bon Appétit | side | 사이드/토핑 만들기 | 제목에 소스, 토핑, 퓨레 같은 보조 조리물이 직접 보여 바로 용도가 보임 |
+| 21 | Grilled Chicken Salad with Radishes, Cucumbers, and Tarragon Pesto | https://www.bonappetit.com/recipe/grilled-chicken-salad-with-radishes-cucumbers-and-tarragon-pesto | Bon Appétit | salad | 샐러드 만들기 | 제목 자체가 샐러드 요리라 바로 조리 목적이 읽힘 |
+| 22 | Seared Sea Scallops on Sautéed Spinach with Hoisin Butter Sauce | https://www.bonappetit.com/recipe/seared-sea-scallops-on-saut-ed-spinach-with-hoisin-butter-sauce | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 23 | Salt-Roasted Shrimp with Scampi Dip | https://www.bonappetit.com/recipe/salt-roasted-shrimp-with-scampi-dip | Bon Appétit | appetizer | 애피타이저 준비 | 제목이 한 입 요리/전채를 직접 가리켜 준비 의도가 분명함 |
+| 24 | Coconut Macaroons with Strawberries and Huckleberry Sauce | https://www.bonappetit.com/recipe/coconut-macaroons-with-strawberries-and-huckleberry-sauce | Bon Appétit | dessert | 디저트 만들기 | 제목에 Coconut Macaroons with 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 25 | Vanilla Bean-Coconut Cupcakes with Frosting | https://www.bonappetit.com/recipe/vanilla-bean-coconut-cupcakes-with-frosting | Bon Appétit | dessert | 디저트 만들기 | 제목에 Vanilla Bean-Coconut Cupcakes 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 26 | Asparagus and Mushroom Tarts | https://www.bonappetit.com/recipe/asparagus-and-mushroom-tarts | Bon Appétit | dessert | 디저트 만들기 | 제목에 Asparagus and Mushroom 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 27 | Mini Matzo Balls | https://www.bonappetit.com/recipe/mini-matzo-balls | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 28 | Chocolate-Caramel Easter Eggs | https://www.bonappetit.com/recipe/chocolate-caramel-easter-eggs | Bon Appétit | dessert | 디저트 만들기 | 제목에 Chocolate-Caramel Easter Eggs 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 29 | Flank Steak with Artichoke-Potato Hash and Aleppo-Pepper Aioli | https://www.bonappetit.com/recipe/flank-steak-artichoke-potato-hash-aleppo-pepper-aioli | Bon Appétit | drink | 음료 만들기 | 제목에 음료/칵테일 키워드가 있어 바로 마실 것 만드는 의도가 보임 |
+| 30 | Coffee-Chocolate Layer Cake with Mocha-Mascarpone Frosting | https://www.bonappetit.com/recipe/coffee-chocolate-layer-cake-with-mocha-mascarpone-frosting | Bon Appétit | dessert | 디저트 만들기 | 제목에 Coffee-Chocolate Layer Cake 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 31 | Garland of Spring Vegetables | https://www.bonappetit.com/recipe/garland-of-spring-vegetables | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 32 | Arugula Salad with Lemon-Parmesan Dressing | https://www.bonappetit.com/recipe/arugula-salad-with-lemon-parmesan-dressing | Bon Appétit | salad | 샐러드 만들기 | 제목 자체가 샐러드 요리라 바로 조리 목적이 읽힘 |
+| 33 | Saffron-Scented Couscous with Pine Nuts | https://www.bonappetit.com/recipe/saffron-scented-couscous-with-pine-nuts | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 34 | Tagliatelle with Baby Vegetables and Lemon-Parmesan Sauce | https://www.bonappetit.com/recipe/tagliatelle-with-baby-vegetables-and-lemon-parmesan-sauce | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 35 | Pecan-Streusel Coffee Cake | https://www.bonappetit.com/recipe/pecan-streusel-coffee-cake | Bon Appétit | dessert | 디저트 만들기 | 제목에 Pecan-Streusel Coffee Cake 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 36 | Crushed-Blueberry Sauce | https://www.bonappetit.com/recipe/crushed-blueberry-sauce | Bon Appétit | side | 사이드/토핑 만들기 | 제목에 소스, 토핑, 퓨레 같은 보조 조리물이 직접 보여 바로 용도가 보임 |
+| 37 | Lemon Cornmeal Cake with Lemon Glaze and Crushed Blueberry Sauce | https://www.bonappetit.com/recipe/lemon-cornmeal-cake-with-lemon-glaze-and-crushed-blueberry-sauce | Bon Appétit | dessert | 디저트 만들기 | 제목에 Lemon Cornmeal Cake 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 38 | Mini Crab Cakes | https://www.bonappetit.com/recipe/mini-crab-cakes | Bon Appétit | dessert | 디저트 만들기 | 제목에 Mini Crab Cakes 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 39 | Roast Chicken with Matzo Stuffing and Cauliflower-Spinach Puree | https://www.bonappetit.com/recipe/roast-chicken-with-matzo-stuffing-and-cauliflower-spinach-puree | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 40 | Halibut on Mashed Fava Beans with Mint | https://www.bonappetit.com/recipe/halibut-on-mashed-fava-beans-with-mint | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 41 | Ramp and Sausage Risotto | https://www.bonappetit.com/recipe/ramp-and-sausage-risotto | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 42 | Snow Peas with Toasted Almonds | https://www.bonappetit.com/recipe/snow-peas-toasted-almonds | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 43 | Dijon-Cilantro Tuna Salad on Whole Grain Bread | https://www.bonappetit.com/recipe/dijon-cilantro-tuna-salad-on-whole-grain-bread | Bon Appétit | salad | 샐러드 만들기 | 제목 자체가 샐러드 요리라 바로 조리 목적이 읽힘 |
+| 44 | Seared Salmon with Linguine and Ramp Pesto | https://www.bonappetit.com/recipe/seared-salmon-with-linguine-and-ramp-pesto | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 45 | Overnight Pizza Dough | https://www.bonappetit.com/recipe/overnight-pizza-dough | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 46 | Tuna, Asparagus, and New Potato Salad With Chive Vinaigrette and Fried Capers | https://www.bonappetit.com/recipe/tuna-asparagus-and-new-potato-salad-with-chive-vinaigrette-and-fried-capers | Bon Appétit | salad | 샐러드 만들기 | 제목 자체가 샐러드 요리라 바로 조리 목적이 읽힘 |
+| 47 | Pasta with Peas, Asparagus, Butter Lettuce, and Prosciutto | https://www.bonappetit.com/recipe/pasta-with-peas-asparagus-butter-lettuce-and-prosciutto | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 48 | Strawberry Sorbato and Prosecco Floats | https://www.bonappetit.com/recipe/strawberry-sorbato-and-prosecco-floats | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 49 | Pan-Seared Steak with Pizzaiola | https://www.bonappetit.com/recipe/pan-seared-steak-with-pizzaiola | Bon Appétit | drink | 음료 만들기 | 제목에 음료/칵테일 키워드가 있어 바로 마실 것 만드는 의도가 보임 |
+| 50 | Roasted Tomato Sauce | https://www.bonappetit.com/recipe/roasted-tomato-sauce | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 51 | Matzo Brei with Tomatoes and Salsa | https://www.bonappetit.com/recipe/matzo-brei-with-tomatoes-and-salsa | Bon Appétit | breakfast | 아침식사 준비 | 제목에 아침식사 계열 키워드가 있어 식사 준비 목적이 분명함 |
+| 52 | Moroccan-Style Vegetable Stew with Harissa Yogurt Sauce | https://www.bonappetit.com/recipe/moroccan-style-vegetable-stew-with-harissa-yogurt-sauce | Bon Appétit | soup | 국물요리 끓이기 | 제목에 Soup/St​ew 같은 국물요리 키워드가 직접 들어감 |
+| 53 | Blue Cheese Ravioli with Onion Sauce | https://www.bonappetit.com/recipe/blue-cheese-ravioli-with-onion-sauce | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 54 | Chai-Spiced Hot Chocolate | https://www.bonappetit.com/recipe/chai-spiced-hot-chocolate | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 55 | Baked Penne with Farmhouse Cheddar and Leeks | https://www.bonappetit.com/recipe/baked-penne-with-farmhouse-cheddar-and-leeks | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 56 | Baked Brie with Mushrooms and Thyme | https://www.bonappetit.com/recipe/baked-brie-with-mushrooms-and-thyme | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 57 | Couscous with Fennel and Pine Nuts | https://www.bonappetit.com/recipe/couscous-with-fennel-and-pine-nuts | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 58 | Moroccan-Style Chicken Pie | https://www.bonappetit.com/recipe/moroccan-style-chicken-pie | Bon Appétit | dessert | 디저트 만들기 | 제목에 Moroccan-Style Chicken Pie 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 59 | Oven-Roasted Chicken Thighs with Carrots and Yukon Gold Potatoes | https://www.bonappetit.com/recipe/oven-roasted-chicken-thighs-with-carrots-and-yukon-gold-potatoes | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 60 | Mashed-Potato Casserole with Smoked Gouda and Bacon | https://www.bonappetit.com/recipe/mashed-potato-casserole-with-smoked-gouda-and-bacon | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 61 | Ramps and Buttermilk Biscuits With Cracked Coriander | https://www.bonappetit.com/recipe/ramps-and-buttermilk-biscuits-with-cracked-coriander | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 62 | Chestnut-Apple Soup | https://www.bonappetit.com/recipe/chestnut-apple-soup | Bon Appétit | soup | 국물요리 끓이기 | 제목에 Soup/St​ew 같은 국물요리 키워드가 직접 들어감 |
+| 63 | Buttermilk Waffles with Cherry-Almond Sauce | https://www.bonappetit.com/recipe/buttermilk-waffles-with-cherry-almond-sauce | Bon Appétit | breakfast | 아침식사 준비 | 제목에 아침식사 계열 키워드가 있어 식사 준비 목적이 분명함 |
+| 64 | Yukon Gold Cinnamon Rolls | https://www.bonappetit.com/recipe/yukon-gold-cinnamon-rolls | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 65 | Bruschetta with Fava Beans, Greens, and Blood Oranges | https://www.bonappetit.com/recipe/bruschetta-with-fava-beans-greens-and-blood-oranges | Bon Appétit | appetizer | 애피타이저 준비 | 제목이 한 입 요리/전채를 직접 가리켜 준비 의도가 분명함 |
+| 66 | Beef Pasties with Caramelized Onions and Stilton Cheese | https://www.bonappetit.com/recipe/beef-pasties-with-caramelized-onions-and-stilton-cheese | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 67 | Potato-Wrapped Halibut with Sautéed Spinach | https://www.bonappetit.com/recipe/potato-wrapped-halibut-with-saut-ed-spinach | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 68 | Lemon-Paprika Tilapia with Potato-Rutabaga Mash | https://www.bonappetit.com/recipe/lemon-paprika-tilapia-with-potato-rutabaga-mash | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 69 | Pizza with Fontina, Potatoes, and Tapenade | https://www.bonappetit.com/recipe/pizza-fontina-potatoes-tapenade | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 70 | Caramel-Apple Crisp | https://www.bonappetit.com/recipe/caramel-apple-crisp | Bon Appétit | dessert | 디저트 만들기 | 제목에 Caramel-Apple Crisp 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 71 | Spanish Grilled Cheese Sandwiches with Manchego and Jamón Serrano | https://www.bonappetit.com/recipe/spanish-grilled-cheese-sandwiches-with-manchego-and-jam-n-serrano | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 72 | Parmesan Toasts | https://www.bonappetit.com/recipe/parmesan-toasts-2 | Bon Appétit | breakfast | 아침식사 준비 | 제목에 아침식사 계열 키워드가 있어 식사 준비 목적이 분명함 |
+| 73 | Maloney's Irish Cream | https://www.bonappetit.com/recipe/maloney-s-irish-cream | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 74 | Chicken and White Bean Soup with Herb Swirl | https://www.bonappetit.com/recipe/chicken-and-white-bean-soup-with-herb-swirl | Bon Appétit | soup | 국물요리 끓이기 | 제목에 Soup/St​ew 같은 국물요리 키워드가 직접 들어감 |
+| 75 | Radicchio Strudel with Fontina Cheese | https://www.bonappetit.com/recipe/radicchio-strudel-with-fontina-cheese | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 76 | Beef Tenderloin with Morels and Tarragon-Marsala Sauce | https://www.bonappetit.com/recipe/beef-tenderloin-with-morels-and-tarragon-marsala-sauce | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 77 | Mixed Greens with Tangerines and Shaved Fennel | https://www.bonappetit.com/recipe/mixed-greens-with-tangerines-and-shaved-fennel | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 78 | Braised Lamb Shanks with Spring Vegetables and Mint Gremolata | https://www.bonappetit.com/recipe/braised-lamb-shanks-with-spring-vegetables-and-mint-gremolata | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 79 | Eggplant Marinara Ciabatta Pizza | https://www.bonappetit.com/recipe/eggplant-marinara-ciabatta-pizza | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 80 | Caramel-Nut Tart | https://www.bonappetit.com/recipe/caramel-nut-tart | Bon Appétit | dessert | 디저트 만들기 | 제목에 Caramel-Nut Tart 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 81 | Turtle Ice Cream Pie | https://www.bonappetit.com/recipe/turtle-ice-cream-pie | Bon Appétit | dessert | 디저트 만들기 | 제목에 Turtle Ice Cream 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 82 | Gruyère and Cider Fondue | https://www.bonappetit.com/recipe/gruy-re-and-cider-fondue | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 83 | Lamb and Eggplant Shepherd's Pie | https://www.bonappetit.com/recipe/lamb-and-eggplant-shepherd-s-pie | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 84 | Pork Chops and Sugar Snap Peas with Mint Julep Glaze | https://www.bonappetit.com/recipe/pork-chops-and-sugar-snap-peas-with-mint-julep-glaze | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 85 | Orange Aperol Sun | https://www.bonappetit.com/recipe/orange-aperol-sun | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 86 | Coffee-Caramel Crème Brûlée | https://www.bonappetit.com/recipe/coffee-caramel-cr-me-br-l-e | Bon Appétit | drink | 음료 만들기 | 제목에 음료/칵테일 키워드가 있어 바로 마실 것 만드는 의도가 보임 |
+| 87 | Chocolate Cream Cheese Cupcakes | https://www.bonappetit.com/recipe/chocolate-cream-cheese-cupcakes | Bon Appétit | dessert | 디저트 만들기 | 제목에 Chocolate Cream Cheese 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 88 | Ginger-Scented Rice | https://www.bonappetit.com/recipe/ginger-scented-rice | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 89 | Root Vegetable and Mushroom Pie with Rosemary Biscuit Topping | https://www.bonappetit.com/recipe/root-vegetable-and-mushroom-pie-with-rosemary-biscuit-topping | Bon Appétit | dessert | 디저트 만들기 | 제목에 Root Vegetable and 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 90 | Rum, Caramel, and Banana Bread Pudding | https://www.bonappetit.com/recipe/rum-caramel-and-banana-bread-pudding | Bon Appétit | dessert | 디저트 만들기 | 제목에 Rum, Caramel, and 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 91 | Risotto with Duck and White Balsamic Vinegar | https://www.bonappetit.com/recipe/risotto-with-duck-and-white-balsamic-vinegar | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 92 | Vanilla Bean Rice Pudding | https://www.bonappetit.com/recipe/vanilla-bean-rice-pudding | Bon Appétit | dessert | 디저트 만들기 | 제목에 Vanilla Bean Rice 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 93 | Caramel-Date Upside-Down Cake | https://www.bonappetit.com/recipe/caramel-date-upside-down-cake | Bon Appétit | dessert | 디저트 만들기 | 제목에 Caramel-Date Upside-Down Cake 같은 디저트 단서가 바로 보여 베이킹 의도가 분명함 |
+| 94 | Tangerine Semifreddo with Salted Almond Brittle | https://www.bonappetit.com/recipe/tangerine-semifreddo-with-salted-almond-brittle | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 95 | Shrimp and Andouille Pot Pies | https://www.bonappetit.com/recipe/shrimp-and-andouille-pot-pies | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 96 | Homemade Falafel | https://www.bonappetit.com/recipe/homemade-falafel | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |
+| 97 | Artichoke Fritters with Green Goddess Dipping Sauce | https://www.bonappetit.com/recipe/artichoke-fritters-with-green-goddess-dipping-sauce | Bon Appétit | appetizer | 애피타이저 준비 | 제목이 한 입 요리/전채를 직접 가리켜 준비 의도가 분명함 |
+| 98 | Fig and Onion Bruschetta | https://www.bonappetit.com/recipe/fig-and-onion-bruschetta | Bon Appétit | appetizer | 애피타이저 준비 | 제목이 한 입 요리/전채를 직접 가리켜 준비 의도가 분명함 |
+| 99 | Shanghai Soup Dumplings | https://www.bonappetit.com/recipe/shanghai-soup-dumplings | Bon Appétit | soup | 국물요리 끓이기 | 제목에 Soup/St​ew 같은 국물요리 키워드가 직접 들어감 |
+| 100 | Cabernet-Braised Short Ribs with Gorgonzola Polenta and Mixed-Herb Gremolata | https://www.bonappetit.com/recipe/cabernet-braised-short-ribs-with-gorgonzola-polenta-and-mixed-herb-gremolata | Bon Appétit | main | 메인요리 만들기 | 제목에 주재료와 조리 방식이 함께 보여 어떤 요리인지 즉시 파악됨 |

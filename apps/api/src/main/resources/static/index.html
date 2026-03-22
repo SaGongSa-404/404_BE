@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Deck Lab</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="page-shell">
+    <header class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">404 Action Deck Lab</p>
+            <h1>저장한 링크를 오늘의 행동으로 바꿔보자</h1>
+            <p class="hero-text">
+                백엔드 테스트용 프론트다. 링크를 넣으면 실천 카드가 생성되고, 오늘의 덱과 주간 리포트까지 같은 화면에서 바로 확인할 수 있다.
+            </p>
+        </div>
+        <div class="hero-meta">
+            <div class="meta-card">
+                <span class="meta-label">테스트 대상</span>
+                <strong>링크 저장</strong>
+            </div>
+            <div class="meta-card">
+                <span class="meta-label">핵심 가치</span>
+                <strong>보관함이 아니라 실천 덱</strong>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard">
+        <section class="panel control-panel">
+            <div class="panel-header">
+                <p class="panel-kicker">Session</p>
+                <h2>실험 설정</h2>
+            </div>
+
+            <div class="field-grid">
+                <label class="field">
+                    <span>사용자 ID</span>
+                    <input id="userId" type="text" placeholder="11111111-1111-1111-1111-111111111111">
+                </label>
+                <label class="field">
+                    <span>기준 날짜</span>
+                    <input id="targetDate" type="date">
+                </label>
+            </div>
+
+            <div class="action-row">
+                <button id="refreshAllButton" class="button secondary">덱 + 리포트 새로고침</button>
+                <button id="useDemoButton" class="button ghost">데모 사용자 채우기</button>
+            </div>
+        </section>
+
+        <section class="panel composer-panel">
+            <div class="panel-header">
+                <p class="panel-kicker">Create</p>
+                <h2>링크 하나로 카드 만들기</h2>
+            </div>
+
+            <div class="field-stack">
+                <label class="field">
+                    <span>콘텐츠 링크</span>
+                    <input id="contentUrl" type="url" placeholder="유튜브, 인스타, 네이버 블로그, 티스토리 링크를 붙여넣어봐">
+                </label>
+            </div>
+
+            <div class="helper-box">
+                링크만 넣으면 서버가 알아서 스크래핑하고, Gemini로 오늘의 행동 카드 1개를 만든다.
+            </div>
+
+            <div class="action-row">
+                <button id="saveButton" class="button primary">링크만으로 카드 만들기</button>
+            </div>
+
+            <div class="status-box" id="statusBox">대기 중</div>
+        </section>
+
+        <section class="panel snapshot-panel">
+            <div class="panel-header">
+                <p class="panel-kicker">Result</p>
+                <h2>방금 생성된 카드</h2>
+            </div>
+            <div id="lastSavedCard" class="empty-state">
+                아직 생성된 카드가 없다.
+            </div>
+        </section>
+
+        <section class="panel monitoring-panel">
+            <div class="panel-header">
+                <p class="panel-kicker">Monitor</p>
+                <h2>AI 업그레이드 상태</h2>
+            </div>
+            <div class="monitoring-metrics">
+                <div class="metric">
+                    <span class="metric-label">대기중</span>
+                    <strong id="pendingEnhancementCount">0</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">완료</span>
+                    <strong id="enhancedCount">0</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">스킵</span>
+                    <strong id="skippedCount">0</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">실패</span>
+                    <strong id="failedCount">0</strong>
+                </div>
+            </div>
+            <ul id="recentAiEvents" class="mini-list"></ul>
+        </section>
+
+        <section class="panel deck-panel">
+            <div class="panel-header">
+                <p class="panel-kicker">Today</p>
+                <h2>오늘의 실천 카드 덱</h2>
+            </div>
+            <div class="deck-summary" id="deckSummary">
+                <div class="metric">
+                    <span class="metric-label">열린 카드</span>
+                    <strong id="openCardCount">0</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">오늘 완료</span>
+                    <strong id="completedTodayCount">0</strong>
+                </div>
+            </div>
+            <div id="recommendedCard" class="recommended-card empty-state">
+                추천 카드가 아직 없다.
+            </div>
+            <div id="cardList" class="card-list"></div>
+        </section>
+
+        <section class="panel report-panel">
+            <div class="panel-header">
+                <p class="panel-kicker">Weekly</p>
+                <h2>주간 실천 리포트</h2>
+            </div>
+            <div class="report-metrics">
+                <div class="metric">
+                    <span class="metric-label">저장</span>
+                    <strong id="savedCount">0</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">실천</span>
+                    <strong id="completedCount">0</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">완료율</span>
+                    <strong id="completionRate">0%</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">남은 카드</span>
+                    <strong id="pendingCount">0</strong>
+                </div>
+            </div>
+            <div id="insightMessage" class="insight-box">
+                아직 리포트 데이터가 없다.
+            </div>
+            <div class="report-columns">
+                <div>
+                    <h3>저장 카테고리</h3>
+                    <ul id="savedCategories" class="mini-list"></ul>
+                </div>
+                <div>
+                    <h3>실천 카테고리</h3>
+                    <ul id="completedCategories" class="mini-list"></ul>
+                </div>
+                <div>
+                    <h3>최근 완료</h3>
+                    <ul id="recentCompletions" class="mini-list"></ul>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div id="detailModal" class="detail-modal hidden" aria-hidden="true">
+    <div class="detail-backdrop" data-close-detail="true"></div>
+    <div class="detail-sheet">
+        <button class="detail-close" id="detailCloseButton" aria-label="상세 닫기">닫기</button>
+        <div id="detailContent" class="detail-content"></div>
+    </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
