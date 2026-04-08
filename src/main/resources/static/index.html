@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wigul - Social Feed Test</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #111; color: #fff; height: 100vh; overflow: hidden; }
+
+        /* Top bar */
+        .top-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent); }
+        .top-bar h1 { font-size: 20px; font-weight: 700; }
+        .user-selector { display: flex; gap: 6px; align-items: center; }
+        .user-btn { padding: 4px 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: #fff; font-size: 12px; cursor: pointer; }
+        .user-btn.active { background: #4a90d9; border-color: #4a90d9; }
+
+        /* Card container */
+        .card-container { position: relative; width: 100%; height: 100vh; overflow: hidden; }
+        .card { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; transition: transform 0.35s ease, opacity 0.35s ease; }
+        .card.hidden { display: none; }
+        .card.slide-left { transform: translateX(-100%); opacity: 0; }
+        .card.slide-right { transform: translateX(100%); opacity: 0; }
+        .card-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; }
+        .card-bg::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60%; background: linear-gradient(to top, rgba(0,0,0,0.9), transparent); }
+
+        /* Card content */
+        .card-content { position: relative; z-index: 2; padding: 0 20px 100px; }
+        .card-category { display: inline-block; padding: 4px 10px; border-radius: 12px; background: rgba(255,255,255,0.15); font-size: 12px; margin-bottom: 8px; backdrop-filter: blur(4px); }
+        .card-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+        .card-body { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 12px; line-height: 1.4; }
+        .card-price { font-size: 18px; font-weight: 600; color: #ffd700; margin-bottom: 16px; }
+
+        /* Vote buttons */
+        .vote-area { display: flex; gap: 12px; margin-bottom: 16px; }
+        .vote-btn { flex: 1; padding: 14px; border-radius: 12px; border: none; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .vote-btn.go { background: rgba(39,174,96,0.3); color: #27ae60; border: 2px solid #27ae60; }
+        .vote-btn.go.voted { background: #27ae60; color: #fff; }
+        .vote-btn.stop { background: rgba(231,76,60,0.3); color: #e74c3c; border: 2px solid #e74c3c; }
+        .vote-btn.stop.voted { background: #e74c3c; color: #fff; }
+        .vote-btn:active { transform: scale(0.95); }
+
+        /* Comments section */
+        .comments-toggle { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 13px; cursor: pointer; padding: 4px 0; }
+        .comments-panel { position: fixed; bottom: 0; left: 0; right: 0; z-index: 200; background: #1a1a1a; border-radius: 16px 16px 0 0; transform: translateY(100%); transition: transform 0.3s ease; max-height: 50vh; display: flex; flex-direction: column; }
+        .comments-panel.open { transform: translateY(0); }
+        .comments-header { padding: 12px 16px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .comments-header h3 { font-size: 15px; }
+        .comments-close { background: none; border: none; color: #888; font-size: 20px; cursor: pointer; }
+        .comments-list { flex: 1; overflow-y: auto; padding: 8px 16px; }
+        .comment-item { padding: 10px 0; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: flex-start; }
+        .comment-body { font-size: 14px; flex: 1; }
+        .comment-meta { font-size: 11px; color: #666; margin-top: 2px; }
+        .comment-delete { background: none; border: none; color: #e74c3c; font-size: 11px; cursor: pointer; padding: 4px 8px; white-space: nowrap; }
+        .comment-input-area { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #333; }
+        .comment-input-area input { flex: 1; padding: 10px 12px; border-radius: 20px; border: 1px solid #333; background: #222; color: #fff; font-size: 14px; outline: none; }
+        .comment-input-area button { padding: 10px 16px; border-radius: 20px; border: none; background: #4a90d9; color: #fff; font-size: 14px; cursor: pointer; }
+
+        /* Navigation dots */
+        .nav-dots { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); z-index: 50; display: flex; flex-direction: column; gap: 8px; }
+        .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3); cursor: pointer; transition: all 0.2s; }
+        .nav-dot.active { background: #fff; transform: scale(1.3); }
+
+        /* Bottom bar: new post */
+        .bottom-actions { position: fixed; bottom: 20px; right: 20px; z-index: 50; }
+        .add-btn { width: 50px; height: 50px; border-radius: 50%; background: #4a90d9; border: none; color: #fff; font-size: 28px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 300; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: #1a1a1a; border-radius: 16px; padding: 24px; width: 90%; max-width: 400px; }
+        .modal h2 { font-size: 18px; margin-bottom: 16px; }
+        .modal label { display: block; font-size: 13px; color: #aaa; margin: 10px 0 4px; }
+        .modal input, .modal textarea, .modal select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; font-size: 14px; outline: none; }
+        .modal textarea { height: 60px; resize: vertical; }
+        .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+        .modal-actions button { flex: 1; padding: 10px; border-radius: 8px; border: none; font-size: 14px; cursor: pointer; }
+        .modal-actions .cancel { background: #333; color: #fff; }
+        .modal-actions .submit { background: #4a90d9; color: #fff; }
+
+        /* Empty state */
+        .empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666; }
+        .empty-state p { font-size: 16px; margin-bottom: 12px; }
+
+        /* Swipe hint */
+        .swipe-hint { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 50; color: rgba(255,255,255,0.3); font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+    <h1>Wigul</h1>
+    <div class="user-selector">
+        <span style="font-size:12px;color:#888">Test User:</span>
+        <button class="user-btn active" onclick="switchUser(0)">User1</button>
+        <button class="user-btn" onclick="switchUser(1)">User2</button>
+        <button class="user-btn" onclick="switchUser(2)">User3</button>
+    </div>
+</div>
+
+<!-- Card Container -->
+<div class="card-container" id="cardContainer"></div>
+
+<!-- Nav Dots -->
+<div class="nav-dots" id="navDots"></div>
+
+<!-- Swipe Hint -->
+<div class="swipe-hint" id="swipeHint"></div>
+
+<!-- Add Button -->
+<div class="bottom-actions">
+    <button class="add-btn" onclick="openModal()">+</button>
+</div>
+
+<!-- Comments Panel -->
+<div class="comments-panel" id="commentsPanel">
+    <div class="comments-header">
+        <h3 id="commentsTitle">Comments</h3>
+        <button class="comments-close" onclick="closeComments()">&times;</button>
+    </div>
+    <div class="comments-list" id="commentsList"></div>
+    <div class="comment-input-area">
+        <input id="commentInput" placeholder="Write a comment...">
+        <button onclick="submitComment()">Send</button>
+    </div>
+</div>
+
+<!-- New Post Modal -->
+<div class="modal-overlay" id="postModal">
+    <div class="modal">
+        <h2>New Post</h2>
+        <label>Title *</label>
+        <input id="postTitle" placeholder="What are you thinking about buying?">
+        <label>Body</label>
+        <textarea id="postBody" placeholder="Tell us more... (optional)"></textarea>
+        <label>Category *</label>
+        <select id="postCategory">
+            <option value="FASHION">FASHION</option>
+            <option value="BEAUTY">BEAUTY</option>
+            <option value="ELECTRONICS">ELECTRONICS</option>
+            <option value="FOOD">FOOD</option>
+            <option value="HOBBY">HOBBY</option>
+            <option value="ETC">ETC</option>
+        </select>
+        <label>Price</label>
+        <input id="postPrice" type="number" placeholder="(optional)">
+        <label>Image URL *</label>
+        <input id="postImageUrl" placeholder="https://example.com/image.jpg">
+        <label>Product URL</label>
+        <input id="postProductUrl" placeholder="https://example.com/product">
+        <div class="modal-actions">
+            <button class="cancel" onclick="closeModal()">Cancel</button>
+            <button class="submit" onclick="createPost()">Post</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const TEST_USERS = [
+        '00000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000003'
+    ];
+    let currentUserIdx = 0;
+    let posts = [];
+    let currentIndex = 0;
+    let currentCommentsPostId = null;
+
+    // Touch/swipe
+    let touchStartY = 0;
+
+    function userId() { return TEST_USERS[currentUserIdx]; }
+
+    function headers() {
+        return { 'Content-Type': 'application/json', 'X-User-Id': userId() };
+    }
+
+    async function api(method, path, body) {
+        const opts = { method, headers: headers() };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(path, opts);
+        if (res.status === 204) return { status: 204, data: null };
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = text; }
+        return { status: res.status, data };
+    }
+
+    // User switching
+    function switchUser(idx) {
+        currentUserIdx = idx;
+        document.querySelectorAll('.user-btn').forEach((btn, i) => {
+            btn.classList.toggle('active', i === idx);
+        });
+        loadPosts();
+    }
+
+    // Load posts
+    async function loadPosts() {
+        const { data } = await api('GET', '/social/posts?size=50');
+        posts = data.posts || [];
+        if (currentIndex >= posts.length) currentIndex = Math.max(0, posts.length - 1);
+        renderCards();
+    }
+
+    function renderCards() {
+        const container = document.getElementById('cardContainer');
+        const dots = document.getElementById('navDots');
+        const hint = document.getElementById('swipeHint');
+
+        if (!posts.length) {
+            container.innerHTML = '<div class="empty-state"><p>No posts yet</p><p style="font-size:13px">Tap + to create one</p></div>';
+            dots.innerHTML = '';
+            hint.textContent = '';
+            return;
+        }
+
+        hint.textContent = 'Swipe up/down to browse';
+
+        container.innerHTML = posts.map((p, i) => `
+            <div class="card ${i === currentIndex ? '' : 'hidden'}" data-index="${i}">
+                <div class="card-bg" style="background-image:url('${esc(p.imageUrl || '')}'); ${!p.imageUrl ? 'background:#2a2a2a' : ''}"></div>
+                <div class="card-content">
+                    <span class="card-category">${p.category}</span>
+                    <div class="card-title">${esc(p.title)}</div>
+                    ${p.body ? '<div class="card-body">' + esc(p.body) + '</div>' : ''}
+                    ${p.price ? '<div class="card-price">' + p.price.toLocaleString() + ' won</div>' : ''}
+                    <div class="vote-area">
+                        <button class="vote-btn go ${p.myVote === 'GO' ? 'voted' : ''}" onclick="vote('${p.id}','GO')">
+                            GO ${p.goCount}
+                        </button>
+                        <button class="vote-btn stop ${p.myVote === 'STOP' ? 'voted' : ''}" onclick="vote('${p.id}','STOP')">
+                            STOP ${p.stopCount}
+                        </button>
+                    </div>
+                    <button class="comments-toggle" onclick="openComments('${p.id}')">
+                        Comments ${p.commentCount}
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        dots.innerHTML = posts.map((_, i) => `
+            <div class="nav-dot ${i === currentIndex ? 'active' : ''}" onclick="goToCard(${i})"></div>
+        `).join('');
+    }
+
+    function esc(s) {
+        if (!s) return '';
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    // Navigation
+    function goToCard(idx) {
+        if (idx < 0 || idx >= posts.length || idx === currentIndex) return;
+        const dir = idx > currentIndex ? 'up' : 'down';
+        const oldCard = document.querySelector(`.card[data-index="${currentIndex}"]`);
+        const newCard = document.querySelector(`.card[data-index="${idx}"]`);
+        if (!oldCard || !newCard) return;
+
+        oldCard.classList.add(dir === 'up' ? 'slide-left' : 'slide-right');
+        newCard.classList.remove('hidden', 'slide-left', 'slide-right');
+
+        setTimeout(() => { oldCard.classList.add('hidden'); oldCard.classList.remove('slide-left', 'slide-right'); }, 350);
+
+        currentIndex = idx;
+        document.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+    }
+
+    // Touch swipe
+    document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; });
+    document.addEventListener('touchend', e => {
+        const dy = touchStartY - e.changedTouches[0].clientY;
+        if (Math.abs(dy) > 50) {
+            if (dy > 0) goToCard(currentIndex + 1);
+            else goToCard(currentIndex - 1);
+        }
+    });
+
+    // Mouse wheel
+    let wheelCooldown = false;
+    document.addEventListener('wheel', e => {
+        if (wheelCooldown) return;
+        if (Math.abs(e.deltaY) > 30) {
+            wheelCooldown = true;
+            if (e.deltaY > 0) goToCard(currentIndex + 1);
+            else goToCard(currentIndex - 1);
+            setTimeout(() => { wheelCooldown = false; }, 500);
+        }
+    });
+
+    // Keyboard
+    document.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') goToCard(currentIndex + 1);
+        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') goToCard(currentIndex - 1);
+    });
+
+    // Vote
+    async function vote(postId, type) {
+        const { data } = await api('POST', `/social/posts/${postId}/votes`, { voteType: type });
+        if (data) {
+            const p = posts.find(p => p.id === postId);
+            if (p) {
+                p.goCount = data.goCount;
+                p.stopCount = data.stopCount;
+                p.myVote = data.myVote;
+                renderCards();
+            }
+        }
+    }
+
+    // Comments
+    function openComments(postId) {
+        currentCommentsPostId = postId;
+        document.getElementById('commentsPanel').classList.add('open');
+        loadComments(postId);
+    }
+
+    function closeComments() {
+        document.getElementById('commentsPanel').classList.remove('open');
+        currentCommentsPostId = null;
+    }
+
+    async function loadComments(postId) {
+        const { data } = await api('GET', `/social/posts/${postId}/comments`);
+        const comments = data.comments || [];
+        const list = document.getElementById('commentsList');
+        document.getElementById('commentsTitle').textContent = `Comments (${comments.length})`;
+
+        if (!comments.length) {
+            list.innerHTML = '<p style="color:#666;padding:16px;text-align:center;font-size:14px">No comments yet</p>';
+            return;
+        }
+
+        list.innerHTML = comments.map(c => `
+            <div class="comment-item">
+                <div>
+                    <div class="comment-body">${esc(c.body)}</div>
+                    <div class="comment-meta">${new Date(c.createdAt).toLocaleString()}</div>
+                </div>
+                ${c.mine ? '<button class="comment-delete" onclick="deleteComment(\'' + postId + '\',\'' + c.id + '\')">Delete</button>' : ''}
+            </div>
+        `).join('');
+    }
+
+    async function submitComment() {
+        const input = document.getElementById('commentInput');
+        if (!input.value.trim() || !currentCommentsPostId) return;
+        await api('POST', `/social/posts/${currentCommentsPostId}/comments`, { body: input.value.trim() });
+        input.value = '';
+        loadComments(currentCommentsPostId);
+        loadPosts();
+    }
+
+    async function deleteComment(postId, commentId) {
+        const { status } = await api('DELETE', `/social/posts/${postId}/comments/${commentId}`);
+        if (status === 204) {
+            loadComments(postId);
+            loadPosts();
+        } else {
+            alert('Cannot delete: not your comment');
+        }
+    }
+
+    // Create post
+    function openModal() { document.getElementById('postModal').classList.add('open'); }
+    function closeModal() { document.getElementById('postModal').classList.remove('open'); }
+
+    async function createPost() {
+        const title = document.getElementById('postTitle').value.trim();
+        const imageUrl = document.getElementById('postImageUrl').value.trim() || null;
+        const productUrl = document.getElementById('postProductUrl').value.trim() || null;
+
+        if (!title) { alert('Title is required'); return; }
+        if (!imageUrl && !productUrl) { alert('Image URL or Product URL is required'); return; }
+
+        await api('POST', '/social/posts', {
+            title,
+            body: document.getElementById('postBody').value.trim() || null,
+            category: document.getElementById('postCategory').value,
+            price: document.getElementById('postPrice').value ? parseInt(document.getElementById('postPrice').value) : null,
+            imageUrl,
+            productUrl
+        });
+
+        closeModal();
+        document.getElementById('postTitle').value = '';
+        document.getElementById('postBody').value = '';
+        document.getElementById('postPrice').value = '';
+        document.getElementById('postImageUrl').value = '';
+        document.getElementById('postProductUrl').value = '';
+        await loadPosts();
+        goToCard(0);
+    }
+
+    // Init
+    loadPosts();
+</script>
+</body>
+</html>
