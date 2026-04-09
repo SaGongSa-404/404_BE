@@ -5,6 +5,7 @@ import com.example._04_backend.domain.social.dto.request.CreatePostRequest;
 import com.example._04_backend.domain.social.dto.request.VoteRequest;
 import com.example._04_backend.domain.social.dto.response.*;
 import com.example._04_backend.domain.social.service.CommentService;
+import com.example._04_backend.domain.social.service.FileUploadService;
 import com.example._04_backend.domain.social.service.SocialPostService;
 import com.example._04_backend.domain.social.service.VoteService;
 import com.example._04_backend.global.common.enums.Category;
@@ -13,6 +14,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 import java.util.UUID;
 
@@ -26,6 +30,7 @@ public class SocialController {
     private final SocialPostService socialPostService;
     private final VoteService voteService;
     private final CommentService commentService;
+    private final FileUploadService fileUploadService;
 
     // TODO: JWT 인증 연동 후 SecurityContext에서 userId 추출로 변경
     private UUID getCurrentUserId(String userIdHeader) {
@@ -41,6 +46,12 @@ public class SocialController {
             @Valid @RequestBody CreatePostRequest request) {
         PostResponse response = socialPostService.createPost(getCurrentUserId(userIdHeader), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping(value = "/uploads", consumes = "multipart/form-data")
+    public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
+        String url = fileUploadService.saveImage(file);
+        return ResponseEntity.ok(Map.of("url", url));
     }
 
     @GetMapping

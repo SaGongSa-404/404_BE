@@ -25,7 +25,7 @@ public class DataInitializer implements CommandLineRunner {
                 .body("나이키 에어맥스 신상인데 너무 예쁜데 가격이... 고민됩니다")
                 .price(189000)
                 .category(Category.FASHION)
-                .imageUrl("https://via.placeholder.com/300x200?text=Nike+Air+Max")
+                .imageUrl("https://picsum.photos/seed/shoes/600/900")
                 .productUrl("https://example.com/nike-airmax")
                 .build());
 
@@ -35,7 +35,7 @@ public class DataInitializer implements CommandLineRunner {
                 .body("다음달에 신제품 나온다는 소문이 있는데...")
                 .price(999000)
                 .category(Category.ELECTRONICS)
-                .imageUrl("https://via.placeholder.com/300x200?text=Apple+Watch")
+                .imageUrl("https://picsum.photos/seed/watch/600/900")
                 .build());
 
         socialPostRepository.save(SocialPost.builder()
@@ -44,7 +44,7 @@ public class DataInitializer implements CommandLineRunner {
                 .body("이거 진짜 맛있어요 근데 매일 사먹으면 한달에 얼마지...")
                 .price(3500)
                 .category(Category.FOOD)
-                .imageUrl("https://via.placeholder.com/300x200?text=Dessert")
+                .imageUrl("https://picsum.photos/seed/dessert/600/900")
                 .build());
 
         socialPostRepository.save(SocialPost.builder()
@@ -53,7 +53,7 @@ public class DataInitializer implements CommandLineRunner {
                 .body("취미로 레고 모으는데 이번 한정판은 진짜 갖고 싶다")
                 .price(320000)
                 .category(Category.HOBBY)
-                .imageUrl("https://via.placeholder.com/300x200?text=LEGO+Star+Wars")
+                .imageUrl("https://picsum.photos/seed/lego/600/900")
                 .productUrl("https://example.com/lego")
                 .build());
     }

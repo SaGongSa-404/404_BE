@@ -20,6 +20,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/", "/index.html", "/favicon.ico", "/error").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/social/**").permitAll()    // TODO: JWT 인증 적용 후 authenticated()로 변경
                         .requestMatchers("/auth/**").permitAll()
                         .anyRequest().authenticated()
