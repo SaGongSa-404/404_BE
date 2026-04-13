@@ -55,3 +55,7 @@ spring:
               - openid
               - name
               - email
+
+app:
+  auth:
+    jwt-secret: test-jwt-secret

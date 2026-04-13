@@ -1,6 +1,7 @@
 # OAuth Social Login Test Backend
 
 구글, 카카오, 네이버, 애플 로그인을 바로 테스트할 수 있도록 만든 Spring Boot 백엔드입니다.
+브라우저 세션 로그인과 앱 딥링크 로그인 둘 다 받을 수 있게 정리되어 있습니다.
 
 ## Stack
 
@@ -23,6 +24,7 @@ export NAVER_CLIENT_ID=your-naver-client-id
 export NAVER_CLIENT_SECRET=your-naver-client-secret
 export APPLE_CLIENT_ID=your-apple-service-id
 export APPLE_CLIENT_SECRET=your-apple-client-secret-jwt
+export APP_JWT_SECRET=your-app-jwt-secret
 ```
 
 앱을 실행합니다.
@@ -32,6 +34,25 @@ export APPLE_CLIENT_SECRET=your-apple-client-secret-jwt
 ```
 
 브라우저에서 `http://localhost:8080` 으로 접속하면 로그인 테스트 화면이 열립니다.
+
+앱 로그인으로 붙일 때는 아래처럼 `redirect_uri` 파라미터를 같이 넘기면 됩니다.
+
+```text
+GET /oauth2/authorization/google?redirect_uri=sagongsa404://auth/callback
+GET /oauth2/authorization/kakao?redirect_uri=sagongsa404://auth/callback
+```
+
+로그인이 끝나면 백엔드가 앱 딥링크로 다시 보내며, 토큰은 URL fragment에 담깁니다.
+
+```text
+sagongsa404://auth/callback#access_token=...&refresh_token=...&token_type=Bearer
+```
+
+허용 규칙은 현재 기준으로 아래와 같습니다.
+
+- 커스텀 앱 스킴: 허용
+- `http://localhost`, `http://127.0.0.1`, `https://localhost`, `https://127.0.0.1`: 허용
+- 그 외 일반 외부 웹 도메인: 차단
 
 ## Redirect URI
 
@@ -50,4 +71,6 @@ OAuth 콘솔에는 아래 Redirect URI를 등록하면 됩니다.
 
 - 이 브랜치는 로그인 테스트 목적이라 CSRF를 비활성화했습니다.
 - 로그인 후 `GET /api/auth/me` 로 현재 인증된 사용자 정보를 확인할 수 있습니다.
+- 앱은 `Authorization: Bearer <access_token>` 으로 `GET /api/auth/me` 를 호출할 수 있습니다.
+- 토큰 갱신은 `POST /api/auth/token/refresh` 로 처리합니다.
 - 로그아웃은 `POST /api/logout` 으로 처리합니다.

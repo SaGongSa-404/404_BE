@@ -1,6 +1,7 @@
 package com.example.oauthsocialtest.auth;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -21,6 +22,18 @@ public record SocialUserProfile(
 			case "apple" -> fromApple(attributes);
 			default -> throw new IllegalArgumentException("Unsupported provider: " + registrationId);
 		};
+	}
+
+	public static SocialUserProfile fromTokenClaims(Map<String, Object> claims) {
+		Map<String, Object> rawClaims = new LinkedHashMap<>(claims);
+		return new SocialUserProfile(
+			requiredString(rawClaims, "provider"),
+			requiredString(rawClaims, "providerUserId"),
+			firstNonBlank(stringValue(rawClaims.get("name")), "Social User"),
+			stringValue(rawClaims.get("email")),
+			stringValue(rawClaims.get("profileImageUrl")),
+			Collections.unmodifiableMap(rawClaims)
+		);
 	}
 
 	private static SocialUserProfile fromGoogle(Map<String, Object> attributes) {

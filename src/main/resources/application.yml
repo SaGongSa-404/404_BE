@@ -73,3 +73,10 @@ server:
 logging:
   level:
     org.springframework.security: INFO
+
+app:
+  auth:
+    issuer: 404-backend
+    jwt-secret: ${APP_JWT_SECRET:local-dev-jwt-secret}
+    access-token-ttl: ${APP_ACCESS_TOKEN_TTL:PT2H}
+    refresh-token-ttl: ${APP_REFRESH_TOKEN_TTL:P30D}
