@@ -2,6 +2,7 @@ package com.example.oauthsocialtest.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.oauthsocialtest.config.AppAuthProperties;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Map;
@@ -9,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class AppRedirectUriSupportTest {
 
-	private final AppRedirectUriSupport support = new AppRedirectUriSupport();
+	private final AppRedirectUriSupport support = new AppRedirectUriSupport(testProperties());
 
 	@Test
 	void acceptsCustomSchemeRedirectUri() {
@@ -45,5 +46,17 @@ class AppRedirectUriSupportTest {
 		assertThat(redirectUri.toString()).contains("#");
 		assertThat(redirectUri.getFragment()).contains("access_token=access-token");
 		assertThat(redirectUri.getFragment()).contains("provider=google");
+	}
+
+	private static AppAuthProperties testProperties() {
+		AppAuthProperties properties = new AppAuthProperties();
+		properties.setAllowedRedirectUriPrefixes(java.util.List.of(
+			"sagongsa404://auth/callback",
+			"http://localhost",
+			"http://127.0.0.1",
+			"https://localhost",
+			"https://127.0.0.1"
+		));
+		return properties;
 	}
 }

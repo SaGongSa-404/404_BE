@@ -1,6 +1,8 @@
 package com.example.oauthsocialtest.config;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app.auth")
@@ -10,6 +12,7 @@ public class AppAuthProperties {
 	private String jwtSecret = "local-dev-jwt-secret";
 	private Duration accessTokenTtl = Duration.ofHours(2);
 	private Duration refreshTokenTtl = Duration.ofDays(30);
+	private List<String> allowedRedirectUriPrefixes = new ArrayList<>();
 
 	public String getIssuer() {
 		return issuer;
@@ -41,5 +44,15 @@ public class AppAuthProperties {
 
 	public void setRefreshTokenTtl(Duration refreshTokenTtl) {
 		this.refreshTokenTtl = refreshTokenTtl;
+	}
+
+	public List<String> getAllowedRedirectUriPrefixes() {
+		return allowedRedirectUriPrefixes;
+	}
+
+	public void setAllowedRedirectUriPrefixes(List<String> allowedRedirectUriPrefixes) {
+		this.allowedRedirectUriPrefixes = allowedRedirectUriPrefixes == null
+			? new ArrayList<>()
+			: new ArrayList<>(allowedRedirectUriPrefixes);
 	}
 }

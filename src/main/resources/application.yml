@@ -80,3 +80,4 @@ app:
     jwt-secret: ${APP_JWT_SECRET:local-dev-jwt-secret}
     access-token-ttl: ${APP_ACCESS_TOKEN_TTL:PT2H}
     refresh-token-ttl: ${APP_REFRESH_TOKEN_TTL:P30D}
+    allowed-redirect-uri-prefixes: ${APP_ALLOWED_REDIRECT_URI_PREFIXES:sagongsa404://auth/callback,http://localhost,http://127.0.0.1,https://localhost,https://127.0.0.1}

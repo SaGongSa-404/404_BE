@@ -1,13 +1,14 @@
 package com.example.oauthsocialtest.auth;
 
+import com.example.oauthsocialtest.config.AppAuthProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -20,7 +21,11 @@ public class AppRedirectUriSupport {
 	public static final String REDIRECT_URI_PARAMETER = "redirect_uri";
 
 	private static final String SESSION_KEY = "app.oauth2.redirect_uri";
-	private static final Set<String> LOCAL_WEB_HOSTS = Set.of("localhost", "127.0.0.1");
+	private final AppAuthProperties appAuthProperties;
+
+	public AppRedirectUriSupport(AppAuthProperties appAuthProperties) {
+		this.appAuthProperties = appAuthProperties;
+	}
 
 	public void captureRedirectUri(HttpServletRequest request) {
 		String redirectUri = request.getParameter(REDIRECT_URI_PARAMETER);
@@ -65,11 +70,15 @@ public class AppRedirectUriSupport {
 				return Optional.empty();
 			}
 
-			if ("http".equals(scheme) || "https".equals(scheme)) {
-				String host = normalize(uri.getHost());
-				if (!LOCAL_WEB_HOSTS.contains(host)) {
-					return Optional.empty();
-				}
+			String normalizedUri = normalize(uri.toString());
+			List<String> allowedPrefixes = appAuthProperties.getAllowedRedirectUriPrefixes();
+			boolean allowed = allowedPrefixes.stream()
+				.map(this::normalize)
+				.filter(StringUtils::hasText)
+				.anyMatch(normalizedUri::startsWith);
+
+			if (!allowed) {
+				return Optional.empty();
 			}
 
 			return Optional.of(uri);

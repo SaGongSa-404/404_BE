@@ -25,6 +25,7 @@ export NAVER_CLIENT_SECRET=your-naver-client-secret
 export APPLE_CLIENT_ID=your-apple-service-id
 export APPLE_CLIENT_SECRET=your-apple-client-secret-jwt
 export APP_JWT_SECRET=your-app-jwt-secret
+export APP_ALLOWED_REDIRECT_URI_PREFIXES=sagongsa404://auth/callback,https://app.404.example.com/auth/callback
 ```
 
 앱을 실행합니다.
@@ -50,18 +51,19 @@ sagongsa404://auth/callback#access_token=...&refresh_token=...&token_type=Bearer
 
 허용 규칙은 현재 기준으로 아래와 같습니다.
 
-- 커스텀 앱 스킴: 허용
-- `http://localhost`, `http://127.0.0.1`, `https://localhost`, `https://127.0.0.1`: 허용
-- 그 외 일반 외부 웹 도메인: 차단
+- `app.auth.allowed-redirect-uri-prefixes` 또는 `APP_ALLOWED_REDIRECT_URI_PREFIXES` 에 등록한 prefix만 허용
+- 기본값은 로컬 개발용 `sagongsa404://auth/callback`, `localhost`, `127.0.0.1`
 
 ## Redirect URI
 
 OAuth 콘솔에는 아래 Redirect URI를 등록하면 됩니다.
 
-- Google: `http://localhost:8080/login/oauth2/code/google`
-- Kakao: `http://localhost:8080/login/oauth2/code/kakao`
+- Google: `https://api.your-domain.com/login/oauth2/code/google`
+- Kakao: `https://api.your-domain.com/login/oauth2/code/kakao`
 - Naver: `http://localhost:8080/login/oauth2/code/naver`
 - Apple: `https://your-public-domain/login/oauth2/code/apple`
+
+로컬 테스트만 할 때는 `http://localhost:8080/login/oauth2/code/{provider}` 를 그대로 써도 됩니다.
 
 카카오는 비즈 앱 전환 전 테스트 기준으로 닉네임과 프로필 이미지만 요청합니다. 이메일은 요청하지 않습니다.
 네이버는 이름, 이메일, 프로필 이미지를 요청하며 동의 항목 설정에 따라 일부 값은 비어 있을 수 있습니다.
