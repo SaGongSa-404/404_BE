@@ -1,0 +1,132 @@
+:root {
+  font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+  color: #1f1c17;
+  background:
+    radial-gradient(circle at top left, rgba(255, 191, 111, 0.22), transparent 28%),
+    linear-gradient(180deg, #fffaf2 0%, #f4ecdf 100%);
+}
+
+body {
+  margin: 0;
+}
+
+.layout {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px;
+  display: grid;
+  gap: 18px;
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.84);
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: 0 14px 40px rgba(60, 37, 9, 0.08);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #b35e00;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 8px 0 10px;
+  font-size: 34px;
+  line-height: 1.15;
+}
+
+.subcopy {
+  margin: 0;
+  color: #53463b;
+  line-height: 1.6;
+}
+
+.controls {
+  display: grid;
+  gap: 12px;
+}
+
+label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+input {
+  border: 1px solid #d9c6ad;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font: inherit;
+  background: #fffdf9;
+}
+
+button {
+  border: 0;
+  border-radius: 16px;
+  padding: 14px 18px;
+  font: inherit;
+  font-weight: 700;
+  background: #141414;
+  color: white;
+  cursor: pointer;
+}
+
+#statusText {
+  margin: 0;
+  color: #6b5b49;
+}
+
+.result.hidden {
+  display: none;
+}
+
+.hero-image-wrap {
+  min-height: 180px;
+  border-radius: 18px;
+  background: #f7f1e9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+#heroImage {
+  width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+  display: none;
+}
+
+.grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+dt {
+  font-size: 11px;
+  color: #8c6541;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 4px 0 0;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+pre {
+  margin: 18px 0 0;
+  background: #171412;
+  color: #f8efe0;
+  border-radius: 18px;
+  padding: 16px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.45;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "shopping-link-validator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate:shopping": "node scripts/validate-shopping-links.mjs",
+    "coupang:app": "electron electron-app/main.mjs",
+    "coupang:app:test": "set COUPANG_TEST_URL=https://www.coupang.com/vp/products/9280434878&& electron electron-app/main.mjs"
+  },
+  "dependencies": {
+    "electron": "^37.3.1",
+    "playwright": "^1.58.2"
+  }
+}

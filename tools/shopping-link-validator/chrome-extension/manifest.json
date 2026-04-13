@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Coupang Product Extractor",
+  "version": "0.1.0",
+  "description": "Extract product title, price, image, and a visible screenshot from Coupang product pages.",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.coupang.com/*",
+    "https://m.coupang.com/*"
+  ],
+  "action": {
+    "default_title": "Coupang Extractor",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.coupang.com/vp/products/*",
+        "https://m.coupang.com/nm/products/*"
+      ],
+      "js": [
+        "extractor.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

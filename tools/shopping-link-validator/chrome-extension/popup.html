@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Coupang Extractor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Coupang Extractor</p>
+        <h1>현재 탭에서 상품 정보를 추출합니다.</h1>
+      </header>
+
+      <section class="controls">
+        <button id="extractButton" class="primary">상품 정보 추출</button>
+        <button id="highlightButton" class="secondary">가격 위치 강조</button>
+        <button id="captureButton" class="secondary">보이는 화면 캡처</button>
+        <button id="copyButton" class="secondary" disabled>JSON 복사</button>
+      </section>
+
+      <section class="status">
+        <p id="statusText">쿠팡 상품 페이지에서 실행해 주세요.</p>
+      </section>
+
+      <section id="resultCard" class="result hidden">
+        <img id="previewImage" alt="" />
+        <dl>
+          <div>
+            <dt>제목</dt>
+            <dd id="titleValue">-</dd>
+          </div>
+          <div>
+            <dt>가격</dt>
+            <dd id="priceValue">-</dd>
+          </div>
+          <div>
+            <dt>이미지</dt>
+            <dd id="imageValue">-</dd>
+          </div>
+          <div>
+            <dt>페이지</dt>
+            <dd id="urlValue">-</dd>
+          </div>
+          <div>
+            <dt>추출 방식</dt>
+            <dd id="evidenceValue">-</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
