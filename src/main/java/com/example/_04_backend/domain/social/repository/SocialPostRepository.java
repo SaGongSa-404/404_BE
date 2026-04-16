@@ -31,4 +31,6 @@ public interface SocialPostRepository extends JpaRepository<SocialPost, UUID> {
     List<SocialPost> findByUserIdWithCursorOrderByCreatedAtDesc(@Param("userId") UUID userId, @Param("cursor") UUID cursor, Pageable pageable);
 
     long countByUserId(UUID userId);
+
+    void deleteByUserId(UUID userId);
 }

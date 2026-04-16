@@ -38,6 +38,8 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/", "/index.html", "/favicon.ico", "/error").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        // 약관은 비로그인도 허용
+                        .requestMatchers(HttpMethod.GET, "/api/terms", "/api/terms/**").permitAll()
                         // 소셜 피드 조회는 비로그인도 허용
                         .requestMatchers(HttpMethod.GET, "/social/posts", "/social/posts/**").permitAll()
                         // 소셜 피드 쓰기(게시글/댓글/투표)는 로그인 필요
@@ -45,6 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/social/posts/**").authenticated()
                         // 마이페이지는 로그인 필요
                         .requestMatchers("/api/users/me/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/users/me").authenticated()
                         .anyRequest().permitAll()
                 )
                 .oauth2Login(oauth2 -> oauth2

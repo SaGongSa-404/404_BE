@@ -27,7 +27,10 @@ public enum ErrorCode {
     BUDGET_NOT_SET(HttpStatus.FORBIDDEN, "BUDGET_NOT_SET", "예산이 설정되지 않았습니다."),
 
     // Link
-    LINK_PARSE_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "LINK_PARSE_FAILED", "링크 파싱에 실패했습니다.");
+    LINK_PARSE_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "LINK_PARSE_FAILED", "링크 파싱에 실패했습니다."),
+
+    // Terms
+    TERMS_NOT_FOUND(HttpStatus.NOT_FOUND, "TERMS_NOT_FOUND", "해당 약관을 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

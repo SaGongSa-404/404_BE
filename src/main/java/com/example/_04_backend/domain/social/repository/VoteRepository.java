@@ -3,6 +3,7 @@ package com.example._04_backend.domain.social.repository;
 import com.example._04_backend.domain.social.entity.Vote;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -21,4 +22,10 @@ public interface VoteRepository extends JpaRepository<Vote, UUID> {
     List<Vote> findByUserIdWithCursorOrderByCreatedAtDesc(@Param("userId") UUID userId, @Param("cursor") UUID cursor, Pageable pageable);
 
     long countByUserId(UUID userId);
+
+    void deleteByUserId(UUID userId);
+
+    @Modifying
+    @Query("DELETE FROM Vote v WHERE v.post.userId = :userId")
+    void deleteByPostUserId(@Param("userId") UUID userId);
 }
