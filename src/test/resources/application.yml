@@ -1,3 +1,7 @@
+app:
+  upload:
+    dir: ./uploads-test
+
 spring:
   security:
     oauth2:

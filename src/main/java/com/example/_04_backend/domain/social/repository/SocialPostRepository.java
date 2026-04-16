@@ -27,5 +27,8 @@ public interface SocialPostRepository extends JpaRepository<SocialPost, UUID> {
 
     List<SocialPost> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
+    @Query("SELECT p FROM SocialPost p WHERE p.userId = :userId AND p.id < :cursor ORDER BY p.createdAt DESC")
+    List<SocialPost> findByUserIdWithCursorOrderByCreatedAtDesc(@Param("userId") UUID userId, @Param("cursor") UUID cursor, Pageable pageable);
+
     long countByUserId(UUID userId);
 }

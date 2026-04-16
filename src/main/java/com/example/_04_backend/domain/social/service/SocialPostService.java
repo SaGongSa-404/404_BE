@@ -4,6 +4,7 @@ import com.example._04_backend.domain.social.dto.request.CreatePostRequest;
 import com.example._04_backend.domain.social.dto.response.PostListResponse;
 import com.example._04_backend.domain.social.dto.response.PostResponse;
 import com.example._04_backend.domain.social.entity.SocialPost;
+import com.example._04_backend.domain.social.entity.Vote;
 import com.example._04_backend.domain.social.enums.VoteType;
 import com.example._04_backend.domain.social.repository.CommentRepository;
 import com.example._04_backend.domain.social.repository.SocialPostRepository;
@@ -71,9 +72,10 @@ public class SocialPostService {
         List<PostResponse> postResponses = posts.stream()
                 .map(post -> {
                     long commentCount = commentRepository.countByPostId(post.getId());
-                    VoteType myVote = voteRepository.findByPostIdAndUserId(post.getId(), userId)
-                            .map(vote -> vote.getVoteType())
-                            .orElse(null);
+                    VoteType myVote = (userId != null)
+                            ? voteRepository.findByPostIdAndUserId(post.getId(), userId)
+                                    .map(Vote::getVoteType).orElse(null)
+                            : null;
                     return PostResponse.of(post, commentCount, myVote);
                 })
                 .toList();
@@ -92,9 +94,10 @@ public class SocialPostService {
     public PostResponse getPost(UUID userId, UUID postId) {
         SocialPost post = findPostOrThrow(postId);
         long commentCount = commentRepository.countByPostId(postId);
-        VoteType myVote = voteRepository.findByPostIdAndUserId(postId, userId)
-                .map(vote -> vote.getVoteType())
-                .orElse(null);
+        VoteType myVote = (userId != null)
+                ? voteRepository.findByPostIdAndUserId(postId, userId)
+                        .map(Vote::getVoteType).orElse(null)
+                : null;
         return PostResponse.of(post, commentCount, myVote);
     }
 

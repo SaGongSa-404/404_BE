@@ -58,7 +58,7 @@ public class CommentService {
     @Transactional
     public void deleteComment(UUID userId, UUID postId, UUID commentId) {
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
         if (!comment.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
