@@ -5,14 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemInputSource;
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -24,6 +31,9 @@ public class WishlistService {
 
 	private static final BigDecimal MIN_CONFIDENCE = BigDecimal.ZERO;
 	private static final BigDecimal MAX_CONFIDENCE = BigDecimal.valueOf(100);
+	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
+		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
+	);
 
 	private final JdbcTemplate jdbcTemplate;
 	private final ObjectMapper objectMapper;
@@ -35,13 +45,13 @@ public class WishlistService {
 
 	@Transactional
 	public WishlistItemResponse create(UUID userId, WishlistItemCreateRequest request) {
-		ensureUserExists(userId);
+		ensureWishlistUserAllowed(userId);
 
 		ItemInputSource inputSource = parseRequiredEnum(request.inputSource(), ItemInputSource.class, "inputSource");
 		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
 		String title = cleanRequired(request.title(), "title", 255);
 		String originalUrl = cleanOptional(request.originalUrl(), "originalUrl");
-		String normalizedUrl = cleanOptional(request.normalizedUrl(), "normalizedUrl");
+		String normalizedUrl = normalizeSavedUrl(originalUrl, cleanOptional(request.normalizedUrl(), "normalizedUrl"));
 		String imageUrl = cleanOptional(request.imageUrl(), "imageUrl");
 		Integer listedPrice = validateListedPrice(request.listedPrice());
 		String currencyCode = cleanCurrencyCode(request.currencyCode());
@@ -49,8 +59,12 @@ public class WishlistService {
 		boolean categoryLockedByUser = Boolean.TRUE.equals(request.categoryLockedByUser());
 		MetadataFields metadata = metadataFields(request);
 
-		if (normalizedUrl != null && existsSavedNormalizedUrl(userId, normalizedUrl)) {
-			throw new DuplicateSavedItemException("Saved wishlist item already exists for the normalized URL.");
+		Optional<WishlistItemResponse> existingItem = findExistingSavedNormalizedUrl(userId, normalizedUrl);
+		if (existingItem.isPresent()) {
+			throw new DuplicateSavedItemException(
+				"Saved wishlist item already exists for the normalized URL.",
+				existingItem.get()
+			);
 		}
 
 		UUID itemId = UUID.randomUUID();
@@ -82,7 +96,10 @@ public class WishlistService {
 			);
 		}
 		catch (DuplicateKeyException exception) {
-			throw new DuplicateSavedItemException("Saved wishlist item already exists for the normalized URL.");
+			throw new DuplicateSavedItemException(
+				"Saved wishlist item already exists for the normalized URL.",
+				findExistingSavedNormalizedUrl(userId, normalizedUrl).orElse(null)
+			);
 		}
 
 		if (metadata.hasAnyValue()) {
@@ -109,7 +126,7 @@ public class WishlistService {
 
 	@Transactional(readOnly = true)
 	public List<WishlistItemResponse> list(UUID userId, String rawCategory) {
-		ensureUserExists(userId);
+		ensureWishlistUserAllowed(userId);
 
 		String category = null;
 		if (StringUtils.hasText(rawCategory)) {
@@ -143,7 +160,7 @@ public class WishlistService {
 
 	@Transactional
 	public WishlistItemResponse updateCategory(UUID userId, UUID itemId, WishlistCategoryUpdateRequest request) {
-		ensureUserExists(userId);
+		ensureWishlistUserAllowed(userId);
 		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
@@ -172,7 +189,7 @@ public class WishlistService {
 
 	@Transactional
 	public void drop(UUID userId, UUID itemId) {
-		ensureUserExists(userId);
+		ensureWishlistUserAllowed(userId);
 		int updated = jdbcTemplate.update(
 			"""
 			update saved_items
@@ -210,7 +227,7 @@ public class WishlistService {
 		return items.getFirst();
 	}
 
-	private void ensureUserExists(UUID userId) {
+	private void ensureWishlistUserAllowed(UUID userId) {
 		Boolean exists = jdbcTemplate.queryForObject(
 			"select exists(select 1 from users where id = ?)",
 			Boolean.class,
@@ -219,24 +236,38 @@ public class WishlistService {
 		if (!Boolean.TRUE.equals(exists)) {
 			throw new WishlistItemNotFoundException("User was not found.");
 		}
-	}
 
-	private boolean existsSavedNormalizedUrl(UUID userId, String normalizedUrl) {
-		Boolean exists = jdbcTemplate.queryForObject(
+		Boolean allowed = jdbcTemplate.queryForObject(
 			"""
 			select exists(
 				select 1
-				from saved_items
-				where user_id = ?
-				  and normalized_url = ?
-				  and status = 'SAVED'
+				from users
+				where id = ?
+				  and status = 'ACTIVE'
+				  and onboarding_status = 'COMPLETED'
 			)
 			""",
 			Boolean.class,
+			userId
+		);
+		if (!Boolean.TRUE.equals(allowed)) {
+			throw new WishlistForbiddenException("Wishlist can be used only by active users who completed onboarding.");
+		}
+	}
+
+	private Optional<WishlistItemResponse> findExistingSavedNormalizedUrl(UUID userId, String normalizedUrl) {
+		List<WishlistItemResponse> items = jdbcTemplate.query(
+			baseSelect() + """
+			where si.user_id = ?
+			  and si.normalized_url = ?
+			  and si.status = 'SAVED'
+			limit 1
+			""",
+			this::mapRow,
 			userId,
 			normalizedUrl
 		);
-		return Boolean.TRUE.equals(exists);
+		return items.stream().findFirst();
 	}
 
 	private String baseSelect() {
@@ -358,6 +389,60 @@ public class WishlistService {
 			throw new BadRequestException("currencyCode must be 3 characters.");
 		}
 		return cleaned;
+	}
+
+	private String normalizeSavedUrl(String originalUrl, String normalizedUrl) {
+		if (!StringUtils.hasText(originalUrl) && !StringUtils.hasText(normalizedUrl)) {
+			throw new BadRequestException("originalUrl or normalizedUrl is required.");
+		}
+		if (StringUtils.hasText(originalUrl)) {
+			parseHttpUrl(originalUrl, "originalUrl");
+		}
+		return canonicalizeHttpUrl(StringUtils.hasText(normalizedUrl) ? normalizedUrl : originalUrl, "normalizedUrl");
+	}
+
+	private URI parseHttpUrl(String rawUrl, String fieldName) {
+		try {
+			URI uri = URI.create(rawUrl.trim());
+			String scheme = Optional.ofNullable(uri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
+			if (!Objects.equals(scheme, "http") && !Objects.equals(scheme, "https")) {
+				throw new BadRequestException(fieldName + " must use http or https.");
+			}
+			if (!StringUtils.hasText(uri.getHost())) {
+				throw new BadRequestException(fieldName + " host is required.");
+			}
+			return uri;
+		} catch (IllegalArgumentException exception) {
+			throw new BadRequestException(fieldName + " must be a valid URL.");
+		}
+	}
+
+	private String canonicalizeHttpUrl(String rawUrl, String fieldName) {
+		URI uri = parseHttpUrl(rawUrl, fieldName);
+		String filteredQuery = uri.getRawQuery() == null ? null : removeTrackingQueryParameters(uri.getRawQuery());
+		try {
+			return new URI(
+				uri.getScheme().toLowerCase(Locale.ROOT),
+				uri.getAuthority().toLowerCase(Locale.ROOT),
+				uri.getPath(),
+				filteredQuery,
+				null
+			).toString();
+		} catch (URISyntaxException exception) {
+			throw new BadRequestException(fieldName + " must be a valid URL.");
+		}
+	}
+
+	private String removeTrackingQueryParameters(String rawQuery) {
+		String filtered = Arrays.stream(rawQuery.split("&"))
+			.filter(parameter -> !isTrackingQueryParameter(parameter))
+			.collect(Collectors.joining("&"));
+		return filtered.isBlank() ? null : filtered;
+	}
+
+	private boolean isTrackingQueryParameter(String parameter) {
+		String key = parameter.split("=", 2)[0].toLowerCase(Locale.ROOT);
+		return key.startsWith("utm_") || TRACKING_QUERY_KEYS.contains(key);
 	}
 
 	private BigDecimal validateCategoryConfidence(BigDecimal categoryConfidence) {

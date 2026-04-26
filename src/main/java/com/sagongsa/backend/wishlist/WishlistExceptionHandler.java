@@ -21,13 +21,20 @@ public class WishlistExceptionHandler {
 	}
 
 	@ExceptionHandler(DuplicateSavedItemException.class)
-	public ResponseEntity<ApiErrorResponse> handleDuplicate(DuplicateSavedItemException exception) {
-		return error(HttpStatus.CONFLICT, "DUPLICATE_SAVED_ITEM", exception.getMessage());
+	public ResponseEntity<DuplicateSavedItemResponse> handleDuplicate(DuplicateSavedItemException exception) {
+		return ResponseEntity
+			.status(HttpStatus.CONFLICT)
+			.body(new DuplicateSavedItemResponse("DUPLICATE_SAVED_ITEM", exception.getMessage(), exception.existingItem()));
 	}
 
 	@ExceptionHandler(WishlistItemNotFoundException.class)
 	public ResponseEntity<ApiErrorResponse> handleNotFound(WishlistItemNotFoundException exception) {
 		return error(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage());
+	}
+
+	@ExceptionHandler(WishlistForbiddenException.class)
+	public ResponseEntity<ApiErrorResponse> handleForbidden(WishlistForbiddenException exception) {
+		return error(HttpStatus.FORBIDDEN, "FORBIDDEN", exception.getMessage());
 	}
 
 	@ExceptionHandler(DataIntegrityViolationException.class)

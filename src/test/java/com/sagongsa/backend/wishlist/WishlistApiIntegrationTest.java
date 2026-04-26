@@ -120,7 +120,27 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(request))
 			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.code").value("DUPLICATE_SAVED_ITEM"));
+			.andExpect(jsonPath("$.code").value("DUPLICATE_SAVED_ITEM"))
+			.andExpect(jsonPath("$.existingItem.title").value("Duplicated item"));
+	}
+
+	@Test
+	void createsItemByNormalizingOriginalUrlWhenNormalizedUrlIsMissing() throws Exception {
+		UUID userId = createUser();
+
+		mockMvc.perform(post(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"inputSource": "SHARE",
+					"originalUrl": "https://shop.example.com/product?id=100&utm_source=social",
+					"title": "Original only item",
+					"category": "ETC"
+				}
+				"""))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.normalizedUrl").value("https://shop.example.com/product?id=100"));
 	}
 
 	@Test
@@ -193,15 +213,31 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$", hasSize(0)));
 	}
 
+	@Test
+	void blocksWishlistBeforeOnboardingCompletion() throws Exception {
+		UUID userId = createUser("ACTIVE", "NOT_STARTED");
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("FORBIDDEN"));
+	}
+
 	private UUID createUser() {
+		return createUser("ACTIVE", "COMPLETED");
+	}
+
+	private UUID createUser(String status, String onboardingStatus) {
 		UUID userId = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		jdbcTemplate.update(
 			"""
 			insert into users (id, status, onboarding_status, created_at, updated_at)
-			values (?, 'ACTIVE', 'NOT_STARTED', ?, ?)
+			values (?, ?, ?, ?, ?)
 			""",
 			userId,
+			status,
+			onboardingStatus,
 			now,
 			now
 		);
