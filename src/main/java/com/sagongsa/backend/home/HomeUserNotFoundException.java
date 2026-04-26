@@ -7,7 +7,7 @@ public class HomeUserNotFoundException extends RuntimeException {
 	private final UUID userId;
 
 	public HomeUserNotFoundException(UUID userId) {
-		super("User not found for X-User-Id: " + userId);
+		super("User not found: " + userId);
 		this.userId = userId;
 	}
 

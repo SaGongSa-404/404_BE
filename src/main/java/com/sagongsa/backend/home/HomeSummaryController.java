@@ -1,8 +1,8 @@
 package com.sagongsa.backend.home;
 
+import com.sagongsa.backend.auth.CurrentUserId;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,15 +17,7 @@ public class HomeSummaryController {
 	}
 
 	@GetMapping("/summary")
-	public HomeSummaryResponse getSummary(@RequestHeader("X-User-Id") String userIdHeader) {
-		return homeSummaryService.getSummary(parseUserId(userIdHeader));
-	}
-
-	private UUID parseUserId(String userIdHeader) {
-		try {
-			return UUID.fromString(userIdHeader);
-		} catch (IllegalArgumentException exception) {
-			throw new InvalidHomeUserIdHeaderException(userIdHeader);
-		}
+	public HomeSummaryResponse getSummary(@CurrentUserId UUID userId) {
+		return homeSummaryService.getSummary(userId);
 	}
 }

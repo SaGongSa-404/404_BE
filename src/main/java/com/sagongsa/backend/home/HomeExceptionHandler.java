@@ -3,7 +3,6 @@ package com.sagongsa.backend.home;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -17,20 +16,11 @@ public class HomeExceptionHandler {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problemDetail);
 	}
 
-	@ExceptionHandler(InvalidHomeUserIdHeaderException.class)
-	public ResponseEntity<ProblemDetail> handleInvalidUserIdHeader(InvalidHomeUserIdHeaderException exception) {
-		ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
-		problemDetail.setTitle("Invalid X-User-Id Header");
-		return ResponseEntity.badRequest().body(problemDetail);
+	@ExceptionHandler(HomeForbiddenException.class)
+	public ResponseEntity<ProblemDetail> handleForbidden(HomeForbiddenException exception) {
+		ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, exception.getMessage());
+		problemDetail.setTitle("Forbidden");
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problemDetail);
 	}
 
-	@ExceptionHandler(MissingRequestHeaderException.class)
-	public ResponseEntity<ProblemDetail> handleMissingHeader(MissingRequestHeaderException exception) {
-		ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-			HttpStatus.BAD_REQUEST,
-			exception.getHeaderName() + " header is required"
-		);
-		problemDetail.setTitle("Missing Required Header");
-		return ResponseEntity.badRequest().body(problemDetail);
-	}
 }

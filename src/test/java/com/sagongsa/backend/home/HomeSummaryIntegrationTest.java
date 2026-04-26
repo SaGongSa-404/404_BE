@@ -47,10 +47,13 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 		insertUser(userId);
 		insertUserProfile(userId, "Jae", "Neogul", "Asia/Seoul");
-		insertMascotProfile(userId, "SMILE", "Nice choice", BASE_TIME.plusSeconds(10), BASE_TIME.plusSeconds(3600));
+		insertMascotProfile(userId, "SMILE", "Nice choice", BASE_TIME.plusSeconds(10), Instant.now().plusSeconds(3600));
 		insertBudgetCycle(userId, yearMonth, 500_000, 125_000, new BigDecimal("80.00"));
 		insertNotification(firstNotificationId, userId, "BUDGET_WARNING", "Budget", "Close to limit", "/budget", false, null, BASE_TIME.plusSeconds(30));
 		insertNotification(secondNotificationId, userId, "WISHLIST_REMINDER", "Wishlist", "Check saved item", "/items", true, BASE_TIME.plusSeconds(40), BASE_TIME.plusSeconds(20));
+		insertDecision(userId, "GO", "RATIONAL", 1, BASE_TIME.plusSeconds(50));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, BASE_TIME.plusSeconds(60));
+		insertDecision(userId, "GO", "IRRATIONAL", 2, BASE_TIME.plusSeconds(70));
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
@@ -68,7 +71,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.notifications.latestNotifications[0].type").value("BUDGET_WARNING"))
 			.andExpect(jsonPath("$.notifications.latestNotifications[0].read").value(false))
 			.andExpect(jsonPath("$.notifications.latestNotifications[1].id").value(secondNotificationId.toString()))
-			.andExpect(jsonPath("$.rationalChoiceRate").value(nullValue()));
+			.andExpect(jsonPath("$.rationalChoiceRate").value(66.67));
 	}
 
 	@Test
@@ -120,22 +123,51 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void returnsDefaultMascotWhenReactionExpired() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000104");
+
+		insertUser(userId);
+		insertMascotProfile(userId, "SAD", "Old reaction", BASE_TIME, BASE_TIME.plusSeconds(1));
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mascot.state").value("DEFAULT"))
+			.andExpect(jsonPath("$.mascot.lastReactionMessage").value(nullValue()));
+	}
+
+	@Test
 	void returnsNotFoundWhenUserDoesNotExist() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000199");
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.title").value("User Not Found"))
-			.andExpect(jsonPath("$.detail").value("User not found for X-User-Id: " + userId));
+			.andExpect(jsonPath("$.detail").value("User not found: " + userId));
+	}
+
+	@Test
+	void returnsForbiddenBeforeOnboardingCompletion() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000198");
+		insertUser(userId, "ACTIVE", "NOT_STARTED");
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.title").value("Forbidden"));
 	}
 
 	private void insertUser(UUID userId) {
+		insertUser(userId, "ACTIVE", "COMPLETED");
+	}
+
+	private void insertUser(UUID userId, String status, String onboardingStatus) {
 		jdbcTemplate.update(
 			"""
 			insert into users (id, status, onboarding_status, created_at, updated_at)
-			values (?, 'ACTIVE', 'COMPLETED', ?, ?)
+			values (?, ?, ?, ?, ?)
 			""",
 			userId,
+			status,
+			onboardingStatus,
 			timestamp(BASE_TIME),
 			timestamp(BASE_TIME)
 		);
@@ -253,6 +285,62 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			timestamp(readAt),
 			timestamp(createdAt),
 			timestamp(createdAt)
+		);
+	}
+
+	private void insertDecision(
+		UUID userId,
+		String result,
+		String rationalityResult,
+		int selfCheckYesCount,
+		Instant decidedAt
+	) {
+		UUID itemId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into saved_items (
+				id,
+				user_id,
+				input_source,
+				title,
+				category,
+				category_locked_by_user,
+				status,
+				created_at,
+				updated_at
+			)
+			values (?, ?, 'DIRECT_INPUT', 'Decision item', 'ETC', false, ?, ?, ?)
+			""",
+			itemId,
+			userId,
+			result,
+			timestamp(decidedAt),
+			timestamp(decidedAt)
+		);
+		jdbcTemplate.update(
+			"""
+			insert into purchase_decisions (
+				id,
+				user_id,
+				item_id,
+				result,
+				rationality_result,
+				self_check_yes_count,
+				decided_at,
+				created_at,
+				updated_at
+			)
+			values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			""",
+			UUID.randomUUID(),
+			userId,
+			itemId,
+			result,
+			rationalityResult,
+			selfCheckYesCount,
+			timestamp(decidedAt),
+			timestamp(decidedAt),
+			timestamp(decidedAt)
 		);
 	}
 

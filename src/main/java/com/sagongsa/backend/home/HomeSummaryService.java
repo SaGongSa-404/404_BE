@@ -6,6 +6,7 @@ import com.sagongsa.backend.home.HomeSummaryResponse.NotificationSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.NotificationsSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.UserProfileSummary;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -35,23 +36,44 @@ public class HomeSummaryService {
 		if (!userExists(userId)) {
 			throw new HomeUserNotFoundException(userId);
 		}
+		if (!userCanUseHome(userId)) {
+			throw new HomeForbiddenException("Home summary can be used only by active users who completed onboarding.");
+		}
 
 		UserProfileSummary userProfile = findUserProfile(userId)
 			.orElseGet(() -> new UserProfileSummary(null, null, null));
-		String currentYearMonth = YearMonth.now(resolveZoneId(userProfile.timezone())).toString();
+		ZoneId zoneId = resolveZoneId(userProfile.timezone());
+		String currentYearMonth = YearMonth.now(zoneId).toString();
 
 		return new HomeSummaryResponse(
 			userProfile,
 			findMascotSummary(userId).orElseGet(HomeSummaryService::defaultMascotSummary),
 			findBudgetSummary(userId, currentYearMonth).orElseGet(() -> defaultBudgetSummary(currentYearMonth)),
 			new NotificationsSummary(countUnreadNotifications(userId), findLatestNotifications(userId)),
-			null
+			findRationalChoiceRate(userId, currentYearMonth, zoneId)
 		);
 	}
 
 	private boolean userExists(UUID userId) {
 		Boolean exists = jdbcTemplate.queryForObject(
 			"select exists(select 1 from users where id = ?)",
+			Boolean.class,
+			userId
+		);
+		return Boolean.TRUE.equals(exists);
+	}
+
+	private boolean userCanUseHome(UUID userId) {
+		Boolean exists = jdbcTemplate.queryForObject(
+			"""
+			select exists(
+				select 1
+				from users
+				where id = ?
+				  and status = 'ACTIVE'
+				  and onboarding_status = 'COMPLETED'
+			)
+			""",
 			Boolean.class,
 			userId
 		);
@@ -92,6 +114,7 @@ public class HomeSummaryService {
 				userId
 			)
 			.stream()
+			.map(this::resetExpiredMascotReaction)
 			.findFirst();
 	}
 
@@ -153,8 +176,47 @@ public class HomeSummaryService {
 		);
 	}
 
+	private BigDecimal findRationalChoiceRate(UUID userId, String yearMonth, ZoneId zoneId) {
+		List<RationalChoiceAggregate> aggregates = jdbcTemplate.query(
+				"""
+				select
+				  count(*) as total_count,
+				  coalesce(sum(
+				    case
+				      when result = 'GO' and rationality_result = 'IRRATIONAL' then 0
+				      else 1
+				    end
+				  ), 0) as rational_count
+				from purchase_decisions
+				where user_id = ?
+				  and to_char(decided_at at time zone ?, 'YYYY-MM') = ?
+				""",
+				(rs, rowNum) -> new RationalChoiceAggregate(
+					rs.getLong("total_count"),
+					rs.getLong("rational_count")
+				),
+				userId,
+				zoneId.getId(),
+				yearMonth
+			);
+		RationalChoiceAggregate aggregate = aggregates.getFirst();
+		if (aggregate.totalCount() == 0) {
+			return null;
+		}
+		return BigDecimal.valueOf(aggregate.rationalCount())
+			.multiply(BigDecimal.valueOf(100))
+			.divide(BigDecimal.valueOf(aggregate.totalCount()), 2, RoundingMode.HALF_UP);
+	}
+
 	private static MascotSummary defaultMascotSummary() {
 		return new MascotSummary("DEFAULT", null, null, null);
+	}
+
+	private MascotSummary resetExpiredMascotReaction(MascotSummary mascotSummary) {
+		if (mascotSummary.reactionExpiresAt() != null && !mascotSummary.reactionExpiresAt().isAfter(Instant.now())) {
+			return defaultMascotSummary();
+		}
+		return mascotSummary;
 	}
 
 	private static BudgetSummary defaultBudgetSummary(String yearMonth) {
@@ -175,5 +237,8 @@ public class HomeSummaryService {
 	private static Instant readInstant(ResultSet resultSet, String columnName) throws SQLException {
 		Timestamp timestamp = resultSet.getTimestamp(columnName);
 		return timestamp == null ? null : timestamp.toInstant();
+	}
+
+	private record RationalChoiceAggregate(long totalCount, long rationalCount) {
 	}
 }
