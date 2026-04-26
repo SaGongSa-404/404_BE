@@ -96,7 +96,27 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 		assertThat(queryString("select onboarding_status from users where id = ?", userId)).isEqualTo("COMPLETED");
 	}
 
+	@Test
+	void completeBlocksSuspendedUser() throws Exception {
+		UUID userId = insertUser("ACTIVE", "NOT_STARTED");
+
+		jdbcTemplate.update("update users set status = 'SUSPENDED' where id = ?", userId);
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(onboardingRequestBody()))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+		assertThat(countRows("user_profiles", userId)).isZero();
+	}
+
 	private UUID insertUser(String onboardingStatus) {
+		return insertUser("ACTIVE", onboardingStatus);
+	}
+
+	private UUID insertUser(String status, String onboardingStatus) {
 		UUID userId = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		jdbcTemplate.update(
@@ -104,9 +124,10 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 				insert into users (
 					id, status, onboarding_status, created_at, updated_at, withdrawn_at
 				)
-				values (?, 'ACTIVE', ?, ?, ?, null)
+				values (?, ?, ?, ?, ?, null)
 				""",
 			userId,
+			status,
 			onboardingStatus,
 			now,
 			now

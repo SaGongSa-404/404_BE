@@ -37,6 +37,13 @@ class OnboardingExceptionHandler {
 			.body(new OnboardingErrorResponse("ONBOARDING_CONFLICT", exception.getMessage()));
 	}
 
+	@ExceptionHandler(OnboardingForbiddenException.class)
+	ResponseEntity<OnboardingErrorResponse> handleForbidden(OnboardingForbiddenException exception) {
+		return ResponseEntity
+			.status(HttpStatus.FORBIDDEN)
+			.body(new OnboardingErrorResponse("FORBIDDEN", exception.getMessage()));
+	}
+
 	private record OnboardingErrorResponse(String code, String message) {
 	}
 }

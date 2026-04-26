@@ -20,6 +20,7 @@ public class OnboardingService {
 	static final String ONBOARDING_SURVEY_TYPE = "ONBOARDING";
 	static final String REGRET_FREQUENCY_QUESTION_CODE = "RECENT_MONTH_PURCHASE_REGRET_FREQUENCY";
 
+	private static final String ACTIVE_STATUS = "ACTIVE";
 	private static final String COMPLETED_STATUS = "COMPLETED";
 	private static final String DEFAULT_TIMEZONE = "Asia/Seoul";
 	private static final BigDecimal DEFAULT_WARNING_THRESHOLD_RATE = new BigDecimal("80.00");
@@ -38,9 +39,12 @@ public class OnboardingService {
 	@Transactional
 	public OnboardingCompleteResponse complete(UUID userId, OnboardingCompleteRequest request) {
 		NormalizedOnboardingRequest normalizedRequest = normalize(request);
-		String onboardingStatus = findOnboardingStatus(userId);
+		OnboardingUser onboardingUser = findOnboardingUser(userId);
 
-		if (COMPLETED_STATUS.equals(onboardingStatus)) {
+		if (!ACTIVE_STATUS.equals(onboardingUser.status())) {
+			throw new OnboardingForbiddenException("Only active users can complete onboarding.");
+		}
+		if (COMPLETED_STATUS.equals(onboardingUser.onboardingStatus())) {
 			throw new OnboardingConflictException("Onboarding has already been completed.");
 		}
 		if (hasOnboardingSurvey(userId)) {
@@ -64,10 +68,17 @@ public class OnboardingService {
 		}
 
 		int updated = jdbcTemplate.update(
-			"update users set onboarding_status = ?, updated_at = ? where id = ? and onboarding_status <> ?",
+			"""
+			update users
+			set onboarding_status = ?, updated_at = ?
+			where id = ?
+			  and status = ?
+			  and onboarding_status <> ?
+			""",
 			COMPLETED_STATUS,
 			now,
 			userId,
+			ACTIVE_STATUS,
 			COMPLETED_STATUS
 		);
 		if (updated != 1) {
@@ -77,11 +88,14 @@ public class OnboardingService {
 		return new OnboardingCompleteResponse(userId, COMPLETED_STATUS, budgetYearMonth, surveyResponseSetId);
 	}
 
-	private String findOnboardingStatus(UUID userId) {
+	private OnboardingUser findOnboardingUser(UUID userId) {
 		try {
 			return jdbcTemplate.queryForObject(
-				"select onboarding_status from users where id = ?",
-				String.class,
+				"select status, onboarding_status from users where id = ?",
+				(rs, rowNum) -> new OnboardingUser(
+					rs.getString("status"),
+					rs.getString("onboarding_status")
+				),
 				userId
 			);
 		} catch (EmptyResultDataAccessException exception) {
@@ -264,5 +278,8 @@ public class OnboardingService {
 		int monthlyBudgetAmount,
 		String regretFrequencyChoice
 	) {
+	}
+
+	private record OnboardingUser(String status, String onboardingStatus) {
 	}
 }
