@@ -1,6 +1,8 @@
 package com.sagongsa.backend.auth;
 
+import java.security.Principal;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -12,9 +14,18 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
-public class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
+class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 
-	private static final String USER_ID_HEADER = "X-User-Id";
+	private final boolean trustedHeaderEnabled;
+	private final String trustedHeaderName;
+
+	CurrentUserIdArgumentResolver(
+		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedHeaderEnabled,
+		@Value("${app.auth.trusted-user-id-header.name:X-User-Id}") String trustedHeaderName
+	) {
+		this.trustedHeaderEnabled = trustedHeaderEnabled;
+		this.trustedHeaderName = trustedHeaderName;
+	}
 
 	@Override
 	public boolean supportsParameter(MethodParameter parameter) {
@@ -29,15 +40,29 @@ public class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResol
 		NativeWebRequest webRequest,
 		WebDataBinderFactory binderFactory
 	) {
-		String rawUserId = webRequest.getHeader(USER_ID_HEADER);
-		if (!StringUtils.hasText(rawUserId)) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, USER_ID_HEADER + " header is required.");
+		String rawUserId = webRequest.getHeader(trustedHeaderName);
+		if (trustedHeaderEnabled && StringUtils.hasText(rawUserId)) {
+			return parseUserId(rawUserId, trustedHeaderName + " header");
 		}
+
+		Principal principal = webRequest.getUserPrincipal();
+		if (principal != null && StringUtils.hasText(principal.getName())) {
+			return parseUserId(principal.getName(), "authenticated principal");
+		}
+
+		if (trustedHeaderEnabled) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, trustedHeaderName + " header is required.");
+		}
+
+		throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user is required.");
+	}
+
+	private UUID parseUserId(String rawUserId, String source) {
 		try {
 			return UUID.fromString(rawUserId.trim());
 		}
 		catch (IllegalArgumentException exception) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, USER_ID_HEADER + " header must be a UUID.");
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, source + " must be a UUID.");
 		}
 	}
 }
