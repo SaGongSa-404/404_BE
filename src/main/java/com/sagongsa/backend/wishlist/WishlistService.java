@@ -158,6 +158,12 @@ public class WishlistService {
 		);
 	}
 
+	@Transactional(readOnly = true)
+	public WishlistItemResponse get(UUID userId, UUID itemId) {
+		ensureWishlistUserAllowed(userId);
+		return findSavedByUserAndId(userId, itemId);
+	}
+
 	@Transactional
 	public WishlistItemResponse updateCategory(UUID userId, UUID itemId, WishlistCategoryUpdateRequest request) {
 		ensureWishlistUserAllowed(userId);
@@ -214,6 +220,25 @@ public class WishlistService {
 			baseSelect() + """
 			where si.user_id = ?
 			  and si.id = ?
+			""",
+			this::mapRow,
+			userId,
+			itemId
+		);
+
+		if (items.isEmpty()) {
+			throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
+		}
+
+		return items.getFirst();
+	}
+
+	private WishlistItemResponse findSavedByUserAndId(UUID userId, UUID itemId) {
+		List<WishlistItemResponse> items = jdbcTemplate.query(
+			baseSelect() + """
+			where si.user_id = ?
+			  and si.id = ?
+			  and si.status = 'SAVED'
 			""",
 			this::mapRow,
 			userId,

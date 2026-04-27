@@ -42,6 +42,14 @@ public class WishlistController {
 		return wishlistService.list(userId, category);
 	}
 
+	@GetMapping("/{itemId}")
+	public WishlistItemResponse get(
+		@CurrentUserId UUID userId,
+		@PathVariable UUID itemId
+	) {
+		return wishlistService.get(userId, itemId);
+	}
+
 	@PatchMapping("/{itemId}/category")
 	public WishlistItemResponse updateCategory(
 		@CurrentUserId UUID userId,

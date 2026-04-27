@@ -39,16 +39,7 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 
 	@BeforeEach
 	void setUp() {
-		jdbcTemplate.update("delete from self_check_answers");
-		jdbcTemplate.update("delete from self_check_response_sets");
-		jdbcTemplate.update("delete from purchase_reflections");
-		jdbcTemplate.update("delete from notifications");
-		jdbcTemplate.update("delete from reminder_schedules");
-		jdbcTemplate.update("delete from purchase_decision_change_logs");
-		jdbcTemplate.update("delete from purchase_decisions");
-		jdbcTemplate.update("delete from item_source_metadata");
-		jdbcTemplate.update("delete from saved_items");
-		jdbcTemplate.update("delete from users");
+		jdbcTemplate.execute("truncate table users cascade");
 	}
 
 	@Test
@@ -172,6 +163,31 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$[0].id").value(olderSavedId.toString()));
 
 		assertThat(droppedId).isNotNull();
+	}
+
+	@Test
+	void getsSavedItemDetail() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertItem(userId, "Detail target", "BEAUTY", "SAVED", OffsetDateTime.now(ZoneOffset.UTC));
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH + "/{itemId}", itemId)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.id").value(itemId.toString()))
+			.andExpect(jsonPath("$.title").value("Detail target"))
+			.andExpect(jsonPath("$.category").value("BEAUTY"))
+			.andExpect(jsonPath("$.status").value("SAVED"));
+	}
+
+	@Test
+	void hidesDroppedItemDetail() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertItem(userId, "Dropped detail", "BEAUTY", "DROPPED", OffsetDateTime.now(ZoneOffset.UTC));
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH + "/{itemId}", itemId)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("NOT_FOUND"));
 	}
 
 	@Test
