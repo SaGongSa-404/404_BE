@@ -39,6 +39,13 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 
 	@BeforeEach
 	void setUp() {
+		jdbcTemplate.update("delete from self_check_answers");
+		jdbcTemplate.update("delete from self_check_response_sets");
+		jdbcTemplate.update("delete from purchase_reflections");
+		jdbcTemplate.update("delete from notifications");
+		jdbcTemplate.update("delete from reminder_schedules");
+		jdbcTemplate.update("delete from purchase_decision_change_logs");
+		jdbcTemplate.update("delete from purchase_decisions");
 		jdbcTemplate.update("delete from item_source_metadata");
 		jdbcTemplate.update("delete from saved_items");
 		jdbcTemplate.update("delete from users");
