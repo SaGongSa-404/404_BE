@@ -12,7 +12,6 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 
 @Entity
@@ -20,9 +19,6 @@ import java.time.Instant;
 	name = "post_votes",
 	indexes = {
 		@Index(name = "idx_post_votes_post_type_active", columnList = "post_id,vote_type")
-	},
-	uniqueConstraints = {
-		@UniqueConstraint(name = "uk_post_votes_post_user", columnNames = {"post_id", "user_id"})
 	}
 )
 public class PostVote extends BaseEntity {
