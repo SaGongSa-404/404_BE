@@ -42,6 +42,27 @@ public class SocialAccount extends BaseEntity {
 	protected SocialAccount() {
 	}
 
+	public static SocialAccount create(
+		UserAccount user,
+		SocialProvider provider,
+		String providerUserId,
+		String email,
+		String profileImageUrl
+	) {
+		SocialAccount socialAccount = new SocialAccount();
+		socialAccount.user = user;
+		socialAccount.provider = provider;
+		socialAccount.providerUserId = providerUserId;
+		socialAccount.email = email;
+		socialAccount.profileImageUrl = profileImageUrl;
+		return socialAccount;
+	}
+
+	public void updateProfile(String email, String profileImageUrl) {
+		this.email = email;
+		this.profileImageUrl = profileImageUrl;
+	}
+
 	public UserAccount getUser() {
 		return user;
 	}

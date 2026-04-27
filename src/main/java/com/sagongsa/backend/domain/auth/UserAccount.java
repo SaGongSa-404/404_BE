@@ -28,6 +28,10 @@ public class UserAccount extends BaseEntity {
 	protected UserAccount() {
 	}
 
+	public static UserAccount create() {
+		return new UserAccount();
+	}
+
 	public UserStatus getStatus() {
 		return status;
 	}

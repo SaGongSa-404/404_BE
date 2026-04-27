@@ -6,11 +6,11 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-public class CurrentUserWebMvcConfig implements WebMvcConfigurer {
+class CurrentUserWebMvcConfig implements WebMvcConfigurer {
 
 	private final CurrentUserIdArgumentResolver currentUserIdArgumentResolver;
 
-	public CurrentUserWebMvcConfig(CurrentUserIdArgumentResolver currentUserIdArgumentResolver) {
+	CurrentUserWebMvcConfig(CurrentUserIdArgumentResolver currentUserIdArgumentResolver) {
 		this.currentUserIdArgumentResolver = currentUserIdArgumentResolver;
 	}
 
