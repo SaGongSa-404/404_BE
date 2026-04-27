@@ -7,7 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice
+@RestControllerAdvice(assignableTypes = DecisionController.class)
 public class DecisionExceptionHandler {
 
 	@ExceptionHandler(DecisionBadRequestException.class)
