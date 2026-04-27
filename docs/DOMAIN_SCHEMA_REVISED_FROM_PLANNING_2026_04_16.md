@@ -288,6 +288,8 @@
 - 소비기록의 `"변경됨"` 배지를 위해 `is_changed`, `change_count`, `changed_at`을 추가합니다.
 - 기획에서 "합리성 점수"보다 "합리성 판별 결과"가 적절하다고 정리했으므로 `rationality_result`, `self_check_yes_count`를 추가합니다.
 - 예산현황, 지난 카테고리 이력, 기회비용은 합리성 판별에 영향을 주지 않습니다. 따라서 합리성 관련 값은 셀프체크 Yes 개수 기준으로만 저장합니다.
+- `rationality_result`, `self_check_yes_count`는 `self_check_response_sets`에도 있으므로 중복처럼 보일 수 있습니다. 다만 `purchase_decisions`는 마이페이지 소비기록, 홈 요약, NSM 집계에서 최종 결정 기준으로 바로 조회되는 테이블이므로 최종 판별값을 함께 보관합니다.
+- 두 테이블 간 값이 어긋나지 않도록 PostgreSQL 검증 트리거로 `purchase_decisions`와 `self_check_response_sets`의 Yes 개수/판별 결과 정합성을 DB 레벨에서 방어합니다.
 - 금액 스냅샷과 변경 횟수는 음수가 될 수 없으므로 DB 제약으로 방어합니다.
 
 ### purchase_decision_change_logs
@@ -341,6 +343,7 @@
 - 기획상 최종 결정 직전 마지막 셀프체크 결과만 대표값으로 사용합니다.
 - 내부 이력까지 남기는 경우에는 위 `purchase_decision_change_logs`에 변경 전후 판별 결과를 스냅샷으로 저장합니다.
 - Yes 0~1개는 `RATIONAL`, Yes 2개 이상은 `IRRATIONAL`로 계산합니다.
+- `purchase_decisions`에 저장된 최종 판별값과 이 테이블의 제출 결과가 다르면 DB 검증 트리거가 INSERT/UPDATE를 차단합니다.
 
 ### self_check_answers
 
@@ -588,6 +591,7 @@
 - 기획에서 게시글 삭제는 가능하지만 soft delete 적용을 요청했습니다.
 - 운영/신고 기능이 MVP 밖이어도 추후 검토와 복구 가능성을 위해 `deleted_at`만 기록합니다.
 - 투표 수는 음수가 될 수 없으므로 DB 제약으로 방어합니다.
+- `go_count`, `stop_count`는 피드 목록 조회를 빠르게 하기 위해 `feed_posts`에 함께 둡니다. 값이 `post_votes`와 어긋나지 않도록 PostgreSQL trigger가 활성 투표 기준으로 INSERT/UPDATE/DELETE 시 자동 동기화합니다.
 
 ### post_votes
 
@@ -603,14 +607,16 @@
 
 인덱스:
 
-- unique (`post_id`, `user_id`)
+- unique index (`post_id`, `user_id`) where `canceled_at is null`
 - index (`post_id`, `vote_type`) where `canceled_at is null`
 
 변경 이유:
 
 - 로그인 사용자만 투표 가능하므로 `user_id`가 필수입니다.
-- `unique(post_id, user_id)`는 중복 투표 방지와 투표 변경을 모두 지원합니다.
-- 투표 취소를 지원하려면 row를 삭제하지 않고 `canceled_at`을 채우면 됩니다.
+- 활성 투표는 한 게시글당 유저 1개만 허용합니다.
+- 투표 취소를 지원하려면 row를 삭제하지 않고 `canceled_at`을 채웁니다.
+- 일반 `unique(post_id, user_id)`를 쓰면 취소된 row 때문에 재투표가 막히므로, 활성 투표에만 적용되는 partial unique index를 사용합니다.
+- 투표 변경은 기존 활성 row의 `vote_type`을 업데이트하는 방식으로 처리합니다.
 - 만약 투표 취소를 MVP에서 제외한다면 `canceled_at`은 제거해도 됩니다.
 
 ### post_comments

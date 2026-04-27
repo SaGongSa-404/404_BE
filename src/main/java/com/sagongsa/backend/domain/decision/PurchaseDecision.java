@@ -1,8 +1,7 @@
 package com.sagongsa.backend.domain.decision;
 
-import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.budget.BudgetCycle;
-import com.sagongsa.backend.domain.common.BaseEntity;
+import com.sagongsa.backend.domain.common.UserScopedEntity;
 import com.sagongsa.backend.domain.enums.PurchaseDecisionResult;
 import com.sagongsa.backend.domain.enums.RationalityResult;
 import com.sagongsa.backend.domain.item.SavedItem;
@@ -29,11 +28,7 @@ import java.time.Instant;
 		@UniqueConstraint(name = "uk_purchase_decisions_item_id", columnNames = "item_id")
 	}
 )
-public class PurchaseDecision extends BaseEntity {
-
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "user_id", nullable = false)
-	private UserAccount user;
+public class PurchaseDecision extends UserScopedEntity {
 
 	@OneToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "item_id", nullable = false)
