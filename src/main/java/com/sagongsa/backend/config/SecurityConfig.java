@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -52,17 +53,24 @@ public class SecurityConfig {
 		OAuth2AuthorizationRequestResolver authorizationRequestResolver,
 		OAuth2AppAuthenticationSuccessHandler authenticationSuccessHandler,
 		OAuth2AppAuthenticationFailureHandler authenticationFailureHandler,
-		Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter
+		Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter,
+		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedUserIdHeaderEnabled
 	) throws Exception {
 		http
 			.csrf(csrf -> csrf.disable())
-			.authorizeHttpRequests(auth -> auth
-				.requestMatchers("/", "/index.html", "/favicon.ico", "/error").permitAll()
-				.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-				.requestMatchers("/api/auth/token/refresh").permitAll()
-				.requestMatchers("/api/auth/me").authenticated()
-				.anyRequest().authenticated()
-			)
+			.authorizeHttpRequests(auth -> {
+				auth
+					.requestMatchers("/", "/index.html", "/favicon.ico", "/error").permitAll()
+					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+					.requestMatchers("/api/auth/token/refresh").permitAll()
+					.requestMatchers("/api/auth/me").authenticated();
+
+				if (trustedUserIdHeaderEnabled) {
+					auth.requestMatchers("/api/v1/**").permitAll();
+				}
+
+				auth.anyRequest().authenticated();
+			})
 			.oauth2Login(oauth2 -> oauth2
 				.authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(authorizationRequestResolver))
 				.userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
