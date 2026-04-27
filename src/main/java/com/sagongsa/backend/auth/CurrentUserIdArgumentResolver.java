@@ -60,8 +60,7 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 	private UUID parseUserId(String rawUserId, String source) {
 		try {
 			return UUID.fromString(rawUserId.trim());
-		}
-		catch (IllegalArgumentException exception) {
+		} catch (IllegalArgumentException exception) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, source + " must be a UUID.");
 		}
 	}
