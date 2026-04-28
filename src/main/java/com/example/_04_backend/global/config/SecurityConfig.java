@@ -46,8 +46,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/social/posts/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/social/posts/**").authenticated()
                         // 마이페이지는 로그인 필요
-                        .requestMatchers("/api/users/me/**").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/users/me").authenticated()
+                        .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
+                        // 개발용 엔드포인트는 로그인 필요 (prod 프로파일에선 비활성)
+                        .requestMatchers("/api/dev", "/api/dev/**").authenticated()
+                        // 구매 숙려는 로그인 필요
+                        .requestMatchers("/api/wishes", "/api/wishes/**").authenticated()
                         .anyRequest().permitAll()
                 )
                 .oauth2Login(oauth2 -> oauth2
