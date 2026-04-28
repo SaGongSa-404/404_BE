@@ -76,6 +76,9 @@ public class SocialController {
             @AuthenticationPrincipal LoginUser loginUser,
             @PathVariable UUID postId,
             @Valid @RequestBody VoteRequest request) {
+        if (loginUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         VoteResponse response = voteService.vote(loginUser.getId(), postId, request.getVoteType());
         return ResponseEntity.ok(response);
     }

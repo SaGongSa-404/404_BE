@@ -36,12 +36,14 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
-                        .requestMatchers("/", "/index.html", "/favicon.ico", "/error").permitAll()
+                        .requestMatchers("/", "/index.html", "/login.html", "/app.html", "/favicon.ico", "/error").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         // 약관은 비로그인도 허용
                         .requestMatchers(HttpMethod.GET, "/api/terms", "/api/terms/**").permitAll()
                         // 소셜 피드 조회는 비로그인도 허용
                         .requestMatchers(HttpMethod.GET, "/social/posts", "/social/posts/**").permitAll()
+                        // 이미지 업로드는 비로그인도 허용 (index.html 테스트용)
+                        .requestMatchers(HttpMethod.POST, "/social/posts/uploads").permitAll()
                         // 소셜 피드 쓰기(게시글/댓글/투표)는 로그인 필요
                         .requestMatchers(HttpMethod.POST, "/social/posts/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/social/posts/**").authenticated()
@@ -58,7 +60,7 @@ public class SecurityConfig {
                                 endpoint.authorizationRequestResolver(authorizationRequestResolver))
                         .userInfoEndpoint(userInfo ->
                                 userInfo.userService(customOAuth2UserService))
-                        .defaultSuccessUrl("/", true)
+                        .defaultSuccessUrl("/app.html", true)
                 )
                 .logout(logout -> logout
                         .logoutUrl("/api/logout")
@@ -69,6 +71,10 @@ public class SecurityConfig {
                         .defaultAuthenticationEntryPointFor(
                                 new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
                                 RegexRequestMatcher.regexMatcher("^/api/.*")
+                        )
+                        .defaultAuthenticationEntryPointFor(
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                                RegexRequestMatcher.regexMatcher("^/social/.*")
                         )
                 );
 
