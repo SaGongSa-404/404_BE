@@ -1,12 +1,11 @@
 package com.example._04_backend.domain.user.dto.response;
 
-import com.example._04_backend.domain.wish.entity.Wish;
-import com.example._04_backend.domain.wish.enums.WishStatus;
-import com.example._04_backend.global.common.enums.Category;
+import com.example._04_backend.domain.wish.entity.SavedItem;
+import com.example._04_backend.domain.wish.enums.ItemCategory;
+import com.example._04_backend.domain.wish.enums.ItemStatus;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -16,19 +15,17 @@ public class WishSummaryResponse {
     private String title;
     private Integer price;
     private String imageUrl;
-    private Category category;
-    private WishStatus status;
-    private LocalDateTime decisionAt;
+    private ItemCategory category;
+    private ItemStatus status;
 
-    public static WishSummaryResponse of(Wish wish) {
+    public static WishSummaryResponse of(SavedItem item) {
         return WishSummaryResponse.builder()
-                .id(wish.getId())
-                .title(wish.getTitle())
-                .price(wish.getPrice())
-                .imageUrl(wish.getImageUrl())
-                .category(wish.getCategory())
-                .status(wish.getStatus())
-                .decisionAt(wish.getDecisionAt())
+                .id(item.getId())
+                .title(item.getTitle())
+                .price(item.getListedPrice())
+                .imageUrl(item.getImageUrl())
+                .category(item.getCategory())
+                .status(item.getStatus())
                 .build();
     }
 }

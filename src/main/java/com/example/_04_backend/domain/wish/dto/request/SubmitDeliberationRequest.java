@@ -1,6 +1,6 @@
 package com.example._04_backend.domain.wish.dto.request;
 
-import com.example._04_backend.domain.wish.enums.WishStatus;
+import com.example._04_backend.domain.wish.enums.ItemStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -17,5 +17,5 @@ public class SubmitDeliberationRequest {
     private List<Boolean> answers;
 
     @NotNull(message = "decision은 필수입니다.")
-    private WishStatus decision;
+    private ItemStatus decision;
 }

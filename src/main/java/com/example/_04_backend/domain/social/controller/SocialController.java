@@ -9,7 +9,6 @@ import com.example._04_backend.domain.social.service.FileUploadService;
 import com.example._04_backend.domain.social.service.SocialPostService;
 import com.example._04_backend.domain.social.service.VoteService;
 import com.example._04_backend.global.auth.LoginUser;
-import com.example._04_backend.global.common.enums.Category;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -48,11 +47,10 @@ public class SocialController {
     @GetMapping
     public ResponseEntity<PostListResponse> getPosts(
             @AuthenticationPrincipal LoginUser loginUser,
-            @RequestParam(required = false) Category category,
             @RequestParam(required = false) UUID cursor,
             @RequestParam(defaultValue = "20") int size) {
         UUID userId = loginUser != null ? loginUser.getId() : null;
-        PostListResponse response = socialPostService.getPosts(userId, category, cursor, size);
+        PostListResponse response = socialPostService.getPosts(userId, cursor, size);
         return ResponseEntity.ok(response);
     }
 

@@ -1,6 +1,5 @@
 package com.example._04_backend.domain.user.dto.response;
 
-import com.example._04_backend.domain.user.enums.RaccoonStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -8,5 +7,5 @@ import lombok.Getter;
 @AllArgsConstructor
 public class BudgetUpdateResponse {
     private Integer monthlyBudget;
-    private RaccoonStatus raccoonStatus;
+    private Object raccoonStatus; // 호환성 유지, 추후 제거
 }

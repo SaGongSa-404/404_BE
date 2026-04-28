@@ -1,6 +1,6 @@
 package com.example._04_backend.domain.social.dto.response;
 
-import com.example._04_backend.domain.social.entity.Comment;
+import com.example._04_backend.domain.social.entity.PostComment;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -13,14 +13,14 @@ public class CommentResponse {
 
     private UUID id;
     private String body;
-    private boolean isMine;
+    private boolean mine;
     private LocalDateTime createdAt;
 
-    public static CommentResponse of(Comment comment, UUID currentUserId) {
+    public static CommentResponse of(PostComment comment, UUID currentUserId) {
         return CommentResponse.builder()
                 .id(comment.getId())
                 .body(comment.getBody())
-                .isMine(comment.getUserId().equals(currentUserId))
+                .mine(comment.getUser().getId().equals(currentUserId))
                 .createdAt(comment.getCreatedAt())
                 .build();
     }

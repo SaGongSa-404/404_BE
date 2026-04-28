@@ -3,13 +3,14 @@ package com.example._04_backend.domain.social.service;
 import com.example._04_backend.domain.social.dto.request.CreatePostRequest;
 import com.example._04_backend.domain.social.dto.response.PostListResponse;
 import com.example._04_backend.domain.social.dto.response.PostResponse;
-import com.example._04_backend.domain.social.entity.SocialPost;
-import com.example._04_backend.domain.social.entity.Vote;
-import com.example._04_backend.domain.social.enums.VoteType;
-import com.example._04_backend.domain.social.repository.CommentRepository;
-import com.example._04_backend.domain.social.repository.SocialPostRepository;
-import com.example._04_backend.domain.social.repository.VoteRepository;
-import com.example._04_backend.global.common.enums.Category;
+import com.example._04_backend.domain.social.entity.FeedPost;
+import com.example._04_backend.domain.social.entity.PostVote;
+import com.example._04_backend.domain.social.enums.PostVoteType;
+import com.example._04_backend.domain.social.repository.FeedPostRepository;
+import com.example._04_backend.domain.social.repository.PostCommentRepository;
+import com.example._04_backend.domain.social.repository.PostVoteRepository;
+import com.example._04_backend.domain.user.entity.User;
+import com.example._04_backend.domain.user.repository.UserRepository;
 import com.example._04_backend.global.error.BusinessException;
 import com.example._04_backend.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -25,64 +26,54 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class SocialPostService {
 
-    private final SocialPostRepository socialPostRepository;
-    private final VoteRepository voteRepository;
-    private final CommentRepository commentRepository;
+    private final FeedPostRepository feedPostRepository;
+    private final PostVoteRepository postVoteRepository;
+    private final PostCommentRepository postCommentRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public PostResponse createPost(UUID userId, CreatePostRequest request) {
-        if (request.getImageUrl() == null && request.getProductUrl() == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 URL 또는 상품 URL 중 하나는 필수입니다.");
-        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        SocialPost post = SocialPost.builder()
-                .userId(userId)
-                .wishId(request.getWishId())
-                .productUrl(request.getProductUrl())
-                .imageUrl(request.getImageUrl())
+        FeedPost post = FeedPost.builder()
+                .user(user)
                 .title(request.getTitle())
                 .body(request.getBody())
+                .imageUrl(request.getImageUrl())
                 .price(request.getPrice())
-                .category(request.getCategory())
                 .build();
 
-        socialPostRepository.save(post);
+        feedPostRepository.save(post);
         return PostResponse.of(post, 0, null);
     }
 
-    public PostListResponse getPosts(UUID userId, Category category, UUID cursor, int size) {
+    public PostListResponse getPosts(UUID userId, UUID cursor, int size) {
         PageRequest pageable = PageRequest.of(0, size + 1);
-        List<SocialPost> posts;
+        List<FeedPost> posts;
 
-        if (cursor != null && category != null) {
-            posts = socialPostRepository.findByCursorAndCategoryOrderByCreatedAtDesc(cursor, category, pageable);
-        } else if (cursor != null) {
-            posts = socialPostRepository.findByCursorOrderByCreatedAtDesc(cursor, pageable);
-        } else if (category != null) {
-            posts = socialPostRepository.findByCategoryOrderByCreatedAtDesc(category, pageable);
+        if (cursor != null) {
+            posts = feedPostRepository.findVisibleByCursorOrderByCreatedAtDesc(cursor, pageable);
         } else {
-            posts = socialPostRepository.findAllOrderByCreatedAtDesc(pageable);
+            posts = feedPostRepository.findAllVisibleOrderByCreatedAtDesc(pageable);
         }
 
         boolean hasMore = posts.size() > size;
-        if (hasMore) {
-            posts = posts.subList(0, size);
-        }
+        if (hasMore) posts = posts.subList(0, size);
 
         List<PostResponse> postResponses = posts.stream()
                 .map(post -> {
-                    long commentCount = commentRepository.countByPostId(post.getId());
-                    VoteType myVote = (userId != null)
-                            ? voteRepository.findByPostIdAndUserId(post.getId(), userId)
-                                    .map(Vote::getVoteType).orElse(null)
+                    long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
+                    PostVoteType myVote = (userId != null)
+                            ? postVoteRepository.findByPostIdAndUserId(post.getId(), userId)
+                                    .filter(PostVote::isActive)
+                                    .map(PostVote::getVoteType).orElse(null)
                             : null;
                     return PostResponse.of(post, commentCount, myVote);
                 })
                 .toList();
 
-        UUID nextCursor = hasMore && !posts.isEmpty()
-                ? posts.get(posts.size() - 1).getId()
-                : null;
+        UUID nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getId() : null;
 
         return PostListResponse.builder()
                 .posts(postResponses)
@@ -92,26 +83,31 @@ public class SocialPostService {
     }
 
     public PostResponse getPost(UUID userId, UUID postId) {
-        SocialPost post = findPostOrThrow(postId);
-        long commentCount = commentRepository.countByPostId(postId);
-        VoteType myVote = (userId != null)
-                ? voteRepository.findByPostIdAndUserId(postId, userId)
-                        .map(Vote::getVoteType).orElse(null)
+        FeedPost post = findPostOrThrow(postId);
+        long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(postId);
+        PostVoteType myVote = (userId != null)
+                ? postVoteRepository.findByPostIdAndUserId(postId, userId)
+                        .filter(PostVote::isActive)
+                        .map(PostVote::getVoteType).orElse(null)
                 : null;
         return PostResponse.of(post, commentCount, myVote);
     }
 
     @Transactional
     public void deletePost(UUID userId, UUID postId) {
-        SocialPost post = findPostOrThrow(postId);
-        if (!post.getUserId().equals(userId)) {
+        FeedPost post = findPostOrThrow(postId);
+        if (!post.getUser().getId().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        socialPostRepository.delete(post);
+        post.softDelete();
     }
 
-    public SocialPost findPostOrThrow(UUID postId) {
-        return socialPostRepository.findById(postId)
+    public FeedPost findPostOrThrow(UUID postId) {
+        FeedPost post = feedPostRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+        if (post.isDeleted()) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+        return post;
     }
 }

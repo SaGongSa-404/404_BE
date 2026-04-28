@@ -1,10 +1,14 @@
 package com.example._04_backend.domain.social.service;
 
 import com.example._04_backend.domain.social.dto.response.VoteResponse;
-import com.example._04_backend.domain.social.entity.SocialPost;
-import com.example._04_backend.domain.social.entity.Vote;
-import com.example._04_backend.domain.social.enums.VoteType;
-import com.example._04_backend.domain.social.repository.VoteRepository;
+import com.example._04_backend.domain.social.entity.FeedPost;
+import com.example._04_backend.domain.social.entity.PostVote;
+import com.example._04_backend.domain.social.enums.PostVoteType;
+import com.example._04_backend.domain.social.repository.PostVoteRepository;
+import com.example._04_backend.domain.user.entity.User;
+import com.example._04_backend.domain.user.repository.UserRepository;
+import com.example._04_backend.global.error.BusinessException;
+import com.example._04_backend.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,52 +21,45 @@ import java.util.UUID;
 @Transactional
 public class VoteService {
 
-    private final VoteRepository voteRepository;
+    private final PostVoteRepository postVoteRepository;
     private final SocialPostService socialPostService;
+    private final UserRepository userRepository;
 
-    public VoteResponse vote(UUID userId, UUID postId, VoteType voteType) {
-        SocialPost post = socialPostService.findPostOrThrow(postId);
-        Optional<Vote> existingVote = voteRepository.findByPostIdAndUserId(postId, userId);
+    public VoteResponse vote(UUID userId, UUID postId, PostVoteType voteType) {
+        FeedPost post = socialPostService.findPostOrThrow(postId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        VoteType resultVote;
+        Optional<PostVote> existingVote = postVoteRepository.findByPostIdAndUserId(postId, userId);
+        PostVoteType resultVote;
 
         if (existingVote.isPresent()) {
-            Vote vote = existingVote.get();
-            if (vote.getVoteType() == voteType) {
-                // 같은 타입 -> 투표 취소
-                if (voteType == VoteType.GO) {
-                    post.decrementGoCount();
-                } else {
-                    post.decrementStopCount();
-                }
-                voteRepository.delete(vote);
+            PostVote vote = existingVote.get();
+            if (!vote.isActive()) {
+                // 취소된 투표 재활성화
+                vote.changeVoteType(voteType);
+                applyVote(post, voteType, true);
+                resultVote = voteType;
+            } else if (vote.getVoteType() == voteType) {
+                // 같은 타입 → 투표 취소
+                cancelVote(post, voteType);
+                vote.cancel();
                 resultVote = null;
             } else {
-                // 다른 타입 -> 투표 변경
-                if (vote.getVoteType() == VoteType.GO) {
-                    post.decrementGoCount();
-                    post.incrementStopCount();
-                } else {
-                    post.decrementStopCount();
-                    post.incrementGoCount();
-                }
+                // 다른 타입 → 투표 변경
+                cancelVote(post, vote.getVoteType());
+                applyVote(post, voteType, true);
                 vote.changeVoteType(voteType);
                 resultVote = voteType;
             }
         } else {
-            // 새 투표
-            Vote newVote = Vote.builder()
+            PostVote newVote = PostVote.builder()
                     .post(post)
-                    .userId(userId)
+                    .user(user)
                     .voteType(voteType)
                     .build();
-            voteRepository.save(newVote);
-
-            if (voteType == VoteType.GO) {
-                post.incrementGoCount();
-            } else {
-                post.incrementStopCount();
-            }
+            postVoteRepository.save(newVote);
+            applyVote(post, voteType, true);
             resultVote = voteType;
         }
 
@@ -71,5 +68,17 @@ public class VoteService {
                 .goCount(post.getGoCount())
                 .stopCount(post.getStopCount())
                 .build();
+    }
+
+    private void applyVote(FeedPost post, PostVoteType voteType, boolean increment) {
+        if (voteType == PostVoteType.GO) {
+            if (increment) post.incrementGoCount(); else post.decrementGoCount();
+        } else {
+            if (increment) post.incrementStopCount(); else post.decrementStopCount();
+        }
+    }
+
+    private void cancelVote(FeedPost post, PostVoteType voteType) {
+        applyVote(post, voteType, false);
     }
 }

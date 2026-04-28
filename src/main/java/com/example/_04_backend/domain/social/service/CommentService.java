@@ -3,9 +3,11 @@ package com.example._04_backend.domain.social.service;
 import com.example._04_backend.domain.social.dto.request.CreateCommentRequest;
 import com.example._04_backend.domain.social.dto.response.CommentListResponse;
 import com.example._04_backend.domain.social.dto.response.CommentResponse;
-import com.example._04_backend.domain.social.entity.Comment;
-import com.example._04_backend.domain.social.entity.SocialPost;
-import com.example._04_backend.domain.social.repository.CommentRepository;
+import com.example._04_backend.domain.social.entity.FeedPost;
+import com.example._04_backend.domain.social.entity.PostComment;
+import com.example._04_backend.domain.social.repository.PostCommentRepository;
+import com.example._04_backend.domain.user.entity.User;
+import com.example._04_backend.domain.user.repository.UserRepository;
 import com.example._04_backend.global.error.BusinessException;
 import com.example._04_backend.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -22,27 +24,30 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class CommentService {
 
-    private final CommentRepository commentRepository;
+    private final PostCommentRepository postCommentRepository;
     private final SocialPostService socialPostService;
+    private final UserRepository userRepository;
 
     @Transactional
     public CommentResponse createComment(UUID userId, UUID postId, CreateCommentRequest request) {
-        SocialPost post = socialPostService.findPostOrThrow(postId);
+        FeedPost post = socialPostService.findPostOrThrow(postId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        Comment comment = Comment.builder()
+        PostComment comment = PostComment.builder()
                 .post(post)
-                .userId(userId)
+                .user(user)
                 .body(request.getBody())
                 .build();
 
-        commentRepository.save(comment);
+        postCommentRepository.save(comment);
         return CommentResponse.of(comment, userId);
     }
 
     public CommentListResponse getComments(UUID userId, UUID postId, int page, int size) {
         socialPostService.findPostOrThrow(postId);
 
-        Page<Comment> commentPage = commentRepository.findByPostIdOrderByCreatedAtAsc(
+        Page<PostComment> commentPage = postCommentRepository.findVisibleByPostIdOrderByCreatedAtAsc(
                 postId, PageRequest.of(page - 1, size));
 
         List<CommentResponse> commentResponses = commentPage.getContent().stream()
@@ -57,13 +62,13 @@ public class CommentService {
 
     @Transactional
     public void deleteComment(UUID userId, UUID postId, UUID commentId) {
-        Comment comment = commentRepository.findById(commentId)
+        PostComment comment = postCommentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
-        if (!comment.getUserId().equals(userId)) {
+        if (!comment.getUser().getId().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        commentRepository.delete(comment);
+        comment.softDelete();
     }
 }

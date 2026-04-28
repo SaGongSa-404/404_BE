@@ -7,7 +7,7 @@ import com.example._04_backend.domain.user.dto.request.UpdateNicknameRequest;
 import com.example._04_backend.domain.user.dto.request.UpdateProfileRequest;
 import com.example._04_backend.domain.user.dto.response.*;
 import com.example._04_backend.domain.user.service.UserService;
-import com.example._04_backend.domain.wish.enums.WishStatus;
+import com.example._04_backend.domain.wish.enums.ItemStatus;
 import com.example._04_backend.global.auth.LoginUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -86,7 +86,7 @@ public class UserController {
     @GetMapping("/wishes/history")
     public ResponseEntity<WishHistoryResponse> getWishHistory(
             @AuthenticationPrincipal LoginUser loginUser,
-            @RequestParam(required = false) WishStatus status,
+            @RequestParam(required = false) ItemStatus status,
             @RequestParam(required = false) String yearMonth,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {

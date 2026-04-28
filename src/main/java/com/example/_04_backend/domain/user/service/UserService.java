@@ -2,25 +2,25 @@ package com.example._04_backend.domain.user.service;
 
 import com.example._04_backend.domain.social.dto.response.PostListResponse;
 import com.example._04_backend.domain.social.dto.response.PostResponse;
-import com.example._04_backend.domain.social.entity.SocialPost;
-import com.example._04_backend.domain.social.entity.Vote;
-import com.example._04_backend.domain.social.enums.VoteType;
-import com.example._04_backend.domain.social.repository.CommentRepository;
-import com.example._04_backend.domain.social.repository.SocialPostRepository;
-import com.example._04_backend.domain.social.repository.VoteRepository;
+import com.example._04_backend.domain.social.entity.FeedPost;
+import com.example._04_backend.domain.social.entity.PostVote;
+import com.example._04_backend.domain.social.enums.PostVoteType;
+import com.example._04_backend.domain.social.repository.FeedPostRepository;
+import com.example._04_backend.domain.social.repository.PostCommentRepository;
+import com.example._04_backend.domain.social.repository.PostVoteRepository;
 import com.example._04_backend.domain.user.dto.request.NotificationSettingsRequest;
 import com.example._04_backend.domain.user.dto.request.UpdateBudgetRequest;
-import com.example._04_backend.domain.user.dto.request.UpdateNicknameRequest;
 import com.example._04_backend.domain.user.dto.request.UpdateProfileRequest;
 import com.example._04_backend.domain.user.dto.response.*;
 import com.example._04_backend.domain.user.entity.User;
+import com.example._04_backend.domain.user.entity.UserProfile;
+import com.example._04_backend.domain.user.repository.UserProfileRepository;
 import com.example._04_backend.domain.user.repository.UserRepository;
-import com.example._04_backend.domain.wish.entity.MonthlyBudget;
-import com.example._04_backend.domain.wish.entity.Wish;
-import com.example._04_backend.domain.wish.enums.WishStatus;
-import com.example._04_backend.domain.wish.repository.MonthlyBudgetRepository;
-import com.example._04_backend.domain.wish.repository.WishRepository;
-import com.example._04_backend.global.common.enums.Category;
+import com.example._04_backend.domain.wish.entity.BudgetCycle;
+import com.example._04_backend.domain.wish.entity.SavedItem;
+import com.example._04_backend.domain.wish.enums.ItemStatus;
+import com.example._04_backend.domain.wish.repository.BudgetCycleRepository;
+import com.example._04_backend.domain.wish.repository.SavedItemRepository;
 import com.example._04_backend.global.error.BusinessException;
 import com.example._04_backend.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -42,79 +42,92 @@ public class UserService {
     private static final DateTimeFormatter YEAR_MONTH_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM");
 
     private final UserRepository userRepository;
-    private final SocialPostRepository socialPostRepository;
-    private final VoteRepository voteRepository;
-    private final CommentRepository commentRepository;
-    private final WishRepository wishRepository;
-    private final MonthlyBudgetRepository monthlyBudgetRepository;
+    private final UserProfileRepository userProfileRepository;
+    private final FeedPostRepository feedPostRepository;
+    private final PostVoteRepository postVoteRepository;
+    private final PostCommentRepository postCommentRepository;
+    private final SavedItemRepository savedItemRepository;
+    private final BudgetCycleRepository budgetCycleRepository;
 
     public MyProfileResponse getMyProfile(UUID userId) {
         User user = findUserOrThrow(userId);
-        long postCount = socialPostRepository.countByUserId(userId);
-        return MyProfileResponse.of(user, postCount);
-    }
-
-    @Transactional
-    public MyProfileResponse updateNickname(UUID userId, UpdateNicknameRequest request) {
-        User user = findUserOrThrow(userId);
-        user.updateNickname(request.getNickname());
-        long postCount = socialPostRepository.countByUserId(userId);
-        return MyProfileResponse.of(user, postCount);
+        UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
+        long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNull(userId);
+        return MyProfileResponse.of(user, profile, postCount);
     }
 
     @Transactional
     public MyProfileResponse updateProfile(UUID userId, UpdateProfileRequest request) {
         User user = findUserOrThrow(userId);
-        user.updateProfileWithRaccoonName(request.getNickname(), request.getRaccoonName());
-        long postCount = socialPostRepository.countByUserId(userId);
-        return MyProfileResponse.of(user, postCount);
+        UserProfile profile = userProfileRepository.findByUserId(userId)
+                .orElseGet(() -> userProfileRepository.save(
+                        UserProfile.builder()
+                                .user(user)
+                                .nickname(request.getNickname() != null ? request.getNickname() : "사용자")
+                                .mascotName(request.getRaccoonName() != null ? request.getRaccoonName() : "너구리")
+                                .build()
+                ));
+        profile.updateProfile(request.getNickname(), request.getRaccoonName());
+        long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNull(userId);
+        return MyProfileResponse.of(user, profile, postCount);
+    }
+
+    @Transactional
+    public MyProfileResponse updateNickname(UUID userId,
+            com.example._04_backend.domain.user.dto.request.UpdateNicknameRequest request) {
+        User user = findUserOrThrow(userId);
+        UserProfile profile = userProfileRepository.findByUserId(userId)
+                .orElseGet(() -> userProfileRepository.save(
+                        UserProfile.builder()
+                                .user(user)
+                                .nickname(request.getNickname())
+                                .mascotName("너구리")
+                                .build()
+                ));
+        profile.updateProfile(request.getNickname(), null);
+        long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNull(userId);
+        return MyProfileResponse.of(user, profile, postCount);
     }
 
     @Transactional
     public BudgetUpdateResponse updateBudget(UUID userId, UpdateBudgetRequest request) {
         User user = findUserOrThrow(userId);
-        user.updateMonthlyBudget(request.getMonthlyBudget());
-
         String currentYearMonth = YearMonth.now().format(YEAR_MONTH_FORMAT);
-        MonthlyBudget monthlyBudget = monthlyBudgetRepository
+
+        BudgetCycle budgetCycle = budgetCycleRepository
                 .findByUserIdAndYearMonth(userId, currentYearMonth)
-                .orElseGet(() -> monthlyBudgetRepository.save(
-                        MonthlyBudget.builder()
+                .orElseGet(() -> budgetCycleRepository.save(
+                        BudgetCycle.builder()
                                 .user(user)
                                 .yearMonth(currentYearMonth)
-                                .budgetAmount(request.getMonthlyBudget())
+                                .monthlyBudgetAmount(request.getMonthlyBudget())
                                 .build()
                 ));
-        monthlyBudget.updateBudgetAmount(request.getMonthlyBudget());
+        budgetCycle.updateBudgetAmount(request.getMonthlyBudget());
 
-        user.recalculateRaccoonStatus(monthlyBudget.getSpentAmount(), request.getMonthlyBudget());
-
-        return new BudgetUpdateResponse(user.getMonthlyBudget(), user.getRaccoonStatus());
+        return new BudgetUpdateResponse(request.getMonthlyBudget(), null);
     }
 
     @Transactional
     public NotificationSettingsResponse updateNotificationSettings(UUID userId, NotificationSettingsRequest request) {
-        User user = findUserOrThrow(userId);
-        user.updateNotificationEnabled(request.getNotificationEnabled());
-        return new NotificationSettingsResponse(user.isNotificationEnabled());
+        // 알림 설정은 추후 UserNotificationSetting 엔티티로 분리 예정
+        findUserOrThrow(userId);
+        return new NotificationSettingsResponse(request.getNotificationEnabled());
     }
 
     @Transactional
     public void deleteAccount(UUID userId) {
         User user = findUserOrThrow(userId);
 
-        // 내가 다른 게시글에 남긴 투표/댓글 삭제
-        voteRepository.deleteByUserId(userId);
-        commentRepository.deleteByUserId(userId);
-
-        // 내 게시글에 달린 다른 사람의 투표/댓글 삭제 (cascade JPQL 미트리거 방지)
-        voteRepository.deleteByPostUserId(userId);
-        commentRepository.deleteByPostUserId(userId);
-
-        socialPostRepository.deleteByUserId(userId);
-        wishRepository.deleteByUserId(userId);
-        monthlyBudgetRepository.deleteByUserId(userId);
-        userRepository.delete(user);
+        postVoteRepository.deleteByUserId(userId);
+        postCommentRepository.deleteByUserId(userId);
+        postVoteRepository.deleteByPostUserId(userId);
+        postCommentRepository.deleteByPostUserId(userId);
+        feedPostRepository.deleteByUserId(userId);
+        savedItemRepository.deleteByUserId(userId);
+        budgetCycleRepository.deleteByUserId(userId);
+        userProfileRepository.deleteByUserId(userId);
+        user.withdraw();
     }
 
     public StatsResponse getStats(UUID userId, String yearMonth) {
@@ -122,56 +135,45 @@ public class UserService {
             yearMonth = YearMonth.now().format(YEAR_MONTH_FORMAT);
         }
 
-        User user = findUserOrThrow(userId);
+        findUserOrThrow(userId);
 
         YearMonth ym = YearMonth.parse(yearMonth, YEAR_MONTH_FORMAT);
         LocalDateTime from = ym.atDay(1).atStartOfDay();
         LocalDateTime to = ym.atEndOfMonth().plusDays(1).atStartOfDay();
 
-        MonthlyBudget budget = monthlyBudgetRepository
+        BudgetCycle budget = budgetCycleRepository
                 .findByUserIdAndYearMonth(userId, yearMonth)
                 .orElse(null);
 
-        Integer budgetAmount = budget != null ? budget.getBudgetAmount() : user.getMonthlyBudget();
-        Integer spentAmount = wishRepository.sumPriceByUserIdAndStatusAndDecisionAtBetween(
-                userId, WishStatus.BOUGHT, from, to);
-        Integer restrainedAmount = wishRepository.sumPriceByUserIdAndStatusAndDecisionAtBetween(
-                userId, WishStatus.RESTRAINED, from, to);
+        Integer budgetAmount = budget != null ? budget.getMonthlyBudgetAmount() : null;
+        Integer spentAmount = savedItemRepository.sumPriceByUserIdAndStatusAndDecidedAtBetween(
+                userId, ItemStatus.GO, from, to);
+        Integer restrainedAmount = savedItemRepository.sumPriceByUserIdAndStatusAndDecidedAtBetween(
+                userId, ItemStatus.STOP, from, to);
 
-        long boughtCount = wishRepository.countByUserIdAndStatusAndDecisionAtBetween(
-                userId, WishStatus.BOUGHT, from, to);
-        long restrainedCount = wishRepository.countByUserIdAndStatusAndDecisionAtBetween(
-                userId, WishStatus.RESTRAINED, from, to);
+        long boughtCount = savedItemRepository.countByUserIdAndStatusAndDecidedAtBetween(
+                userId, ItemStatus.GO, from, to);
+        long restrainedCount = savedItemRepository.countByUserIdAndStatusAndDecidedAtBetween(
+                userId, ItemStatus.STOP, from, to);
 
         Double usageRate = null;
-        if (budgetAmount != null && budgetAmount > 0) {
+        if (budgetAmount != null && budgetAmount > 0 && spentAmount != null) {
             usageRate = Math.round((double) spentAmount / budgetAmount * 1000.0) / 10.0;
         }
-
-        List<Object[]> rawCategoryStats = wishRepository
-                .findCategoryStatsByUserIdAndDecisionAtBetween(userId, from, to);
-
-        List<CategoryStatResponse> byCategory = rawCategoryStats.stream()
-                .map(row -> new CategoryStatResponse(
-                        (Category) row[0],
-                        ((Number) row[1]).intValue(),
-                        ((Number) row[2]).longValue()
-                ))
-                .toList();
 
         return StatsResponse.builder()
                 .yearMonth(yearMonth)
                 .budgetAmount(budgetAmount)
-                .spentAmount(spentAmount)
-                .restrainedAmount(restrainedAmount)
+                .spentAmount(spentAmount != null ? spentAmount : 0)
+                .restrainedAmount(restrainedAmount != null ? restrainedAmount : 0)
                 .usageRate(usageRate)
                 .boughtCount(boughtCount)
                 .restrainedCount(restrainedCount)
-                .byCategory(byCategory)
+                .byCategory(List.of())
                 .build();
     }
 
-    public WishHistoryResponse getWishHistory(UUID userId, WishStatus status, String yearMonth, int page, int size) {
+    public WishHistoryResponse getWishHistory(UUID userId, ItemStatus status, String yearMonth, int page, int size) {
         if (yearMonth == null || yearMonth.isBlank()) {
             yearMonth = YearMonth.now().format(YEAR_MONTH_FORMAT);
         }
@@ -181,18 +183,18 @@ public class UserService {
         LocalDateTime to = ym.atEndOfMonth().plusDays(1).atStartOfDay();
 
         PageRequest pageable = PageRequest.of(page, size);
-        List<Wish> wishes = wishRepository.findByUserIdAndStatusAndDecisionAtBetween(
+        List<SavedItem> items = savedItemRepository.findByUserIdAndStatusAndDecidedAtBetween(
                 userId, status, from, to, pageable);
 
         long total;
         if (status != null) {
-            total = wishRepository.countByUserIdAndStatusAndDecisionAtBetween(userId, status, from, to);
+            total = savedItemRepository.countByUserIdAndStatusAndDecidedAtBetween(userId, status, from, to);
         } else {
-            total = wishRepository.countByUserIdAndStatusAndDecisionAtBetween(userId, WishStatus.BOUGHT, from, to)
-                    + wishRepository.countByUserIdAndStatusAndDecisionAtBetween(userId, WishStatus.RESTRAINED, from, to);
+            total = savedItemRepository.countByUserIdAndStatusAndDecidedAtBetween(userId, ItemStatus.GO, from, to)
+                    + savedItemRepository.countByUserIdAndStatusAndDecidedAtBetween(userId, ItemStatus.STOP, from, to);
         }
 
-        List<WishSummaryResponse> wishResponses = wishes.stream()
+        List<WishSummaryResponse> wishResponses = items.stream()
                 .map(WishSummaryResponse::of)
                 .toList();
 
@@ -206,31 +208,28 @@ public class UserService {
 
     public PostListResponse getMyPosts(UUID userId, UUID cursor, int size) {
         PageRequest pageable = PageRequest.of(0, size + 1);
-        List<SocialPost> posts;
+        List<FeedPost> posts;
 
         if (cursor != null) {
-            posts = socialPostRepository.findByUserIdWithCursorOrderByCreatedAtDesc(userId, cursor, pageable);
+            posts = feedPostRepository.findByUserIdVisibleWithCursorOrderByCreatedAtDesc(userId, cursor, pageable);
         } else {
-            posts = socialPostRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+            posts = feedPostRepository.findByUserIdVisibleOrderByCreatedAtDesc(userId, pageable);
         }
 
         boolean hasMore = posts.size() > size;
-        if (hasMore) {
-            posts = posts.subList(0, size);
-        }
+        if (hasMore) posts = posts.subList(0, size);
 
         List<PostResponse> postResponses = posts.stream()
                 .map(post -> {
-                    long commentCount = commentRepository.countByPostId(post.getId());
-                    VoteType myVote = voteRepository.findByPostIdAndUserId(post.getId(), userId)
-                            .map(Vote::getVoteType).orElse(null);
+                    long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
+                    PostVoteType myVote = postVoteRepository.findByPostIdAndUserId(post.getId(), userId)
+                            .filter(PostVote::isActive)
+                            .map(PostVote::getVoteType).orElse(null);
                     return PostResponse.of(post, commentCount, myVote);
                 })
                 .toList();
 
-        UUID nextCursor = hasMore && !posts.isEmpty()
-                ? posts.get(posts.size() - 1).getId()
-                : null;
+        UUID nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getId() : null;
 
         return PostListResponse.builder()
                 .posts(postResponses)
@@ -241,30 +240,26 @@ public class UserService {
 
     public PostListResponse getMyVotedPosts(UUID userId, UUID cursor, int size) {
         PageRequest pageable = PageRequest.of(0, size + 1);
-        List<Vote> votes;
+        List<PostVote> votes;
 
         if (cursor != null) {
-            votes = voteRepository.findByUserIdWithCursorOrderByCreatedAtDesc(userId, cursor, pageable);
+            votes = postVoteRepository.findActiveByUserIdWithCursorOrderByCreatedAtDesc(userId, cursor, pageable);
         } else {
-            votes = voteRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+            votes = postVoteRepository.findActiveByUserIdOrderByCreatedAtDesc(userId, pageable);
         }
 
         boolean hasMore = votes.size() > size;
-        if (hasMore) {
-            votes = votes.subList(0, size);
-        }
+        if (hasMore) votes = votes.subList(0, size);
 
         List<PostResponse> postResponses = votes.stream()
                 .map(vote -> {
-                    SocialPost post = vote.getPost();
-                    long commentCount = commentRepository.countByPostId(post.getId());
+                    FeedPost post = vote.getPost();
+                    long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
                     return PostResponse.of(post, commentCount, vote.getVoteType());
                 })
                 .toList();
 
-        UUID nextCursor = hasMore && !votes.isEmpty()
-                ? votes.get(votes.size() - 1).getPost().getId()
-                : null;
+        UUID nextCursor = hasMore && !votes.isEmpty() ? votes.get(votes.size() - 1).getPost().getId() : null;
 
         return PostListResponse.builder()
                 .posts(postResponses)

@@ -1,6 +1,8 @@
 package com.example._04_backend.global.auth;
 
 import com.example._04_backend.domain.user.entity.User;
+import com.example._04_backend.domain.user.entity.UserProfile;
+import com.example._04_backend.domain.user.repository.UserProfileRepository;
 import com.example._04_backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
@@ -22,6 +24,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
 
     private final DefaultOAuth2UserService delegate = new DefaultOAuth2UserService();
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
 
     @Override
     @Transactional
@@ -41,17 +44,28 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
     private User upsertUser(SocialUserProfile profile) {
         return userRepository.findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
                 .map(existing -> {
-                    existing.updateProfile(profile.name(), profile.profileImageUrl());
+                    // 기존 유저 — UserProfile만 업데이트
+                    userProfileRepository.findByUserId(existing.getId()).ifPresent(p ->
+                            p.updateProfile(profile.name(), null));
                     return existing;
                 })
-                .orElseGet(() -> userRepository.save(
-                        User.builder()
-                                .provider(profile.provider())
-                                .providerUserId(profile.providerUserId())
-                                .nickname(profile.name())
-                                .email(profile.email())
-                                .profileImageUrl(profile.profileImageUrl())
-                                .build()
-                ));
+                .orElseGet(() -> {
+                    User newUser = userRepository.save(
+                            User.builder()
+                                    .provider(profile.provider())
+                                    .providerUserId(profile.providerUserId())
+                                    .build()
+                    );
+                    // UserProfile 함께 생성
+                    userProfileRepository.save(
+                            UserProfile.builder()
+                                    .user(newUser)
+                                    .nickname(profile.name() != null ? profile.name() : "사용자")
+                                    .mascotName("너구리")
+                                    .profileImageUrl(profile.profileImageUrl())
+                                    .build()
+                    );
+                    return newUser;
+                });
     }
 }

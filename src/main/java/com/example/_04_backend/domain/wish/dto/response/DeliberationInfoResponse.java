@@ -1,7 +1,7 @@
 package com.example._04_backend.domain.wish.dto.response;
 
-import com.example._04_backend.domain.wish.entity.Wish;
-import com.example._04_backend.global.common.enums.Category;
+import com.example._04_backend.domain.wish.entity.SavedItem;
+import com.example._04_backend.domain.wish.enums.ItemCategory;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -24,15 +24,15 @@ public class DeliberationInfoResponse {
         private String title;
         private Integer price;
         private String imageUrl;
-        private Category category;
+        private ItemCategory category;
 
-        public static WishInfo of(Wish wish) {
+        public static WishInfo of(SavedItem item) {
             return WishInfo.builder()
-                    .id(wish.getId())
-                    .title(wish.getTitle())
-                    .price(wish.getPrice())
-                    .imageUrl(wish.getImageUrl())
-                    .category(wish.getCategory())
+                    .id(item.getId())
+                    .title(item.getTitle())
+                    .price(item.getListedPrice())
+                    .imageUrl(item.getImageUrl())
+                    .category(item.getCategory())
                     .build();
         }
     }

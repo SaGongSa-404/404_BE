@@ -1,8 +1,9 @@
 package com.example._04_backend.domain.user.dto.response;
 
 import com.example._04_backend.domain.user.entity.User;
-import com.example._04_backend.domain.user.enums.ImpulseFrequency;
-import com.example._04_backend.domain.user.enums.RaccoonStatus;
+import com.example._04_backend.domain.user.entity.UserProfile;
+import com.example._04_backend.domain.user.enums.OnboardingStatus;
+import com.example._04_backend.domain.user.enums.UserStatus;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,29 +16,23 @@ public class MyProfileResponse {
 
     private UUID id;
     private String nickname;
-    private String raccoonName;
-    private String email;
+    private String mascotName;
     private String profileImageUrl;
     private String provider;
-    private RaccoonStatus raccoonStatus;
-    private Integer monthlyBudget;
-    private ImpulseFrequency impulseFrequency;
-    private boolean notificationEnabled;
+    private UserStatus status;
+    private OnboardingStatus onboardingStatus;
     private long postCount;
     private LocalDateTime createdAt;
 
-    public static MyProfileResponse of(User user, long postCount) {
+    public static MyProfileResponse of(User user, UserProfile profile, long postCount) {
         return MyProfileResponse.builder()
                 .id(user.getId())
-                .nickname(user.getNickname())
-                .raccoonName(user.getRaccoonName())
-                .email(user.getEmail())
-                .profileImageUrl(user.getProfileImageUrl())
+                .nickname(profile != null ? profile.getNickname() : null)
+                .mascotName(profile != null ? profile.getMascotName() : null)
+                .profileImageUrl(profile != null ? profile.getProfileImageUrl() : null)
                 .provider(user.getProvider())
-                .raccoonStatus(user.getRaccoonStatus())
-                .monthlyBudget(user.getMonthlyBudget())
-                .impulseFrequency(user.getImpulseFrequency())
-                .notificationEnabled(user.isNotificationEnabled())
+                .status(user.getStatus())
+                .onboardingStatus(user.getOnboardingStatus())
                 .postCount(postCount)
                 .createdAt(user.getCreatedAt())
                 .build();
