@@ -132,6 +132,44 @@ public class DecisionService {
 		);
 	}
 
+	@Transactional
+	public DecisionResultResponse updateResult(UUID userId, UUID decisionId, DecisionResultUpdateRequest request) {
+		NormalizedDecisionUpdateRequest normalized = normalizeUpdate(request);
+		UserContext user = requireDecisionUser(userId);
+		DecisionForUpdate decision = lockDecision(userId, decisionId);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		PurchaseDecisionResult previousResult = PurchaseDecisionResult.valueOf(decision.result());
+		Integer newFinalPrice = resolveUpdatedFinalPrice(
+			normalized.result(),
+			normalized.finalPrice(),
+			decision.finalPrice(),
+			decision.itemListedPrice()
+		);
+		Rationality newRationality = normalized.selfCheckAnswers() == null
+			? new Rationality(decision.selfCheckYesCount(), RationalityResult.valueOf(decision.rationalityResult()))
+			: rationality(normalized.selfCheckAnswers());
+		Integer previousGoAmount = previousResult == PurchaseDecisionResult.GO ? Objects.requireNonNullElse(decision.finalPrice(), 0) : 0;
+		Integer newGoAmount = normalized.result() == PurchaseDecisionResult.GO ? Objects.requireNonNullElse(newFinalPrice, 0) : 0;
+		int budgetDelta = newGoAmount - previousGoAmount;
+		int budgetAfterAmount = updateBudgetForDecisionChange(decision.budgetCycleId(), budgetDelta, now);
+
+		updateDecisionResult(decision, normalized.result(), newFinalPrice, newRationality, budgetAfterAmount, now);
+		updateItemStatus(decision.itemId(), normalized.result(), now);
+		updateSelfCheckIfNeeded(decision.id(), normalized.selfCheckAnswers(), newRationality, now);
+		insertDecisionChangeLog(decision, normalized, newFinalPrice, newRationality, now);
+		updateReminderForResultChange(
+			userId,
+			decision.itemId(),
+			decision.id(),
+			previousResult,
+			normalized.result(),
+			zoneId(user.timezone()),
+			now
+		);
+
+		return getResult(userId, decisionId);
+	}
+
 	private NormalizedDecisionRequest normalize(DecisionCompleteRequest request) {
 		if (request == null) {
 			throw new DecisionBadRequestException("Request body is required.");
@@ -145,6 +183,19 @@ public class DecisionService {
 		String rationaleText = cleanOptional(request.rationaleText(), "rationaleText");
 		List<NormalizedSelfCheckAnswer> answers = normalizeSelfCheckAnswers(request.selfCheckAnswers());
 		return new NormalizedDecisionRequest(request.itemId(), result, finalPrice, rationaleText, answers);
+	}
+
+	private NormalizedDecisionUpdateRequest normalizeUpdate(DecisionResultUpdateRequest request) {
+		if (request == null) {
+			throw new DecisionBadRequestException("Request body is required.");
+		}
+		PurchaseDecisionResult result = parseResult(request.result());
+		Integer finalPrice = validateFinalPrice(request.finalPrice());
+		String changeReason = cleanOptional(request.changeReason(), "changeReason");
+		List<NormalizedSelfCheckAnswer> answers = request.selfCheckAnswers() == null
+			? null
+			: normalizeSelfCheckAnswerUpdates(request.selfCheckAnswers());
+		return new NormalizedDecisionUpdateRequest(result, finalPrice, changeReason, answers);
 	}
 
 	private PurchaseDecisionResult parseResult(String rawResult) {
@@ -173,6 +224,29 @@ public class DecisionService {
 
 		Map<String, NormalizedSelfCheckAnswer> normalized = new LinkedHashMap<>();
 		for (SelfCheckAnswerRequest answer : answers) {
+			if (answer == null) {
+				throw new DecisionBadRequestException("selfCheckAnswers must not contain null.");
+			}
+			String questionCode = cleanRequired(answer.questionCode(), "questionCode", 80);
+			if (answer.answerBoolean() == null) {
+				throw new DecisionBadRequestException("answerBoolean is required.");
+			}
+			if (normalized.putIfAbsent(questionCode, new NormalizedSelfCheckAnswer(questionCode, answer.answerBoolean())) != null) {
+				throw new DecisionBadRequestException("selfCheckAnswers must not contain duplicated questionCode.");
+			}
+		}
+		return List.copyOf(normalized.values());
+	}
+
+	private List<NormalizedSelfCheckAnswer> normalizeSelfCheckAnswerUpdates(
+		List<DecisionResultUpdateRequest.SelfCheckAnswerUpdateRequest> answers
+	) {
+		if (answers.size() != 4) {
+			throw new DecisionBadRequestException("selfCheckAnswers must contain exactly 4 answers.");
+		}
+
+		Map<String, NormalizedSelfCheckAnswer> normalized = new LinkedHashMap<>();
+		for (DecisionResultUpdateRequest.SelfCheckAnswerUpdateRequest answer : answers) {
 			if (answer == null) {
 				throw new DecisionBadRequestException("selfCheckAnswers must not contain null.");
 			}
@@ -261,8 +335,54 @@ public class DecisionService {
 		}
 	}
 
+	private DecisionForUpdate lockDecision(UUID userId, UUID decisionId) {
+		try {
+			return jdbcTemplate.queryForObject(
+				"""
+				select
+					pd.id,
+					pd.user_id,
+					pd.item_id,
+					pd.budget_cycle_id,
+					pd.result,
+					pd.final_price,
+					pd.rationality_result,
+					pd.self_check_yes_count,
+					si.listed_price as item_listed_price
+				from purchase_decisions pd
+				join saved_items si on si.id = pd.item_id
+				where pd.user_id = ?
+				  and pd.id = ?
+				for update of pd, si
+				""",
+				this::mapDecisionForUpdate,
+				userId,
+				decisionId
+			);
+		}
+		catch (EmptyResultDataAccessException exception) {
+			throw new DecisionNotFoundException("Purchase decision result was not found.");
+		}
+	}
+
 	private Integer resolveFinalPrice(PurchaseDecisionResult result, Integer requestedFinalPrice, Integer listedPrice) {
 		Integer finalPrice = requestedFinalPrice == null ? listedPrice : requestedFinalPrice;
+		if (result == PurchaseDecisionResult.GO && finalPrice == null) {
+			throw new DecisionBadRequestException("finalPrice is required for GO when item price is missing.");
+		}
+		return finalPrice;
+	}
+
+	private Integer resolveUpdatedFinalPrice(
+		PurchaseDecisionResult result,
+		Integer requestedFinalPrice,
+		Integer previousFinalPrice,
+		Integer listedPrice
+	) {
+		Integer finalPrice = requestedFinalPrice;
+		if (finalPrice == null) {
+			finalPrice = previousFinalPrice == null ? listedPrice : previousFinalPrice;
+		}
 		if (result == PurchaseDecisionResult.GO && finalPrice == null) {
 			throw new DecisionBadRequestException("finalPrice is required for GO when item price is missing.");
 		}
@@ -409,6 +529,143 @@ public class DecisionService {
 		);
 	}
 
+	private int updateBudgetForDecisionChange(UUID budgetCycleId, int delta, OffsetDateTime now) {
+		if (budgetCycleId == null) {
+			return 0;
+		}
+		BudgetSpent budget = jdbcTemplate.queryForObject(
+			"""
+			update budget_cycles
+			set spent_amount = greatest(spent_amount + ?, 0),
+				updated_at = ?
+			where id = ?
+			returning spent_amount
+			""",
+			(rs, rowNumber) -> new BudgetSpent(rs.getInt("spent_amount")),
+			delta,
+			now,
+			budgetCycleId
+		);
+		return budget == null ? 0 : budget.spentAmount();
+	}
+
+	private void updateDecisionResult(
+		DecisionForUpdate decision,
+		PurchaseDecisionResult result,
+		Integer finalPrice,
+		Rationality rationality,
+		int budgetAfterAmount,
+		OffsetDateTime now
+	) {
+		jdbcTemplate.update(
+			"""
+			update purchase_decisions
+			set result = ?,
+				final_price = ?,
+				budget_after_amount = ?,
+				rationality_result = ?,
+				self_check_yes_count = ?,
+				is_changed = true,
+				change_count = change_count + 1,
+				changed_at = ?,
+				updated_at = ?
+			where id = ?
+			""",
+			result.name(),
+			finalPrice,
+			budgetAfterAmount,
+			rationality.result().name(),
+			rationality.yesCount(),
+			now,
+			now,
+			decision.id()
+		);
+	}
+
+	private void updateSelfCheckIfNeeded(
+		UUID decisionId,
+		List<NormalizedSelfCheckAnswer> answers,
+		Rationality rationality,
+		OffsetDateTime now
+	) {
+		if (answers == null) {
+			return;
+		}
+
+		UUID responseSetId = jdbcTemplate.queryForObject(
+			"select id from self_check_response_sets where decision_id = ?",
+			UUID.class,
+			decisionId
+		);
+		jdbcTemplate.update(
+			"""
+			update self_check_response_sets
+			set yes_count = ?,
+				rationality_result = ?,
+				submitted_at = ?,
+				updated_at = ?
+			where id = ?
+			""",
+			rationality.yesCount(),
+			rationality.result().name(),
+			now,
+			now,
+			responseSetId
+		);
+		jdbcTemplate.update("delete from self_check_answers where response_set_id = ?", responseSetId);
+		for (NormalizedSelfCheckAnswer answer : answers) {
+			jdbcTemplate.update(
+				"""
+				insert into self_check_answers (
+					id, response_set_id, question_code, answer_boolean, created_at, updated_at
+				)
+				values (?, ?, ?, ?, ?, ?)
+				""",
+				UUID.randomUUID(),
+				responseSetId,
+				answer.questionCode(),
+				answer.answerBoolean(),
+				now,
+				now
+			);
+		}
+	}
+
+	private void insertDecisionChangeLog(
+		DecisionForUpdate decision,
+		NormalizedDecisionUpdateRequest normalized,
+		Integer newFinalPrice,
+		Rationality newRationality,
+		OffsetDateTime now
+	) {
+		jdbcTemplate.update(
+			"""
+			insert into purchase_decision_change_logs (
+				id, decision_id, user_id, item_id, previous_result, new_result,
+				previous_final_price, new_final_price,
+				previous_rationality_result, new_rationality_result,
+				previous_self_check_yes_count, new_self_check_yes_count,
+				reason_text, changed_at
+			)
+			values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			""",
+			UUID.randomUUID(),
+			decision.id(),
+			decision.userId(),
+			decision.itemId(),
+			decision.result(),
+			normalized.result().name(),
+			decision.finalPrice(),
+			newFinalPrice,
+			decision.rationalityResult(),
+			newRationality.result().name(),
+			decision.selfCheckYesCount(),
+			newRationality.yesCount(),
+			normalized.changeReason(),
+			now
+		);
+	}
+
 	private MascotReaction updateMascotReaction(
 		UUID userId,
 		UUID itemId,
@@ -516,6 +773,75 @@ public class DecisionService {
 			now
 		);
 		return new ReminderResponse(reminderId, "REGRET_CHECK_7_DAYS", "SCHEDULED", scheduledFor.toInstant());
+	}
+
+	private void updateReminderForResultChange(
+		UUID userId,
+		UUID itemId,
+		UUID decisionId,
+		PurchaseDecisionResult previousResult,
+		PurchaseDecisionResult newResult,
+		ZoneId zoneId,
+		OffsetDateTime now
+	) {
+		if (previousResult == PurchaseDecisionResult.GO && newResult == PurchaseDecisionResult.STOP) {
+			cancelScheduledRegretReminder(decisionId, now);
+			return;
+		}
+		if (previousResult == PurchaseDecisionResult.STOP && newResult == PurchaseDecisionResult.GO && regretReminderEnabled(userId)) {
+			upsertScheduledRegretReminder(userId, itemId, decisionId, zoneId, now);
+		}
+	}
+
+	private void cancelScheduledRegretReminder(UUID decisionId, OffsetDateTime now) {
+		jdbcTemplate.update(
+			"""
+			update reminder_schedules
+			set status = 'CANCELED',
+				canceled_at = ?,
+				cancel_reason = 'DECISION_CHANGED_TO_STOP',
+				updated_at = ?
+			where decision_id = ?
+			  and reminder_type = 'REGRET_CHECK_7_DAYS'
+			  and status = 'SCHEDULED'
+			""",
+			now,
+			now,
+			decisionId
+		);
+	}
+
+	private void upsertScheduledRegretReminder(
+		UUID userId,
+		UUID itemId,
+		UUID decisionId,
+		ZoneId zoneId,
+		OffsetDateTime now
+	) {
+		OffsetDateTime scheduledFor = scheduledRegretReminderAt(now.toInstant(), zoneId);
+		jdbcTemplate.update(
+			"""
+			insert into reminder_schedules (
+				id, user_id, item_id, decision_id, reminder_type, scheduled_for,
+				status, sent_at, canceled_at, cancel_reason, created_at, updated_at
+			)
+			values (?, ?, ?, ?, 'REGRET_CHECK_7_DAYS', ?, 'SCHEDULED', null, null, null, ?, ?)
+			on conflict (decision_id, reminder_type) do update
+			   set scheduled_for = excluded.scheduled_for,
+			       status = 'SCHEDULED',
+			       sent_at = null,
+			       canceled_at = null,
+			       cancel_reason = null,
+			       updated_at = excluded.updated_at
+			""",
+			UUID.randomUUID(),
+			userId,
+			itemId,
+			decisionId,
+			scheduledFor,
+			now,
+			now
+		);
 	}
 
 	private boolean regretReminderEnabled(UUID userId) {
@@ -659,6 +985,20 @@ public class DecisionService {
 		);
 	}
 
+	private DecisionForUpdate mapDecisionForUpdate(ResultSet rs, int rowNumber) throws SQLException {
+		return new DecisionForUpdate(
+			rs.getObject("id", UUID.class),
+			rs.getObject("user_id", UUID.class),
+			rs.getObject("item_id", UUID.class),
+			rs.getObject("budget_cycle_id", UUID.class),
+			rs.getString("result"),
+			getInteger(rs, "final_price"),
+			rs.getString("rationality_result"),
+			rs.getInt("self_check_yes_count"),
+			getInteger(rs, "item_listed_price")
+		);
+	}
+
 	private DecisionResult mapDecisionResult(ResultSet rs, int rowNumber) throws SQLException {
 		return new DecisionResult(
 			rs.getObject("id", UUID.class),
@@ -697,6 +1037,14 @@ public class DecisionService {
 	) {
 	}
 
+	private record NormalizedDecisionUpdateRequest(
+		PurchaseDecisionResult result,
+		Integer finalPrice,
+		String changeReason,
+		List<NormalizedSelfCheckAnswer> selfCheckAnswers
+	) {
+	}
+
 	private record NormalizedSelfCheckAnswer(String questionCode, boolean answerBoolean) {
 	}
 
@@ -707,6 +1055,9 @@ public class DecisionService {
 	}
 
 	private record BudgetCycle(UUID id, String yearMonth, int spentAmount) {
+	}
+
+	private record BudgetSpent(int spentAmount) {
 	}
 
 	private record Rationality(int yesCount, RationalityResult result) {
@@ -730,6 +1081,19 @@ public class DecisionService {
 		String mascotState,
 		String mascotMessage,
 		Instant decidedAt
+	) {
+	}
+
+	private record DecisionForUpdate(
+		UUID id,
+		UUID userId,
+		UUID itemId,
+		UUID budgetCycleId,
+		String result,
+		Integer finalPrice,
+		String rationalityResult,
+		int selfCheckYesCount,
+		Integer itemListedPrice
 	) {
 	}
 }
