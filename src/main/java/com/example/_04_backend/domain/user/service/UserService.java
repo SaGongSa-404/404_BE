@@ -31,7 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -108,10 +111,25 @@ public class UserService {
         return new BudgetUpdateResponse(request.getMonthlyBudget(), null);
     }
 
+    public NotificationSettingsResponse getNotificationSettings(UUID userId) {
+        findUserOrThrow(userId);
+        UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
+        boolean enabled = profile == null || profile.isNotificationEnabled();
+        return new NotificationSettingsResponse(enabled);
+    }
+
     @Transactional
     public NotificationSettingsResponse updateNotificationSettings(UUID userId, NotificationSettingsRequest request) {
-        // 알림 설정은 추후 UserNotificationSetting 엔티티로 분리 예정
-        findUserOrThrow(userId);
+        User user = findUserOrThrow(userId);
+        UserProfile profile = userProfileRepository.findByUserId(userId)
+                .orElseGet(() -> userProfileRepository.save(
+                        UserProfile.builder()
+                                .user(user)
+                                .nickname("사용자")
+                                .mascotName("너구리")
+                                .build()
+                ));
+        profile.updateNotificationEnabled(request.getNotificationEnabled());
         return new NotificationSettingsResponse(request.getNotificationEnabled());
     }
 
@@ -266,6 +284,31 @@ public class UserService {
                 .nextCursor(nextCursor)
                 .hasMore(hasMore)
                 .build();
+    }
+
+    public AvailableMonthsResponse getAvailableMonths(UUID userId) {
+        findUserOrThrow(userId);
+
+        Set<String> monthSet = new LinkedHashSet<>();
+
+        List<String> budgetMonths = budgetCycleRepository.findYearMonthsByUserId(userId);
+        monthSet.addAll(budgetMonths);
+
+        List<Object[]> decidedMonths = savedItemRepository.findDistinctDecidedYearMonthsByUserId(
+                userId, List.of(ItemStatus.GO, ItemStatus.STOP));
+        for (Object[] row : decidedMonths) {
+            int year = ((Number) row[0]).intValue();
+            int month = ((Number) row[1]).intValue();
+            monthSet.add(String.format("%04d-%02d", year, month));
+        }
+
+        String currentMonth = YearMonth.now().format(YEAR_MONTH_FORMAT);
+        monthSet.add(currentMonth);
+
+        List<String> sorted = new ArrayList<>(monthSet);
+        sorted.sort((a, b) -> b.compareTo(a));
+
+        return new AvailableMonthsResponse(sorted, currentMonth);
     }
 
     private User findUserOrThrow(UUID userId) {

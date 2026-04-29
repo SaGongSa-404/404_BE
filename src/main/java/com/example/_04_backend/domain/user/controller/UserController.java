@@ -56,6 +56,13 @@ public class UserController {
         return ResponseEntity.ok(userService.updateBudget(loginUser.getId(), request));
     }
 
+    /** 알림 설정 조회 */
+    @GetMapping("/notification-settings")
+    public ResponseEntity<NotificationSettingsResponse> getNotificationSettings(
+            @AuthenticationPrincipal LoginUser loginUser) {
+        return ResponseEntity.ok(userService.getNotificationSettings(loginUser.getId()));
+    }
+
     /** 알림 설정 변경 */
     @PatchMapping("/notification-settings")
     public ResponseEntity<NotificationSettingsResponse> updateNotificationSettings(
@@ -73,6 +80,13 @@ public class UserController {
     }
 
     // ─── 소비 관리 ─────────────────────────────────────────
+
+    /** 소비 기록이 있는 월 목록 */
+    @GetMapping("/stats/months")
+    public ResponseEntity<AvailableMonthsResponse> getAvailableMonths(
+            @AuthenticationPrincipal LoginUser loginUser) {
+        return ResponseEntity.ok(userService.getAvailableMonths(loginUser.getId()));
+    }
 
     /** 소비 통계 */
     @GetMapping("/stats")

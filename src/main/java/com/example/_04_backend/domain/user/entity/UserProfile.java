@@ -34,6 +34,9 @@ public class UserProfile extends BaseEntity {
     @Column(columnDefinition = "text")
     private String profileImageUrl;
 
+    @Column(nullable = false)
+    private boolean notificationEnabled = true;
+
     @Builder
     public UserProfile(User user, String nickname, String mascotName, String profileImageUrl) {
         this.user = user;
@@ -41,6 +44,7 @@ public class UserProfile extends BaseEntity {
         this.mascotName = mascotName != null ? mascotName : "너구리";
         this.timezone = "Asia/Seoul";
         this.profileImageUrl = profileImageUrl;
+        this.notificationEnabled = true;
     }
 
     public void updateProfile(String nickname, String mascotName) {
@@ -50,5 +54,9 @@ public class UserProfile extends BaseEntity {
 
     public void updateProfileImageUrl(String profileImageUrl) {
         this.profileImageUrl = profileImageUrl;
+    }
+
+    public void updateNotificationEnabled(boolean notificationEnabled) {
+        this.notificationEnabled = notificationEnabled;
     }
 }

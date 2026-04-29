@@ -41,7 +41,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         return new LoginUser(user.getId(), profile, authorities);
     }
 
-    private User upsertUser(SocialUserProfile profile) {
+    User upsertUser(SocialUserProfile profile) {
         return userRepository.findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
                 .map(existing -> {
                     // 기존 유저 — UserProfile만 업데이트

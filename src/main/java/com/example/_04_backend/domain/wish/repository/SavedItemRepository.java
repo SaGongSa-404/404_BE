@@ -54,5 +54,16 @@ public interface SavedItemRepository extends JpaRepository<SavedItem, UUID> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
 
+    @Query("""
+            SELECT DISTINCT YEAR(s.updatedAt), MONTH(s.updatedAt)
+            FROM SavedItem s
+            WHERE s.user.id = :userId
+              AND s.status IN :statuses
+            ORDER BY YEAR(s.updatedAt) DESC, MONTH(s.updatedAt) DESC
+            """)
+    List<Object[]> findDistinctDecidedYearMonthsByUserId(
+            @Param("userId") UUID userId,
+            @Param("statuses") List<ItemStatus> statuses);
+
     void deleteByUserId(UUID userId);
 }

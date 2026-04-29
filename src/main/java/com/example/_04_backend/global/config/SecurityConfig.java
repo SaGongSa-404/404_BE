@@ -1,6 +1,7 @@
 package com.example._04_backend.global.config;
 
 import com.example._04_backend.global.auth.CustomOAuth2UserService;
+import com.example._04_backend.global.auth.CustomOidcUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +30,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             CustomOAuth2UserService customOAuth2UserService,
+            CustomOidcUserService customOidcUserService,
             OAuth2AuthorizationRequestResolver authorizationRequestResolver
     ) throws Exception {
         http
@@ -36,7 +38,7 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
-                        .requestMatchers("/", "/index.html", "/login.html", "/app.html", "/favicon.ico", "/error").permitAll()
+                        .requestMatchers("/", "/index.html", "/login.html", "/app.html", "/deliberation.html", "/test-mypage.html", "/favicon.ico", "/error").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         // 약관은 비로그인도 허용
                         .requestMatchers(HttpMethod.GET, "/api/terms", "/api/terms/**").permitAll()
@@ -53,13 +55,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/dev", "/api/dev/**").authenticated()
                         // 구매 숙려는 로그인 필요
                         .requestMatchers("/api/wishes", "/api/wishes/**").authenticated()
-                        .anyRequest().permitAll()
+                        // 나머지 모든 요청은 인증 필요 (보안 기본값: 명시적으로 허용하지 않은 경로는 차단)
+                        .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .authorizationEndpoint(endpoint ->
                                 endpoint.authorizationRequestResolver(authorizationRequestResolver))
-                        .userInfoEndpoint(userInfo ->
-                                userInfo.userService(customOAuth2UserService))
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                                .oidcUserService(customOidcUserService))
                         .defaultSuccessUrl("/app.html", true)
                 )
                 .logout(logout -> logout
