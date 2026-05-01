@@ -63,4 +63,12 @@ public class SavedItem extends UserScopedEntity {
 
 	protected SavedItem() {
 	}
+
+	public String getTitle() { return title; }
+	public String getImageUrl() { return imageUrl; }
+	public Integer getListedPrice() { return listedPrice; }
+	public ItemCategory getCategory() { return category; }
+	public ItemStatus getStatus() { return status; }
+
+	public void decide(ItemStatus decision) { this.status = decision; }
 }
