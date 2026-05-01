@@ -1,13 +1,15 @@
 package com.sagongsa.backend.deliberation;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record DeliberationSummaryResponse(
 	ItemSummary item,
 	BudgetProjection budget,
 	int similarCategorySpendAmount,
-	String opportunityCostMessage
+	String opportunityCostMessage,
+	List<SelfCheckQuestion> questions
 ) {
 
 	public record ItemSummary(
@@ -27,6 +29,12 @@ public record DeliberationSummaryResponse(
 		int spentAmount,
 		int projectedSpentAmount,
 		BigDecimal projectedUsageRate
+	) {
+	}
+
+	public record SelfCheckQuestion(
+		String code,
+		String text
 	) {
 	}
 }
