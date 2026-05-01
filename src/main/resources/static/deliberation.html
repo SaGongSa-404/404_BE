@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구매 숙려 테스트</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #111; color: #fff; min-height: 100vh; }
+
+        /* 로그인 화면 */
+        .login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; }
+        .login-screen h1 { font-size: 24px; margin-bottom: 8px; }
+        .login-screen p { color: #888; font-size: 14px; margin-bottom: 16px; }
+        .login-btn { padding: 12px 32px; border-radius: 24px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .kakao { background: #FEE500; color: #000; }
+        .google { background: #fff; color: #333; }
+        .naver { background: #03C75A; color: #fff; }
+
+        /* 셋업 화면 */
+        .setup-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; padding: 24px; }
+        .setup-screen h2 { font-size: 20px; }
+        .setup-screen p { color: #888; font-size: 14px; text-align: center; }
+        .create-btn { padding: 14px 36px; border-radius: 24px; border: none; background: #4a90d9; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* 숙려 화면 */
+        .deliberation-screen { display: none; max-width: 420px; margin: 0 auto; padding: 24px 20px 80px; }
+
+        /* 상품 카드 */
+        .product-card { background: #1a1a1a; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+        .product-card img { width: 100%; height: 180px; object-fit: cover; border-radius: 10px; margin-bottom: 12px; display: none; }
+        .product-card img.loaded { display: block; }
+        .product-category { font-size: 12px; color: #888; margin-bottom: 4px; }
+        .product-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+        .product-price { font-size: 22px; font-weight: 700; color: #ffd700; }
+
+        /* 예산 카드 */
+        .budget-card { background: #1a1a1a; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+        .budget-card h3 { font-size: 14px; color: #888; margin-bottom: 12px; }
+        .budget-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .budget-row:last-child { margin-bottom: 0; }
+        .budget-label { font-size: 14px; color: #aaa; }
+        .budget-value { font-size: 16px; font-weight: 600; }
+        .budget-remaining { color: #4a90d9; }
+        .budget-bar { width: 100%; height: 6px; background: #333; border-radius: 3px; margin-top: 12px; }
+        .budget-bar-fill { height: 100%; border-radius: 3px; background: #4a90d9; transition: width 0.5s; }
+
+        /* 구분선 */
+        .section-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 12px; }
+
+        /* 질문 카드 */
+        .question-card { background: #1a1a1a; border-radius: 16px; padding: 18px 20px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .question-text { font-size: 15px; line-height: 1.4; flex: 1; }
+        .yn-buttons { display: flex; gap: 6px; flex-shrink: 0; }
+        .yn-btn { width: 44px; height: 36px; border-radius: 8px; border: 1px solid #444; background: transparent; color: #888; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+        .yn-btn.yes.selected { background: #e74c3c; border-color: #e74c3c; color: #fff; }
+        .yn-btn.no.selected { background: #27ae60; border-color: #27ae60; color: #fff; }
+
+        /* 경고 배너 */
+        .warning-banner { border-radius: 12px; padding: 14px 16px; margin: 16px 0; font-size: 14px; font-weight: 600; text-align: center; display: none; }
+        .warning-banner.danger { background: rgba(231, 76, 60, 0.15); border: 1px solid #e74c3c; color: #e74c3c; }
+        .warning-banner.safe { background: rgba(39, 174, 96, 0.15); border: 1px solid #27ae60; color: #27ae60; }
+
+        /* 이달 통계 */
+        .stats-card { background: #1a1a1a; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+        .stats-card h3 { font-size: 14px; color: #888; margin-bottom: 14px; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #222; }
+        .stat-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .stat-label { font-size: 14px; color: #aaa; }
+        .stat-value { font-size: 16px; font-weight: 700; }
+        .stat-value.red { color: #e74c3c; }
+        .stat-value.yellow { color: #ffd700; }
+        .stat-value.blue { color: #4a90d9; }
+
+        /* 결정 버튼 */
+        .decision-area { position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 20px; background: #111; border-top: 1px solid #222; display: none; }
+        .decision-buttons { display: flex; gap: 10px; max-width: 420px; margin: 0 auto; }
+        .decision-btn { flex: 1; padding: 16px; border-radius: 14px; border: none; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .decision-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .decision-btn.restrain { background: #4a90d9; color: #fff; }
+        .decision-btn.buy { background: #e74c3c; color: #fff; }
+        .decision-btn:not(:disabled):active { transform: scale(0.97); }
+
+        /* 결과 화면 */
+        .result-screen { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 24px; text-align: center; }
+        .result-screen h2 { font-size: 28px; margin-bottom: 8px; }
+        .result-screen p { color: #888; font-size: 14px; margin-bottom: 32px; }
+        .result-stats { background: #1a1a1a; border-radius: 16px; padding: 24px; width: 100%; max-width: 340px; margin-bottom: 24px; }
+        .result-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #222; }
+        .result-row:last-child { border-bottom: none; }
+        .reset-btn { padding: 12px 32px; border-radius: 24px; border: 1px solid #444; background: transparent; color: #aaa; font-size: 14px; cursor: pointer; }
+
+        .hidden { display: none !important; }
+        .loading { color: #888; font-size: 14px; text-align: center; padding: 40px; }
+    </style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div id="loginScreen" class="login-screen">
+    <h1>구매 숙려 테스트</h1>
+    <p>테스트를 위해 소셜 로그인이 필요합니다</p>
+    <button class="login-btn kakao" onclick="login('kakao')">카카오로 시작</button>
+    <button class="login-btn google" onclick="login('google')">Google로 시작</button>
+    <button class="login-btn naver" onclick="login('naver')">네이버로 시작</button>
+</div>
+
+<!-- 셋업 화면 -->
+<div id="setupScreen" class="setup-screen hidden">
+    <h2>구매 숙려 화면 테스트</h2>
+    <p>24시간이 경과한 테스트 위시를<br>자동으로 생성합니다</p>
+    <button class="create-btn" id="createBtn" onclick="createTestWish()">테스트 위시 만들기</button>
+    <p id="setupMsg" style="color:#888;font-size:13px;margin-top:8px"></p>
+</div>
+
+<!-- 숙려 화면 -->
+<div id="deliberationScreen" class="deliberation-screen hidden">
+
+    <div class="section-title">구매 예정 상품</div>
+    <div class="product-card">
+        <img id="productImg" alt="상품 이미지">
+        <div class="product-category" id="productCategory"></div>
+        <div class="product-title" id="productTitle"></div>
+        <div class="product-price" id="productPrice"></div>
+    </div>
+
+    <div class="section-title">이번 달 예산</div>
+    <div class="budget-card">
+        <div class="budget-row">
+            <span class="budget-label">이번 달 예산</span>
+            <span class="budget-value" id="budgetMonthly">-</span>
+        </div>
+        <div class="budget-row">
+            <span class="budget-label">사용한 금액</span>
+            <span class="budget-value" id="budgetSpent">-</span>
+        </div>
+        <div class="budget-row">
+            <span class="budget-label">남은 예산</span>
+            <span class="budget-value budget-remaining" id="budgetRemaining">-</span>
+        </div>
+        <div class="budget-bar"><div class="budget-bar-fill" id="budgetBarFill" style="width:0%"></div></div>
+    </div>
+
+    <div class="section-title">충동구매 점검</div>
+    <div id="questionList"></div>
+
+    <div class="warning-banner" id="warningBanner"></div>
+
+    <div class="section-title">이번 달 소비 현황</div>
+    <div class="stats-card">
+        <div class="stat-row">
+            <span class="stat-label">이번 달 사용 금액</span>
+            <span class="stat-value red" id="statSpent">-</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">비합리적 선택</span>
+            <span class="stat-value yellow" id="statIrrational">-</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">기회비용 (절제한 금액)</span>
+            <span class="stat-value blue" id="statOpportunity">-</span>
+        </div>
+    </div>
+
+</div>
+
+<!-- 결정 버튼 (하단 고정) -->
+<div class="decision-area" id="decisionArea">
+    <div class="decision-buttons">
+        <button class="decision-btn restrain" id="restrainBtn" onclick="decide('RESTRAINED')" disabled>참을게요</button>
+        <button class="decision-btn buy" id="buyBtn" onclick="decide('BOUGHT')" disabled>살게요</button>
+    </div>
+</div>
+
+<!-- 결과 화면 -->
+<div id="resultScreen" class="result-screen hidden">
+    <h2 id="resultEmoji"></h2>
+    <h2 id="resultTitle"></h2>
+    <p id="resultDesc"></p>
+    <div class="result-stats">
+        <div class="result-row">
+            <span style="color:#aaa;font-size:14px">Yes 응답 수</span>
+            <span style="font-weight:700" id="resYesCount"></span>
+        </div>
+        <div class="result-row">
+            <span style="color:#aaa;font-size:14px">이번 달 소비</span>
+            <span style="font-weight:700;color:#e74c3c" id="resSpent"></span>
+        </div>
+        <div class="result-row">
+            <span style="color:#aaa;font-size:14px">비합리적 선택</span>
+            <span style="font-weight:700;color:#ffd700" id="resIrrational"></span>
+        </div>
+        <div class="result-row">
+            <span style="color:#aaa;font-size:14px">기회비용</span>
+            <span style="font-weight:700;color:#4a90d9" id="resOpportunity"></span>
+        </div>
+    </div>
+    <button class="reset-btn" onclick="location.reload()">다시 테스트</button>
+</div>
+
+<script>
+    let wishId = null;
+    let questions = [];
+    let answers = {};   // {1: true/false, 2: ..., 3: ..., 4: ...}
+
+    const fmt = n => n == null ? '미설정' : n.toLocaleString() + '원';
+
+    // ─── 로그인 ──────────────────────────────────────────
+    function login(provider) {
+        // 로그인 후 이 페이지로 돌아오도록 세션스토리지에 저장
+        sessionStorage.setItem('returnTo', '/deliberation.html');
+        location.href = `/oauth2/authorization/${provider}`;
+    }
+
+    // ─── 초기화 ──────────────────────────────────────────
+    async function init() {
+        // 로그인 여부 확인 — 200 외에는 모두 미로그인으로 처리
+        try {
+            const res = await fetch('/api/users/me');
+            if (!res.ok) {
+                show('loginScreen');
+                return;
+            }
+        } catch (e) {
+            show('loginScreen');
+            return;
+        }
+        show('setupScreen');
+    }
+
+    // ─── 테스트 위시 생성 ─────────────────────────────────
+    async function createTestWish() {
+        const btn = document.getElementById('createBtn');
+        const msg = document.getElementById('setupMsg');
+        btn.disabled = true;
+        btn.textContent = '생성 중...';
+
+        const res = await fetch('/api/dev/wishes/test', { method: 'POST' });
+        if (!res.ok) {
+            msg.textContent = '오류: ' + (await res.text());
+            btn.disabled = false;
+            btn.textContent = '테스트 위시 만들기';
+            return;
+        }
+        const data = await res.json();
+        wishId = data.wishId;
+        msg.textContent = `wishId: ${wishId}`;
+
+        await loadDeliberation();
+    }
+
+    // ─── 숙려 화면 로드 ───────────────────────────────────
+    async function loadDeliberation() {
+        const res = await fetch(`/api/wishes/${wishId}/deliberation`);
+        if (!res.ok) {
+            alert('숙려 화면 로드 실패: ' + res.status);
+            return;
+        }
+        const data = await res.json();
+
+        // 상품 정보
+        document.getElementById('productCategory').textContent = data.wish.category;
+        document.getElementById('productTitle').textContent = data.wish.title;
+        document.getElementById('productPrice').textContent = fmt(data.wish.price);
+        if (data.wish.imageUrl) {
+            const img = document.getElementById('productImg');
+            img.src = data.wish.imageUrl;
+            img.onload = () => img.classList.add('loaded');
+        }
+
+        // 예산 정보
+        document.getElementById('budgetMonthly').textContent = fmt(data.budget.monthlyBudget);
+        document.getElementById('budgetSpent').textContent = fmt(data.budget.spentAmount);
+        document.getElementById('budgetRemaining').textContent = fmt(data.budget.remainingBudget);
+        if (data.budget.monthlyBudget) {
+            const pct = Math.min(100, (data.budget.spentAmount / data.budget.monthlyBudget) * 100);
+            document.getElementById('budgetBarFill').style.width = pct + '%';
+        }
+
+        // 통계
+        document.getElementById('statSpent').textContent = fmt(data.monthStats.spentAmount);
+        document.getElementById('statIrrational').textContent = data.monthStats.irrationalCount + '회';
+        document.getElementById('statOpportunity').textContent = fmt(data.monthStats.opportunityCost);
+
+        // 질문 렌더링
+        questions = data.questions;
+        const list = document.getElementById('questionList');
+        list.innerHTML = questions.map(q => `
+            <div class="question-card">
+                <div class="question-text">${q.text}</div>
+                <div class="yn-buttons">
+                    <button class="yn-btn yes" data-q="${q.id}" data-v="true" onclick="selectAnswer(${q.id}, true, this)">Y</button>
+                    <button class="yn-btn no"  data-q="${q.id}" data-v="false" onclick="selectAnswer(${q.id}, false, this)">N</button>
+                </div>
+            </div>
+        `).join('');
+
+        show('deliberationScreen');
+        document.getElementById('decisionArea').style.display = 'block';
+    }
+
+    // ─── 답변 선택 ────────────────────────────────────────
+    function selectAnswer(qId, value, btn) {
+        answers[qId] = value;
+
+        // 같은 질문 버튼 스타일 리셋
+        document.querySelectorAll(`[data-q="${qId}"]`).forEach(b => {
+            b.classList.remove('selected');
+        });
+        btn.classList.add('selected');
+
+        updateWarning();
+        updateDecisionBtns();
+    }
+
+    function updateWarning() {
+        const yesCount = Object.values(answers).filter(v => v === true).length;
+        const answeredCount = Object.keys(answers).length;
+        const banner = document.getElementById('warningBanner');
+
+        if (answeredCount < questions.length) {
+            banner.style.display = 'none';
+            return;
+        }
+
+        banner.style.display = 'block';
+        if (yesCount >= 2) {
+            banner.className = 'warning-banner danger';
+            banner.textContent = `⚠️ Yes ${yesCount}개 — 충동구매일 가능성이 높아요!`;
+        } else {
+            banner.className = 'warning-banner safe';
+            banner.textContent = `✅ Yes ${yesCount}개 — 신중한 구매예요.`;
+        }
+    }
+
+    function updateDecisionBtns() {
+        const allAnswered = Object.keys(answers).length === questions.length;
+        document.getElementById('restrainBtn').disabled = !allAnswered;
+        document.getElementById('buyBtn').disabled = !allAnswered;
+    }
+
+    // ─── 결정 제출 ────────────────────────────────────────
+    async function decide(decision) {
+        document.getElementById('restrainBtn').disabled = true;
+        document.getElementById('buyBtn').disabled = true;
+
+        const answersArr = questions.map(q => answers[q.id]);
+
+        try {
+            const res = await fetch(`/api/wishes/${wishId}/deliberation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ answers: answersArr, decision })
+            });
+
+            const text = await res.text();
+            console.log('[decide] status:', res.status, 'body:', text);
+
+            if (!res.ok) {
+                showError(`서버 오류 ${res.status}: ${text}`);
+                return;
+            }
+
+            const data = JSON.parse(text);
+            showResult(data);
+        } catch (e) {
+            console.error('[decide] 예외:', e);
+            showError('네트워크 오류: ' + e.message);
+        }
+    }
+
+    function showError(msg) {
+        document.getElementById('restrainBtn').disabled = false;
+        document.getElementById('buyBtn').disabled = false;
+        const banner = document.getElementById('warningBanner');
+        banner.style.display = 'block';
+        banner.className = 'warning-banner danger';
+        banner.textContent = '❌ ' + msg;
+    }
+
+    // ─── 결과 화면 ────────────────────────────────────────
+    function showResult(data) {
+        const isBought = data.decision === 'BOUGHT';
+        document.getElementById('resultEmoji').textContent = isBought ? '🛍️' : '💪';
+        document.getElementById('resultTitle').textContent = isBought ? '구매했어요' : '참았어요!';
+        document.getElementById('resultDesc').textContent = data.warningTriggered
+            ? `⚠️ Yes ${data.yesCount}개 — 충동구매 경고가 있었어요`
+            : `✅ Yes ${data.yesCount}개 — 신중한 선택이었어요`;
+
+        document.getElementById('resYesCount').textContent = `${data.yesCount}개`;
+        document.getElementById('resSpent').textContent = fmt(data.monthStats.spentAmount);
+        document.getElementById('resIrrational').textContent = `${data.monthStats.irrationalCount}회`;
+        document.getElementById('resOpportunity').textContent = fmt(data.monthStats.opportunityCost);
+
+        document.getElementById('decisionArea').style.display = 'none';
+        show('resultScreen');
+    }
+
+    // ─── 화면 전환 ────────────────────────────────────────
+    const SCREEN_DISPLAY = {
+        loginScreen: 'flex',
+        setupScreen: 'flex',
+        deliberationScreen: 'block',
+        resultScreen: 'flex'
+    };
+
+    function show(id) {
+        Object.keys(SCREEN_DISPLAY).forEach(s => {
+            const el = document.getElementById(s);
+            if (s === id) {
+                el.classList.remove('hidden');
+                el.style.display = SCREEN_DISPLAY[s];
+            } else {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+            }
+        });
+    }
+
+    init();
+</script>
+</body>
+</html>
