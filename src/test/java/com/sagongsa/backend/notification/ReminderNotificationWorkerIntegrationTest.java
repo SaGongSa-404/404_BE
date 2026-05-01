@@ -1,0 +1,192 @@
+package com.sagongsa.backend.notification;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.sagongsa.backend.support.PostgreSqlContainerTest;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+@SpringBootTest
+class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest {
+
+	@Autowired
+	private ReminderNotificationWorker reminderNotificationWorker;
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
+	@BeforeEach
+	void setUp() {
+		jdbcTemplate.execute("truncate table users cascade");
+	}
+
+	@Test
+	void createsNotificationAndMarksDueReminderSent() {
+		UUID userId = createReadyUser();
+		UUID itemId = insertSavedItem(userId, "만족도 확인 상품", "GO");
+		UUID decisionId = insertDecision(userId, itemId, "GO");
+		UUID reminderId = insertReminder(userId, itemId, decisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
+
+		int processedCount = reminderNotificationWorker.processDueReminders();
+
+		assertThat(processedCount).isEqualTo(1);
+		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SENT");
+		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isEqualTo(1);
+		assertThat(queryString("select notification_type from notifications where reminder_id = ?", reminderId)).isEqualTo("REGRET_CHECK_READY");
+		assertThat(queryString("select target_path from notifications where reminder_id = ?", reminderId))
+			.isEqualTo("/reflections?decisionId=" + decisionId);
+	}
+
+	@Test
+	void doesNotCreateDuplicateNotificationForSameReminder() {
+		UUID userId = createReadyUser();
+		UUID itemId = insertSavedItem(userId, "중복 방지 상품", "GO");
+		UUID decisionId = insertDecision(userId, itemId, "GO");
+		UUID reminderId = insertReminder(userId, itemId, decisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
+		insertNotification(userId, itemId, decisionId, reminderId);
+
+		int processedCount = reminderNotificationWorker.processDueReminders();
+
+		assertThat(processedCount).isEqualTo(1);
+		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SENT");
+		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isEqualTo(1);
+	}
+
+	@Test
+	void ignoresFutureAndCanceledReminders() {
+		UUID userId = createReadyUser();
+		UUID futureItemId = insertSavedItem(userId, "미래 알림 상품", "GO");
+		UUID futureDecisionId = insertDecision(userId, futureItemId, "GO");
+		UUID canceledItemId = insertSavedItem(userId, "취소 알림 상품", "GO");
+		UUID canceledDecisionId = insertDecision(userId, canceledItemId, "GO");
+		UUID futureReminderId = insertReminder(userId, futureItemId, futureDecisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).plusDays(1));
+		UUID canceledReminderId = insertReminder(userId, canceledItemId, canceledDecisionId, "CANCELED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
+
+		int processedCount = reminderNotificationWorker.processDueReminders();
+
+		assertThat(processedCount).isZero();
+		assertThat(queryString("select status from reminder_schedules where id = ?", futureReminderId)).isEqualTo("SCHEDULED");
+		assertThat(queryString("select status from reminder_schedules where id = ?", canceledReminderId)).isEqualTo("CANCELED");
+		assertThat(queryInteger("select count(*) from notifications where user_id = ?", userId)).isZero();
+	}
+
+	private UUID createReadyUser() {
+		UUID userId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			insert into users (id, status, onboarding_status, created_at, updated_at)
+			values (?, 'ACTIVE', 'COMPLETED', ?, ?)
+			""",
+			userId,
+			now,
+			now
+		);
+		return userId;
+	}
+
+	private UUID insertSavedItem(UUID userId, String title, String status) {
+		UUID itemId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			insert into saved_items (
+				id, user_id, input_source, title, listed_price, currency_code,
+				category, category_locked_by_user, status, created_at, updated_at
+			)
+			values (?, ?, 'DIRECT_INPUT', ?, 30000, 'KRW', 'BEAUTY', false, ?, ?, ?)
+			""",
+			itemId,
+			userId,
+			title,
+			status,
+			now,
+			now
+		);
+		return itemId;
+	}
+
+	private UUID insertDecision(UUID userId, UUID itemId, String result) {
+		UUID decisionId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(7);
+		jdbcTemplate.update(
+			"""
+			insert into purchase_decisions (
+				id, user_id, item_id, result, final_price, budget_after_amount,
+				similar_category_spend_amount, rationality_result, self_check_yes_count,
+				decided_at, created_at, updated_at
+			)
+			values (?, ?, ?, ?, 30000, 30000, 0, 'RATIONAL', 1, ?, ?, ?)
+			""",
+			decisionId,
+			userId,
+			itemId,
+			result,
+			now,
+			now,
+			now
+		);
+		return decisionId;
+	}
+
+	private UUID insertReminder(UUID userId, UUID itemId, UUID decisionId, String status, OffsetDateTime scheduledFor) {
+		UUID reminderId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		OffsetDateTime sentAt = status.equals("SENT") ? now : null;
+		OffsetDateTime canceledAt = status.equals("CANCELED") ? now : null;
+		jdbcTemplate.update(
+			"""
+			insert into reminder_schedules (
+				id, user_id, item_id, decision_id, reminder_type, scheduled_for,
+				status, sent_at, canceled_at, created_at, updated_at
+			)
+			values (?, ?, ?, ?, 'REGRET_CHECK_7_DAYS', ?, ?, ?, ?, ?, ?)
+			""",
+			reminderId,
+			userId,
+			itemId,
+			decisionId,
+			scheduledFor,
+			status,
+			sentAt,
+			canceledAt,
+			now,
+			now
+		);
+		return reminderId;
+	}
+
+	private void insertNotification(UUID userId, UUID itemId, UUID decisionId, UUID reminderId) {
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			insert into notifications (
+				id, user_id, notification_type, title, body, item_id,
+				decision_id, reminder_id, target_path, is_read, created_at, updated_at
+			)
+			values (?, ?, 'REGRET_CHECK_READY', '이미 생성됨', '이미 생성됨', ?, ?, ?, '/reflections', false, ?, ?)
+			""",
+			UUID.randomUUID(),
+			userId,
+			itemId,
+			decisionId,
+			reminderId,
+			now,
+			now
+		);
+	}
+
+	private String queryString(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, String.class, args);
+	}
+
+	private Integer queryInteger(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, Integer.class, args);
+	}
+}
