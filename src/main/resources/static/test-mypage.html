@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>마이페이지 API 테스트</title>
+</head>
+<body>
+
+<h1>마이페이지 API 테스트</h1>
+<p>서버: <code>http://localhost:8080</code> | 로그인 먼저 해야 인증이 필요한 API가 동작합니다.</p>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>0. 소셜 로그인</h2>
+<button onclick="location.href='/oauth2/authorization/google'">Google 로그인</button>
+<button onclick="location.href='/oauth2/authorization/kakao'">Kakao 로그인</button>
+<button onclick="location.href='/oauth2/authorization/naver'">Naver 로그인</button>
+<button onclick="call('POST','/api/logout')">로그아웃</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>1. 내 정보 조회 GET /api/users/me</h2>
+<button onclick="call('GET','/api/users/me')">조회</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>2. 프로필 수정 PATCH /api/users/me/profile</h2>
+<label>닉네임: <input id="profile-nickname" value="테스트닉네임"></label>
+<label>너구리 이름: <input id="profile-raccoon" value="너굴이"></label>
+<button onclick="call('PATCH','/api/users/me/profile',{
+  nickname: v('profile-nickname'),
+  raccoonName: v('profile-raccoon')
+})">수정</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>3. 월 예산 설정 PATCH /api/users/me/budget</h2>
+<label>월 예산(원): <input id="budget" type="number" value="300000"></label>
+<button onclick="call('PATCH','/api/users/me/budget',{
+  monthlyBudget: Number(v('budget'))
+})">설정</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>4. 알림 설정 PATCH /api/users/me/notification-settings</h2>
+<label>알림 수신:
+  <select id="noti">
+    <option value="true">ON</option>
+    <option value="false">OFF</option>
+  </select>
+</label>
+<button onclick="call('PATCH','/api/users/me/notification-settings',{
+  notificationEnabled: document.getElementById('noti').value === 'true'
+})">변경</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>5. 소비 통계 GET /api/users/me/stats</h2>
+<label>년월(YYYY-MM): <input id="stats-ym" value="2026-04"></label>
+<button onclick="call('GET','/api/users/me/stats?year_month='+v('stats-ym'))">조회</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>6. 소비 기록 GET /api/users/me/wishes/history</h2>
+<label>상태:
+  <select id="history-status">
+    <option value="">전체</option>
+    <option value="BOUGHT">BOUGHT</option>
+    <option value="RESTRAINED">RESTRAINED</option>
+  </select>
+</label>
+<label>년월: <input id="history-ym" value="2026-04"></label>
+<label>page: <input id="history-page" type="number" value="0" style="width:40px"></label>
+<label>size: <input id="history-size" type="number" value="20" style="width:40px"></label>
+<button onclick="(function(){
+  let q='year_month='+v('history-ym')+'&page='+v('history-page')+'&size='+v('history-size');
+  let s=v('history-status'); if(s) q+='&status='+s;
+  call('GET','/api/users/me/wishes/history?'+q);
+})()">조회</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>7. 나의 게시글 GET /api/users/me/posts</h2>
+<label>size: <input id="posts-size" type="number" value="20" style="width:40px"></label>
+<button onclick="call('GET','/api/users/me/posts?size='+v('posts-size'))">조회</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>8. 내가 투표한 게시글 GET /api/users/me/votes</h2>
+<button onclick="call('GET','/api/users/me/votes')">조회</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>9. 약관 목록 GET /api/terms</h2>
+<button onclick="call('GET','/api/terms')">조회</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>10. 약관 단건 GET /api/terms/{type}</h2>
+<label>타입:
+  <select id="terms-type">
+    <option value="SERVICE">SERVICE (서비스 이용약관)</option>
+    <option value="PRIVACY">PRIVACY (개인정보처리방침)</option>
+    <option value="MARKETING">MARKETING (마케팅 수신 동의)</option>
+  </select>
+</label>
+<button onclick="call('GET','/api/terms/'+document.getElementById('terms-type').value)">조회</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>11. 계정 탈퇴 DELETE /api/users/me</h2>
+<p style="color:red">⚠ 모든 데이터가 삭제됩니다. 신중하게 누르세요.</p>
+<button onclick="if(confirm('정말 탈퇴하시겠습니까?')) call('DELETE','/api/users/me')">탈퇴</button>
+<hr>
+
+<!-- ───────────────────────────────────────────────── -->
+<h2>결과</h2>
+<pre id="result" style="background:#f4f4f4;padding:12px;min-height:60px;white-space:pre-wrap;word-break:break-all"></pre>
+
+<script>
+  function v(id) { return document.getElementById(id).value; }
+
+  async function call(method, url, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    let parsed;
+    try { parsed = JSON.parse(text); } catch(e) { parsed = text; }
+    document.getElementById('result').textContent =
+      method + ' ' + url + '\n' +
+      'HTTP ' + res.status + '\n\n' +
+      (typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2));
+  }
+</script>
+
+</body>
+</html>
