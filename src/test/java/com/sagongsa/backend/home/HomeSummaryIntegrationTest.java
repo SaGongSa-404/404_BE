@@ -132,7 +132,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000104");
 
 		insertUser(userId);
-		insertMascotProfile(userId, "SAD", "Old reaction", BASE_TIME, BASE_TIME.plusSeconds(1));
+		Instant expiredAt = Instant.now().minusSeconds(60);
+		insertMascotProfile(userId, "SAD", "Old reaction", expiredAt.minusSeconds(60), expiredAt);
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
