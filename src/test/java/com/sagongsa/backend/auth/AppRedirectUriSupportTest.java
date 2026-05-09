@@ -30,6 +30,17 @@ class AppRedirectUriSupportTest {
 	}
 
 	@Test
+	void rejectsLocalhostRedirectOutsideAllowedCallbackPath() {
+		assertThat(support.parseAllowedRedirectUri("http://localhost/oauth/callback")).isEmpty();
+	}
+
+	@Test
+	void acceptsLocalhostRedirectOnAllowedCallbackPath() {
+		assertThat(support.parseAllowedRedirectUri("http://localhost/auth/callback"))
+			.contains(URI.create("http://localhost/auth/callback"));
+	}
+
+	@Test
 	void buildsSuccessRedirectIntoFragment() {
 		JwtTokenService.TokenPair tokenPair = new JwtTokenService.TokenPair(
 			"Bearer",
@@ -60,10 +71,10 @@ class AppRedirectUriSupportTest {
 		AppAuthProperties properties = new AppAuthProperties();
 		properties.setAllowedRedirectUriPrefixes(java.util.List.of(
 			"sagongsa404://auth/callback",
-			"http://localhost",
-			"http://127.0.0.1",
-			"https://localhost",
-			"https://127.0.0.1"
+			"http://localhost/auth/callback",
+			"http://127.0.0.1/auth/callback",
+			"https://localhost/auth/callback",
+			"https://127.0.0.1/auth/callback"
 		));
 		return properties;
 	}

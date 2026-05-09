@@ -1,12 +1,17 @@
 package com.sagongsa.backend.auth;
 
 import com.sagongsa.backend.config.AppAuthProperties;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.UUID;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -17,6 +22,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -26,11 +32,18 @@ public class JwtTokenService {
 	private final JwtEncoder jwtEncoder;
 	private final JwtDecoder jwtDecoder;
 	private final AppAuthProperties properties;
+	private final JdbcTemplate jdbcTemplate;
 
-	public JwtTokenService(JwtEncoder jwtEncoder, JwtDecoder jwtDecoder, AppAuthProperties properties) {
+	public JwtTokenService(
+		JwtEncoder jwtEncoder,
+		JwtDecoder jwtDecoder,
+		AppAuthProperties properties,
+		JdbcTemplate jdbcTemplate
+	) {
 		this.jwtEncoder = jwtEncoder;
 		this.jwtDecoder = jwtDecoder;
 		this.properties = properties;
+		this.jdbcTemplate = jdbcTemplate;
 	}
 
 	public TokenPair issueTokenPair(SocialUserProfile profile, Collection<? extends GrantedAuthority> authorities) {
@@ -39,13 +52,16 @@ public class JwtTokenService {
 
 		String accessToken = encodeToken(buildClaims(profile, authorityNames, issuedAt, issuedAt.plus(properties.getAccessTokenTtl()), "access"));
 		String refreshToken = encodeToken(buildClaims(profile, authorityNames, issuedAt, issuedAt.plus(properties.getRefreshTokenTtl()), "refresh"));
+		Instant refreshTokenExpiresAt = issuedAt.plus(properties.getRefreshTokenTtl());
+
+		storeRefreshToken(profile.userId(), refreshToken, refreshTokenExpiresAt, issuedAt);
 
 		return new TokenPair(
 			"Bearer",
 			accessToken,
 			issuedAt.plus(properties.getAccessTokenTtl()),
 			refreshToken,
-			issuedAt.plus(properties.getRefreshTokenTtl()),
+			refreshTokenExpiresAt,
 			profile
 		);
 	}
@@ -60,6 +76,7 @@ public class JwtTokenService {
 		if (!"refresh".equals(tokenType)) {
 			throw new BadCredentialsException("Invalid refresh token");
 		}
+		assertRefreshTokenActive(refreshToken);
 
 		SocialUserProfile profile = SocialUserProfile.fromTokenClaims(jwt.getClaims());
 		List<String> authorityNames = jwt.getClaimAsStringList("authorities");
@@ -70,6 +87,7 @@ public class JwtTokenService {
 				.map(GrantedAuthority.class::cast)
 				.toList();
 
+		revokeRefreshToken(refreshToken);
 		return issueTokenPair(profile, authorities);
 	}
 
@@ -117,6 +135,72 @@ public class JwtTokenService {
 		}
 		authorityNames.add("ROLE_USER");
 		return List.copyOf(authorityNames);
+	}
+
+	private void storeRefreshToken(UUID userId, String refreshToken, Instant expiresAt, Instant issuedAt) {
+		if (userId == null) {
+			throw new BadCredentialsException("Refresh token requires persisted user");
+		}
+		jdbcTemplate.update(
+			"""
+			insert into refresh_tokens (id, user_id, token_hash, expires_at, created_at, updated_at)
+			values (?, ?, ?, ?, ?, ?)
+			""",
+			UUID.randomUUID(),
+			userId,
+			hashToken(refreshToken),
+			expiresAt,
+			issuedAt,
+			issuedAt
+		);
+	}
+
+	private void assertRefreshTokenActive(String refreshToken) {
+		Boolean active = jdbcTemplate.queryForObject(
+			"""
+			select exists(
+				select 1
+				from refresh_tokens
+				where token_hash = ?
+				  and revoked_at is null
+				  and expires_at > ?
+			)
+			""",
+			Boolean.class,
+			hashToken(refreshToken),
+			Instant.now()
+		);
+		if (!Boolean.TRUE.equals(active)) {
+			throw new BadCredentialsException("Invalid refresh token");
+		}
+	}
+
+	private void revokeRefreshToken(String refreshToken) {
+		Instant now = Instant.now();
+		jdbcTemplate.update(
+			"""
+			update refresh_tokens
+			set revoked_at = ?,
+				last_used_at = ?,
+				updated_at = ?
+			where token_hash = ?
+			  and revoked_at is null
+			""",
+			now,
+			now,
+			now,
+			hashToken(refreshToken)
+		);
+	}
+
+	private String hashToken(String token) {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
+		}
+		catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("SHA-256 digest is not available", exception);
+		}
 	}
 
 	public record TokenPair(
