@@ -35,6 +35,9 @@ public class DecisionService {
 
 	private static final String DEFAULT_ZONE_ID = "Asia/Seoul";
 	private static final LocalTime REGRET_REMINDER_TIME = LocalTime.of(9, 0);
+	private static final int RATIONALE_TEXT_MAX_LENGTH = 1_000;
+	private static final int CHANGE_REASON_MAX_LENGTH = 1_000;
+	private static final List<String> SELF_CHECK_QUESTION_CODES = List.of("NEED", "BUDGET", "ALTERNATIVE", "DELAY");
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -98,7 +101,7 @@ public class DecisionService {
 			similarCategorySpendAmount,
 			rationality.yesCount(),
 			rationality.result().name(),
-			resultMessage(normalized.result()),
+			resultMessage(normalized.result(), reminder),
 			new MascotReactionResponse(mascotReaction.state().name(), mascotReaction.message()),
 			reminder,
 			now.toInstant()
@@ -125,7 +128,7 @@ public class DecisionService {
 			decision.similarCategorySpendAmount(),
 			decision.selfCheckYesCount(),
 			decision.rationalityResult(),
-			resultMessage(PurchaseDecisionResult.valueOf(decision.result())),
+			resultMessage(PurchaseDecisionResult.valueOf(decision.result()), reminder),
 			mascot,
 			reminder,
 			decision.decidedAt()
@@ -180,7 +183,7 @@ public class DecisionService {
 
 		PurchaseDecisionResult result = parseResult(request.result());
 		Integer finalPrice = validateFinalPrice(request.finalPrice());
-		String rationaleText = cleanOptional(request.rationaleText(), "rationaleText");
+		String rationaleText = cleanOptional(request.rationaleText(), "rationaleText", RATIONALE_TEXT_MAX_LENGTH);
 		List<NormalizedSelfCheckAnswer> answers = normalizeSelfCheckAnswers(request.selfCheckAnswers());
 		return new NormalizedDecisionRequest(request.itemId(), result, finalPrice, rationaleText, answers);
 	}
@@ -191,7 +194,7 @@ public class DecisionService {
 		}
 		PurchaseDecisionResult result = parseResult(request.result());
 		Integer finalPrice = validateFinalPrice(request.finalPrice());
-		String changeReason = cleanOptional(request.changeReason(), "changeReason");
+		String changeReason = cleanOptional(request.changeReason(), "changeReason", CHANGE_REASON_MAX_LENGTH);
 		List<NormalizedSelfCheckAnswer> answers = request.selfCheckAnswers() == null
 			? null
 			: normalizeSelfCheckAnswerUpdates(request.selfCheckAnswers());
@@ -228,6 +231,9 @@ public class DecisionService {
 				throw new DecisionBadRequestException("selfCheckAnswers must not contain null.");
 			}
 			String questionCode = cleanRequired(answer.questionCode(), "questionCode", 80);
+			if (!SELF_CHECK_QUESTION_CODES.contains(questionCode)) {
+				throw new DecisionBadRequestException("questionCode must be one of NEED, BUDGET, ALTERNATIVE, DELAY.");
+			}
 			if (answer.answerBoolean() == null) {
 				throw new DecisionBadRequestException("answerBoolean is required.");
 			}
@@ -251,6 +257,9 @@ public class DecisionService {
 				throw new DecisionBadRequestException("selfCheckAnswers must not contain null.");
 			}
 			String questionCode = cleanRequired(answer.questionCode(), "questionCode", 80);
+			if (!SELF_CHECK_QUESTION_CODES.contains(questionCode)) {
+				throw new DecisionBadRequestException("questionCode must be one of NEED, BUDGET, ALTERNATIVE, DELAY.");
+			}
 			if (answer.answerBoolean() == null) {
 				throw new DecisionBadRequestException("answerBoolean is required.");
 			}
@@ -366,6 +375,9 @@ public class DecisionService {
 	}
 
 	private Integer resolveFinalPrice(PurchaseDecisionResult result, Integer requestedFinalPrice, Integer listedPrice) {
+		if (result == PurchaseDecisionResult.STOP) {
+			return null;
+		}
 		Integer finalPrice = requestedFinalPrice == null ? listedPrice : requestedFinalPrice;
 		if (result == PurchaseDecisionResult.GO && finalPrice == null) {
 			throw new DecisionBadRequestException("finalPrice is required for GO when item price is missing.");
@@ -379,6 +391,9 @@ public class DecisionService {
 		Integer previousFinalPrice,
 		Integer listedPrice
 	) {
+		if (result == PurchaseDecisionResult.STOP) {
+			return null;
+		}
 		Integer finalPrice = requestedFinalPrice;
 		if (finalPrice == null) {
 			finalPrice = previousFinalPrice == null ? listedPrice : previousFinalPrice;
@@ -920,9 +935,9 @@ public class DecisionService {
 		return reminders.stream().findFirst();
 	}
 
-	private String resultMessage(PurchaseDecisionResult result) {
+	private String resultMessage(PurchaseDecisionResult result, ReminderResponse reminder) {
 		if (result == PurchaseDecisionResult.GO) {
-			return "7일 뒤에 어떤지 물어볼게!";
+			return reminder == null ? "구매 결정이 저장됐어요." : "7일 뒤에 어떤지 물어볼게!";
 		}
 		return "위시리스트에서 정리했어요.";
 	}
@@ -943,6 +958,14 @@ public class DecisionService {
 			return null;
 		}
 		return value.trim();
+	}
+
+	private String cleanOptional(String value, String fieldName, int maxLength) {
+		String cleaned = cleanOptional(value, fieldName);
+		if (cleaned != null && cleaned.length() > maxLength) {
+			throw new DecisionBadRequestException(fieldName + " must be " + maxLength + " characters or fewer.");
+		}
+		return cleaned;
 	}
 
 	private ZoneId zoneId(String rawTimezone) {

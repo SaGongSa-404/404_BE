@@ -99,6 +99,7 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.itemStatus").value("STOP"))
 			.andExpect(jsonPath("$.result").value("STOP"))
+			.andExpect(jsonPath("$.finalPrice").value(nullValue()))
 			.andExpect(jsonPath("$.budgetAfterAmount").value(90_000))
 			.andExpect(jsonPath("$.selfCheckYesCount").value(2))
 			.andExpect(jsonPath("$.rationalityResult").value("IRRATIONAL"))
@@ -167,6 +168,31 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 						{"questionCode": "NEED", "answerBoolean": true},
 						{"questionCode": "NEED", "answerBoolean": false},
 						{"questionCode": "BUDGET", "answerBoolean": false},
+						{"questionCode": "DELAY", "answerBoolean": false}
+					]
+				}
+				""".formatted(itemId)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
+	void rejectsUnknownSelfCheckQuestionCode() throws Exception {
+		UUID userId = createReadyUser();
+		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 0);
+		UUID itemId = insertSavedItem(userId, "Bad question target", "LIVING", "SAVED", 50_000);
+
+		mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"itemId": "%s",
+					"result": "GO",
+					"selfCheckAnswers": [
+						{"questionCode": "NEED", "answerBoolean": true},
+						{"questionCode": "BUDGET", "answerBoolean": false},
+						{"questionCode": "UNKNOWN", "answerBoolean": false},
 						{"questionCode": "DELAY", "answerBoolean": false}
 					]
 				}
