@@ -9,6 +9,7 @@ import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.UUID;
@@ -25,7 +26,11 @@ import org.springframework.test.web.servlet.MockMvc;
 class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-	private static final Instant BASE_TIME = Instant.parse("2026-04-20T10:00:00Z");
+	private static final Instant BASE_TIME = YearMonth.now(SEOUL_ZONE)
+		.atDay(15)
+		.atTime(LocalTime.NOON)
+		.atZone(SEOUL_ZONE)
+		.toInstant();
 
 	@Autowired
 	private MockMvc mockMvc;
