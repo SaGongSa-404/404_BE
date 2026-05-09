@@ -2,6 +2,7 @@ package com.sagongsa.backend.wishlist;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -142,6 +143,57 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void createsDirectInputItemWithoutUrl() throws Exception {
+		UUID userId = createUser();
+
+		mockMvc.perform(post(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"inputSource": "DIRECT_INPUT",
+					"title": "Manual no url item",
+					"category": "ETC"
+				}
+				"""))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.originalUrl").value(nullValue()))
+			.andExpect(jsonPath("$.normalizedUrl").value(nullValue()))
+			.andExpect(jsonPath("$.title").value("Manual no url item"));
+	}
+
+	@Test
+	void rejectsNullBodyAsBadRequest() throws Exception {
+		UUID userId = createUser();
+
+		mockMvc.perform(post(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("null"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
+	void rejectsUrlWithUserInfo() throws Exception {
+		UUID userId = createUser();
+
+		mockMvc.perform(post(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"inputSource": "SHARE",
+					"originalUrl": "https://user:password@shop.example.com/product",
+					"title": "Credential url",
+					"category": "ETC"
+				}
+				"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
 	void listsOnlySavedItemsNewestFirst() throws Exception {
 		UUID userId = createUser();
 		UUID olderSavedId = insertItem(userId, "Older saved", "FASHION", "SAVED", OffsetDateTime.now(ZoneOffset.UTC).minusDays(2));
@@ -163,6 +215,34 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$[0].id").value(olderSavedId.toString()));
 
 		assertThat(droppedId).isNotNull();
+	}
+
+	@Test
+	void listsWithLimitCursorAndWithoutRawMetadata() throws Exception {
+		UUID userId = createUser();
+		OffsetDateTime oldest = OffsetDateTime.now(ZoneOffset.UTC).minusDays(3);
+		OffsetDateTime middle = OffsetDateTime.now(ZoneOffset.UTC).minusDays(2);
+		OffsetDateTime newest = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		insertItem(userId, "Oldest", "FASHION", "SAVED", oldest);
+		UUID middleId = insertItem(userId, "Middle", "FASHION", "SAVED", middle);
+		UUID newestId = insertItem(userId, "Newest", "FASHION", "SAVED", newest);
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.queryParam("limit", "1"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$", hasSize(1)))
+			.andExpect(jsonPath("$[0].id").value(newestId.toString()))
+			.andExpect(jsonPath("$[0].rawPayloadJson").doesNotExist())
+			.andExpect(jsonPath("$[0].sourceDomain").doesNotExist());
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.queryParam("limit", "1")
+				.queryParam("cursor", newest.toInstant().toString()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$", hasSize(1)))
+			.andExpect(jsonPath("$[0].id").value(middleId.toString()));
 	}
 
 	@Test
@@ -216,6 +296,19 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 
 		assertThat(locked).isTrue();
 		assertThat(category).isEqualTo("LIVING");
+	}
+
+	@Test
+	void rejectsNullBodyForCategoryUpdate() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertItem(userId, "Category update target", "ETC", "SAVED", OffsetDateTime.now(ZoneOffset.UTC));
+
+		mockMvc.perform(patch(WISHLIST_ITEMS_PATH + "/{itemId}/category", itemId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("null"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
 	}
 
 	@Test

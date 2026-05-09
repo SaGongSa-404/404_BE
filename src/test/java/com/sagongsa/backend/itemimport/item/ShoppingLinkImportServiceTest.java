@@ -136,6 +136,25 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void rejectsNegativeDirectInputPrice() {
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.DIRECT_INPUT,
+				null,
+				"수동 입력 상품",
+				null,
+				-1,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+			});
+	}
+
+	@Test
 	void rejectsShareRequestWithoutUrl() {
 		assertThatThrownBy(() -> service.importLink(
 			new ShoppingLinkImportRequest(ItemInputSource.SHARE, null, null, null, null, null)

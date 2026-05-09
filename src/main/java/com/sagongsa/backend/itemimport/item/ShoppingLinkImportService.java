@@ -124,6 +124,9 @@ public class ShoppingLinkImportService {
 		if (isBlank(request.title())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title is required for DIRECT_INPUT");
 		}
+		if (request.price() != null && request.price() < 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "price must be zero or greater for DIRECT_INPUT");
+		}
 
 		URI normalizedUri = null;
 		List<String> warnings = new ArrayList<>();
