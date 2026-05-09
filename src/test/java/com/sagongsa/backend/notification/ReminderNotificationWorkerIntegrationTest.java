@@ -94,7 +94,12 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 	@Test
 	void skipsReminderForInactiveUser() {
 		UUID userId = createReadyUser();
-		jdbcTemplate.update("update users set status = 'WITHDRAWN' where id = ?", userId);
+		jdbcTemplate.update(
+			"update users set status = 'WITHDRAWN', withdrawn_at = ?, updated_at = ? where id = ?",
+			OffsetDateTime.now(ZoneOffset.UTC),
+			OffsetDateTime.now(ZoneOffset.UTC),
+			userId
+		);
 		UUID itemId = insertSavedItem(userId, "비활성 사용자 상품", "GO");
 		UUID decisionId = insertDecision(userId, itemId, "GO");
 		UUID reminderId = insertReminder(userId, itemId, decisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
@@ -217,12 +222,11 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 		jdbcTemplate.update(
 			"""
 			insert into user_notification_settings (
-				user_id, regret_reminder_enabled, wishlist_reminder_enabled, created_at, updated_at
+				user_id, regret_reminder_enabled, wishlist_reminder_enabled, updated_at
 			)
-			values (?, false, false, ?, ?)
+			values (?, false, false, ?)
 			""",
 			userId,
-			now,
 			now
 		);
 	}
