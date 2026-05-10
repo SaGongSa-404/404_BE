@@ -163,7 +163,7 @@ public class WishlistService {
 				""",
 				this::mapSummaryRow,
 				userId,
-				cursor,
+				cursor.atOffset(ZoneOffset.UTC),
 				limit
 			);
 		}
@@ -195,7 +195,7 @@ public class WishlistService {
 			this::mapSummaryRow,
 			userId,
 			category,
-			cursor,
+			cursor.atOffset(ZoneOffset.UTC),
 			limit
 		);
 	}
