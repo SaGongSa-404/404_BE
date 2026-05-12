@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ class MypageService {
 	private final PostCommentRepository postCommentRepository;
 	private final SavedItemRepository savedItemRepository;
 	private final BudgetCycleRepository budgetCycleRepository;
+	private final JdbcTemplate jdbcTemplate;
 
 	MypageService(UserAccountRepository userAccountRepository,
 		UserProfileRepository userProfileRepository,
@@ -51,7 +53,8 @@ class MypageService {
 		PostVoteRepository postVoteRepository,
 		PostCommentRepository postCommentRepository,
 		SavedItemRepository savedItemRepository,
-		BudgetCycleRepository budgetCycleRepository) {
+		BudgetCycleRepository budgetCycleRepository,
+		JdbcTemplate jdbcTemplate) {
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
 		this.socialAccountRepository = socialAccountRepository;
@@ -60,6 +63,7 @@ class MypageService {
 		this.postCommentRepository = postCommentRepository;
 		this.savedItemRepository = savedItemRepository;
 		this.budgetCycleRepository = budgetCycleRepository;
+		this.jdbcTemplate = jdbcTemplate;
 	}
 
 	MyProfileResponse getMyProfile(UUID userId) {
@@ -119,11 +123,30 @@ class MypageService {
 	@Transactional
 	void deleteAccount(UUID userId) {
 		UserAccount user = findUserOrThrow(userId);
+
+		// Social: votes/comments by user and on user's posts
 		postVoteRepository.deleteByUserId(userId);
 		postCommentRepository.deleteByUserId(userId);
 		postVoteRepository.deleteByPostUserId(userId);
 		postCommentRepository.deleteByPostUserId(userId);
 		feedPostRepository.softDeleteByUserId(userId);
+		// Unlink feed posts from saved items (item_id is nullable)
+		jdbcTemplate.update("UPDATE feed_posts SET item_id = NULL, decision_id = NULL WHERE user_id = ?", userId);
+
+		// Decision history — delete in FK dependency order before saved_items
+		jdbcTemplate.update("""
+			DELETE FROM self_check_answers WHERE response_set_id IN (
+				SELECT id FROM self_check_response_sets
+				WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?))""", userId);
+		jdbcTemplate.update("DELETE FROM self_check_response_sets WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?)", userId);
+		jdbcTemplate.update("DELETE FROM purchase_decision_change_logs WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?)", userId);
+		jdbcTemplate.update("DELETE FROM purchase_reflections WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?)", userId);
+		jdbcTemplate.update("DELETE FROM mascot_state_events WHERE user_id = ?", userId);
+		jdbcTemplate.update("DELETE FROM reminder_schedules WHERE user_id = ?", userId);
+		jdbcTemplate.update("DELETE FROM notifications WHERE user_id = ?", userId);
+		jdbcTemplate.update("DELETE FROM purchase_decisions WHERE user_id = ?", userId);
+		jdbcTemplate.update("DELETE FROM item_source_metadata WHERE item_id IN (SELECT id FROM saved_items WHERE user_id = ?)", userId);
+
 		savedItemRepository.deleteByUserId(userId);
 		budgetCycleRepository.deleteByUserId(userId);
 		userProfileRepository.deleteByUserId(userId);
@@ -186,7 +209,7 @@ class MypageService {
 		return new WishHistoryResponse(wishes, total, page, size);
 	}
 
-	PostListResponse getMyPosts(UUID userId, UUID cursor, int size) {
+	PostListResponse getMyPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
 		var posts = cursor != null
 			? feedPostRepository.findByUserIdVisibleBefore(userId, cursor, pageable)
@@ -202,11 +225,11 @@ class MypageService {
 			return PostResponse.of(post, cc, myVote);
 		}).toList();
 
-		UUID nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getId() : null;
+		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
 	}
 
-	PostListResponse getMyVotedPosts(UUID userId, UUID cursor, int size) {
+	PostListResponse getMyVotedPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
 		var votes = cursor != null
 			? postVoteRepository.findActiveByUserIdBefore(userId, cursor, pageable)
@@ -221,7 +244,7 @@ class MypageService {
 			return PostResponse.of(post, cc, vote.getVoteType());
 		}).toList();
 
-		UUID nextCursor = hasMore && !votes.isEmpty() ? votes.get(votes.size() - 1).getPost().getId() : null;
+		Instant nextCursor = hasMore && !votes.isEmpty() ? votes.get(votes.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
 	}
 

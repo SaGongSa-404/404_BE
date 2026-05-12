@@ -4,8 +4,12 @@ import com.sagongsa.backend.auth.CurrentUserId;
 import com.sagongsa.backend.domain.enums.ItemStatus;
 import com.sagongsa.backend.social.PostListResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -14,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Validated
 @RestController
 @RequestMapping("/api/v1/users/me")
 public class MypageController {
@@ -79,24 +84,24 @@ public class MypageController {
 		@CurrentUserId UUID userId,
 		@RequestParam(required = false) ItemStatus status,
 		@RequestParam(required = false) String yearMonth,
-		@RequestParam(defaultValue = "0") int page,
-		@RequestParam(defaultValue = "20") int size) {
+		@RequestParam(defaultValue = "0") @Min(0) int page,
+		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
 		return ResponseEntity.ok(mypageService.getWishHistory(userId, status, yearMonth, page, size));
 	}
 
 	@GetMapping("/posts")
 	public ResponseEntity<PostListResponse> getMyPosts(
 		@CurrentUserId UUID userId,
-		@RequestParam(required = false) UUID cursor,
-		@RequestParam(defaultValue = "20") int size) {
+		@RequestParam(required = false) Instant cursor,
+		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
 		return ResponseEntity.ok(mypageService.getMyPosts(userId, cursor, size));
 	}
 
 	@GetMapping("/votes")
 	public ResponseEntity<PostListResponse> getMyVotedPosts(
 		@CurrentUserId UUID userId,
-		@RequestParam(required = false) UUID cursor,
-		@RequestParam(defaultValue = "20") int size) {
+		@RequestParam(required = false) Instant cursor,
+		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
 		return ResponseEntity.ok(mypageService.getMyVotedPosts(userId, cursor, size));
 	}
 }
