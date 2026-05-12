@@ -25,10 +25,10 @@ public class DeliberationService {
 	private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Seoul");
 
 	static final List<SelfCheckQuestion> SELF_CHECK_QUESTIONS = List.of(
-		new SelfCheckQuestion("Q1", "오늘 갑자기 갖고 싶어진 건가요?"),
-		new SelfCheckQuestion("Q2", "비슷한 물건을 이미 갖고 있나요?"),
-		new SelfCheckQuestion("Q3", "구매하지 않아도 일상생활에 불편함이 없나요?"),
-		new SelfCheckQuestion("Q4", "한 달 뒤에는 필요하지 않을 것 같나요?")
+		new SelfCheckQuestion("NEED", "오늘 갑자기 갖고 싶어진 건가요?"),
+		new SelfCheckQuestion("BUDGET", "비슷한 물건을 이미 갖고 있나요?"),
+		new SelfCheckQuestion("ALTERNATIVE", "구매하지 않아도 일상생활에 불편함이 없나요?"),
+		new SelfCheckQuestion("DELAY", "한 달 뒤에는 필요하지 않을 것 같나요?")
 	);
 
 	private final JdbcTemplate jdbcTemplate;

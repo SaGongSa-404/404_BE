@@ -57,7 +57,13 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.projectedSpentAmount").value(105_000))
 			.andExpect(jsonPath("$.budget.projectedUsageRate").value(21.00))
 			.andExpect(jsonPath("$.similarCategorySpendAmount").value(20_000))
-			.andExpect(jsonPath("$.opportunityCostMessage").value("15,000원을 다른 곳에 쓸 수도 있어요."));
+			.andExpect(jsonPath("$.opportunityCostMessage").value("15,000원을 다른 곳에 쓸 수도 있어요."))
+			.andExpect(jsonPath("$.questions.length()").value(4))
+			.andExpect(jsonPath("$.questions[0].code").value("NEED"))
+			.andExpect(jsonPath("$.questions[0].text").value("오늘 갑자기 갖고 싶어진 건가요?"))
+			.andExpect(jsonPath("$.questions[1].code").value("BUDGET"))
+			.andExpect(jsonPath("$.questions[2].code").value("ALTERNATIVE"))
+			.andExpect(jsonPath("$.questions[3].code").value("DELAY"));
 	}
 
 	@Test
