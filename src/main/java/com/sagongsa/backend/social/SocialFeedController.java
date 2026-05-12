@@ -2,10 +2,14 @@ package com.sagongsa.backend.social;
 
 import com.sagongsa.backend.auth.CurrentUserId;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.net.URI;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+@Validated
 @RestController
 @RequestMapping("/api/v1/social/posts")
 public class SocialFeedController {
@@ -47,6 +52,7 @@ public class SocialFeedController {
 
 	@PostMapping(value = "/uploads", consumes = "multipart/form-data")
 	public ResponseEntity<Map<String, String>> uploadImage(
+		@CurrentUserId UUID userId,
 		@RequestParam("file") MultipartFile file) {
 		String url = fileUploadService.saveImage(file);
 		return ResponseEntity.ok(Map.of("url", url));
@@ -55,8 +61,8 @@ public class SocialFeedController {
 	@GetMapping
 	public ResponseEntity<PostListResponse> getPosts(
 		@CurrentUserId UUID userId,
-		@RequestParam(required = false) UUID cursor,
-		@RequestParam(defaultValue = "20") int size) {
+		@RequestParam(required = false) Instant cursor,
+		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
 		return ResponseEntity.ok(socialPostService.getPosts(userId, cursor, size));
 	}
 
@@ -98,8 +104,8 @@ public class SocialFeedController {
 	public ResponseEntity<CommentListResponse> getComments(
 		@CurrentUserId UUID userId,
 		@PathVariable UUID postId,
-		@RequestParam(defaultValue = "1") int page,
-		@RequestParam(defaultValue = "20") int size) {
+		@RequestParam(defaultValue = "1") @Min(1) int page,
+		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
 		return ResponseEntity.ok(commentService.getComments(userId, postId, page, size));
 	}
 

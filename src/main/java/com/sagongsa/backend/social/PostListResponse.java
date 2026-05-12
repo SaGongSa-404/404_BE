@@ -1,10 +1,10 @@
 package com.sagongsa.backend.social;
 
+import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 record PostListResponse(
 	List<PostResponse> posts,
-	UUID nextCursor,
+	Instant nextCursor,
 	boolean hasMore
 ) {}

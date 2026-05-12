@@ -21,4 +21,20 @@ class SocialFeedExceptionHandler {
 	ErrorBody handleForbidden(SocialFeedForbiddenException ex) {
 		return new ErrorBody("FORBIDDEN", ex.getMessage());
 	}
+
+	@ExceptionHandler(FileUploadInvalidException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	ErrorBody handleFileUploadInvalid(FileUploadInvalidException ex) {
+		return new ErrorBody("INVALID_FILE", ex.getMessage());
+	}
+
+	@ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	ErrorBody handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {
+		String message = ex.getConstraintViolations().stream()
+			.map(v -> v.getPropertyPath() + ": " + v.getMessage())
+			.findFirst()
+			.orElse("잘못된 요청입니다.");
+		return new ErrorBody("INVALID_REQUEST", message);
+	}
 }
