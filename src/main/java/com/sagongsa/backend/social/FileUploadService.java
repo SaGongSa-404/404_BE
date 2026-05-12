@@ -33,17 +33,24 @@ class FileUploadService {
 		}
 	}
 
+	private static final Set<String> ALLOWED_MIME = Set.of(
+		"image/jpeg", "image/png", "image/gif", "image/webp");
+
 	String saveImage(MultipartFile file) {
 		if (file == null || file.isEmpty()) {
-			throw new IllegalArgumentException("업로드할 파일이 없습니다.");
+			throw new FileUploadInvalidException("업로드할 파일이 없습니다.");
+		}
+		String contentType = file.getContentType();
+		if (contentType == null || !ALLOWED_MIME.contains(contentType.toLowerCase())) {
+			throw new FileUploadInvalidException("지원하지 않는 파일 형식입니다. (jpg, jpeg, png, gif, webp만 가능)");
 		}
 		String original = file.getOriginalFilename();
 		if (original == null || !original.contains(".")) {
-			throw new IllegalArgumentException("파일 이름이 유효하지 않습니다.");
+			throw new FileUploadInvalidException("파일 이름이 유효하지 않습니다.");
 		}
 		String ext = original.substring(original.lastIndexOf('.') + 1).toLowerCase();
 		if (!ALLOWED.contains(ext)) {
-			throw new IllegalArgumentException("지원하지 않는 파일 형식입니다. (jpg, jpeg, png, gif, webp만 가능)");
+			throw new FileUploadInvalidException("지원하지 않는 파일 형식입니다. (jpg, jpeg, png, gif, webp만 가능)");
 		}
 		String filename = UUID.randomUUID() + "." + ext;
 		Path target = baseDir.resolve(filename);

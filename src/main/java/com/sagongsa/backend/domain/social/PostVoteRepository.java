@@ -14,6 +14,9 @@ public interface PostVoteRepository extends JpaRepository<PostVote, UUID> {
 
 	Optional<PostVote> findByPostIdAndUserId(UUID postId, UUID userId);
 
+	@Query("SELECT v FROM PostVote v WHERE v.post.id IN :postIds AND v.user.id = :userId")
+	List<PostVote> findByPostIdsAndUserId(@Param("postIds") List<UUID> postIds, @Param("userId") UUID userId);
+
 	@Query("SELECT v FROM PostVote v WHERE v.user.id = :userId AND v.canceledAt IS NULL ORDER BY v.createdAt DESC")
 	List<PostVote> findActiveByUserId(@Param("userId") UUID userId, Pageable pageable);
 
