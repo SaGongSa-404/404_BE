@@ -8,8 +8,12 @@ import com.sagongsa.backend.domain.social.FeedPostRepository;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
 import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
+import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,7 +45,7 @@ class SocialPostService {
 		return PostResponse.of(post, 0, null);
 	}
 
-	PostListResponse getPosts(UUID userId, UUID cursor, int size) {
+	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
 		List<FeedPost> posts = cursor != null
 			? feedPostRepository.findAllVisibleBefore(cursor, pageable)
@@ -50,15 +54,9 @@ class SocialPostService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
-		List<PostResponse> items = posts.stream()
-			.map(post -> {
-				long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
-				PostVoteType myVote = resolveMyVote(userId, post.getId());
-				return PostResponse.of(post, commentCount, myVote);
-			})
-			.toList();
+		List<PostResponse> items = toPostResponses(posts, userId);
 
-		UUID nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getId() : null;
+		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
 	}
 
@@ -78,7 +76,7 @@ class SocialPostService {
 		post.softDelete();
 	}
 
-	PostListResponse getMyPosts(UUID userId, UUID cursor, int size) {
+	PostListResponse getMyPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
 		List<FeedPost> posts = cursor != null
 			? feedPostRepository.findByUserIdVisibleBefore(userId, cursor, pageable)
@@ -87,15 +85,9 @@ class SocialPostService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
-		List<PostResponse> items = posts.stream()
-			.map(post -> {
-				long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
-				PostVoteType myVote = resolveMyVote(userId, post.getId());
-				return PostResponse.of(post, commentCount, myVote);
-			})
-			.toList();
+		List<PostResponse> items = toPostResponses(posts, userId);
 
-		UUID nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getId() : null;
+		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
 	}
 
@@ -106,6 +98,29 @@ class SocialPostService {
 			throw new SocialFeedNotFoundException("게시글을 찾을 수 없습니다.");
 		}
 		return post;
+	}
+
+	private List<PostResponse> toPostResponses(List<FeedPost> posts, UUID userId) {
+		if (posts.isEmpty()) return Collections.emptyList();
+
+		List<UUID> postIds = posts.stream().map(FeedPost::getId).toList();
+
+		Map<UUID, Long> commentCounts = feedPostRepository.countCommentsByPostIds(postIds).stream()
+			.collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+
+		Map<UUID, PostVote> myVotes = userId == null
+			? Collections.emptyMap()
+			: postVoteRepository.findByPostIdsAndUserId(postIds, userId).stream()
+				.collect(Collectors.toMap(v -> v.getPost().getId(), v -> v));
+
+		return posts.stream()
+			.map(post -> {
+				long commentCount = commentCounts.getOrDefault(post.getId(), 0L);
+				PostVote vote = myVotes.get(post.getId());
+				PostVoteType myVote = (vote != null && vote.isActive()) ? vote.getVoteType() : null;
+				return PostResponse.of(post, commentCount, myVote);
+			})
+			.toList();
 	}
 
 	private PostVoteType resolveMyVote(UUID userId, UUID postId) {
