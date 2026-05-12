@@ -84,6 +84,7 @@ public class SavedItem extends UserScopedEntity {
 		super(user);
 	}
 
+
 	public String getTitle() { return title; }
 	public String getImageUrl() { return imageUrl; }
 	public Integer getListedPrice() { return listedPrice; }
