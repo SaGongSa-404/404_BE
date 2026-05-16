@@ -68,6 +68,8 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.result").value("GO"))
 			.andExpect(jsonPath("$.finalPrice").value(15_000))
 			.andExpect(jsonPath("$.budgetAfterAmount").value(105_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(false))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(false))
 			.andExpect(jsonPath("$.similarCategorySpendAmount").value(20_000))
 			.andExpect(jsonPath("$.selfCheckYesCount").value(1))
 			.andExpect(jsonPath("$.rationalityResult").value("RATIONAL"))
@@ -102,6 +104,8 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.result").value("STOP"))
 			.andExpect(jsonPath("$.finalPrice").value(nullValue()))
 			.andExpect(jsonPath("$.budgetAfterAmount").value(90_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(false))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(false))
 			.andExpect(jsonPath("$.selfCheckYesCount").value(2))
 			.andExpect(jsonPath("$.rationalityResult").value("IRRATIONAL"))
 			.andExpect(jsonPath("$.mascot.state").value("VERY_HAPPY"))
@@ -111,6 +115,23 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 		assertThat(queryInteger("select spent_amount from budget_cycles where user_id = ? and year_month = ?", userId, yearMonth))
 			.isEqualTo(90_000);
 		assertThat(queryInteger("select count(*) from reminder_schedules where item_id = ?", itemId)).isZero();
+	}
+
+	@Test
+	void completesGoDecisionThatExhaustsBudget() throws Exception {
+		UUID userId = createReadyUser();
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		insertBudgetCycle(userId, yearMonth, 100_000, 90_000);
+		UUID itemId = insertSavedItem(userId, "Budget limit target", "FASHION", "SAVED", 10_000);
+
+		mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", null, true, false, false, false)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.budgetAfterAmount").value(100_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(true))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(true));
 	}
 
 	@Test
@@ -146,6 +167,9 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.decisionId").value(decisionId))
 			.andExpect(jsonPath("$.itemTitle").value("Readable target"))
+			.andExpect(jsonPath("$.budgetAfterAmount").value(12_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(false))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(false))
 			.andExpect(jsonPath("$.rationalityResult").value("RATIONAL"))
 			.andExpect(jsonPath("$.mascot.state").value("SMILE"))
 			.andExpect(jsonPath("$.mascot.message").value("합리적으로 잘 결정했어요"))

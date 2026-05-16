@@ -65,6 +65,11 @@ public class DecisionService {
 		Rationality rationality = rationality(normalized.selfCheckAnswers());
 		Integer similarCategorySpendAmount = similarCategorySpendAmount(userId, item.category(), zoneId, now.toInstant());
 		int budgetAfterAmount = budgetCycle.spentAmount() + (normalized.result() == PurchaseDecisionResult.GO ? finalPrice : 0);
+		BudgetExhaustion budgetExhaustion = budgetExhaustion(
+			budgetCycle.monthlyBudgetAmount(),
+			budgetCycle.spentAmount(),
+			budgetAfterAmount
+		);
 		UUID decisionId = UUID.randomUUID();
 
 		insertDecision(
@@ -99,6 +104,8 @@ public class DecisionService {
 			finalPrice,
 			yearMonth,
 			budgetAfterAmount,
+			budgetExhaustion.exhaustedAfter(),
+			budgetExhaustion.becameExhausted(),
 			similarCategorySpendAmount,
 			rationality.yesCount(),
 			rationality.result().name(),
@@ -112,11 +119,18 @@ public class DecisionService {
 
 	@Transactional(readOnly = true)
 	public DecisionResultResponse getResult(UUID userId, UUID decisionId) {
+		return getResult(userId, decisionId, null);
+	}
+
+	private DecisionResultResponse getResult(UUID userId, UUID decisionId, BudgetExhaustion budgetExhaustionOverride) {
 		requireDecisionUser(userId);
 		DecisionResult decision = findDecisionResult(userId, decisionId)
 			.orElseThrow(() -> new DecisionNotFoundException("Purchase decision result was not found."));
 		ReminderResponse reminder = findReminder(decisionId).orElse(null);
 		MascotReactionResponse mascot = new MascotReactionResponse(decision.mascotState(), decision.mascotMessage());
+		BudgetExhaustion budgetExhaustion = budgetExhaustionOverride == null
+			? budgetExhaustion(decision)
+			: budgetExhaustionOverride;
 
 		return new DecisionResultResponse(
 			decision.id(),
@@ -127,6 +141,8 @@ public class DecisionService {
 			decision.finalPrice(),
 			decision.budgetYearMonth(),
 			decision.budgetAfterAmount(),
+			budgetExhaustion.exhaustedAfter(),
+			budgetExhaustion.becameExhausted(),
 			decision.similarCategorySpendAmount(),
 			decision.selfCheckYesCount(),
 			decision.rationalityResult(),
@@ -157,7 +173,8 @@ public class DecisionService {
 		Integer previousGoAmount = previousResult == PurchaseDecisionResult.GO ? Objects.requireNonNullElse(decision.finalPrice(), 0) : 0;
 		Integer newGoAmount = normalized.result() == PurchaseDecisionResult.GO ? Objects.requireNonNullElse(newFinalPrice, 0) : 0;
 		int budgetDelta = newGoAmount - previousGoAmount;
-		int budgetAfterAmount = updateBudgetForDecisionChange(decision.budgetCycleId(), budgetDelta, now);
+		BudgetUpdate budgetUpdate = updateBudgetForDecisionChange(decision.budgetCycleId(), budgetDelta, now);
+		int budgetAfterAmount = budgetUpdate.spentAmount();
 
 		updateDecisionResult(decision, normalized.result(), newFinalPrice, newRationality, budgetAfterAmount, now);
 		updateItemStatus(decision.itemId(), normalized.result(), now);
@@ -173,7 +190,7 @@ public class DecisionService {
 			now
 		);
 
-		return getResult(userId, decisionId);
+		return getResult(userId, decisionId, budgetUpdate.exhaustion());
 	}
 
 	private NormalizedDecisionRequest normalize(DecisionCompleteRequest request) {
@@ -547,9 +564,9 @@ public class DecisionService {
 		);
 	}
 
-	private int updateBudgetForDecisionChange(UUID budgetCycleId, int delta, OffsetDateTime now) {
+	private BudgetUpdate updateBudgetForDecisionChange(UUID budgetCycleId, int delta, OffsetDateTime now) {
 		if (budgetCycleId == null) {
-			return 0;
+			return new BudgetUpdate(0, new BudgetExhaustion(false, false));
 		}
 		BudgetSpent budget = jdbcTemplate.queryForObject(
 			"""
@@ -557,14 +574,45 @@ public class DecisionService {
 			set spent_amount = greatest(spent_amount + ?, 0),
 				updated_at = ?
 			where id = ?
-			returning spent_amount
+			returning monthly_budget_amount, spent_amount
 			""",
-			(rs, rowNumber) -> new BudgetSpent(rs.getInt("spent_amount")),
+			(rs, rowNumber) -> new BudgetSpent(
+				rs.getInt("monthly_budget_amount"),
+				rs.getInt("spent_amount")
+			),
 			delta,
 			now,
 			budgetCycleId
 		);
-		return budget == null ? 0 : budget.spentAmount();
+		if (budget == null) {
+			return new BudgetUpdate(0, new BudgetExhaustion(false, false));
+		}
+		int budgetBeforeAmount = budget.spentAmount() - delta;
+		return new BudgetUpdate(
+			budget.spentAmount(),
+			budgetExhaustion(budget.monthlyBudgetAmount(), budgetBeforeAmount, budget.spentAmount())
+		);
+	}
+
+	private BudgetExhaustion budgetExhaustion(DecisionResult decision) {
+		if (decision.budgetMonthlyBudgetAmount() == null || decision.budgetAfterAmount() == null) {
+			return new BudgetExhaustion(false, false);
+		}
+		int goAmount = PurchaseDecisionResult.GO.name().equals(decision.result())
+			? Objects.requireNonNullElse(decision.finalPrice(), 0)
+			: 0;
+		int budgetBeforeAmount = decision.budgetAfterAmount() - goAmount;
+		return budgetExhaustion(decision.budgetMonthlyBudgetAmount(), budgetBeforeAmount, decision.budgetAfterAmount());
+	}
+
+	private BudgetExhaustion budgetExhaustion(int monthlyBudgetAmount, int budgetBeforeAmount, int budgetAfterAmount) {
+		boolean exhaustedBefore = budgetExhausted(monthlyBudgetAmount, budgetBeforeAmount);
+		boolean exhaustedAfter = budgetExhausted(monthlyBudgetAmount, budgetAfterAmount);
+		return new BudgetExhaustion(exhaustedAfter, !exhaustedBefore && exhaustedAfter);
+	}
+
+	private boolean budgetExhausted(int monthlyBudgetAmount, int spentAmount) {
+		return monthlyBudgetAmount > 0 && spentAmount >= monthlyBudgetAmount;
 	}
 
 	private void updateDecisionResult(
@@ -897,6 +945,7 @@ public class DecisionService {
 				pd.result,
 				pd.final_price,
 				bc.year_month as budget_year_month,
+				bc.monthly_budget_amount as budget_monthly_budget_amount,
 				pd.budget_after_amount,
 				pd.similar_category_spend_amount,
 				pd.self_check_yes_count,
@@ -1038,6 +1087,7 @@ public class DecisionService {
 			rs.getString("result"),
 			getInteger(rs, "final_price"),
 			rs.getString("budget_year_month"),
+			getInteger(rs, "budget_monthly_budget_amount"),
 			getInteger(rs, "budget_after_amount"),
 			getInteger(rs, "similar_category_spend_amount"),
 			rs.getInt("self_check_yes_count"),
@@ -1088,7 +1138,13 @@ public class DecisionService {
 	private record BudgetCycle(UUID id, String yearMonth, int spentAmount, int monthlyBudgetAmount) {
 	}
 
-	private record BudgetSpent(int spentAmount) {
+	private record BudgetSpent(int monthlyBudgetAmount, int spentAmount) {
+	}
+
+	private record BudgetUpdate(int spentAmount, BudgetExhaustion exhaustion) {
+	}
+
+	private record BudgetExhaustion(boolean exhaustedAfter, boolean becameExhausted) {
 	}
 
 	private record Rationality(int yesCount, RationalityResult result) {
@@ -1105,6 +1161,7 @@ public class DecisionService {
 		String result,
 		Integer finalPrice,
 		String budgetYearMonth,
+		Integer budgetMonthlyBudgetAmount,
 		Integer budgetAfterAmount,
 		Integer similarCategorySpendAmount,
 		int selfCheckYesCount,

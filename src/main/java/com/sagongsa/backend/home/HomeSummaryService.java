@@ -132,11 +132,12 @@ public class HomeSummaryService {
 					int monthlyBudget = rs.getInt("monthly_budget_amount");
 					int spent = rs.getInt("spent_amount");
 					boolean bubbleSeen = rs.getBoolean("budget_exhaustion_bubble_seen");
-					boolean exhausted = monthlyBudget > 0 && spent >= monthlyBudget;
+					boolean exhausted = budgetExhausted(monthlyBudget, spent);
 					return new BudgetSummary(
 						rs.getString("year_month"),
 						monthlyBudget,
 						spent,
+						remainingAmount(monthlyBudget, spent),
 						rs.getBigDecimal("warning_threshold_rate"),
 						exhausted,
 						exhausted && !bubbleSeen
@@ -258,7 +259,15 @@ public class HomeSummaryService {
 	}
 
 	private static BudgetSummary defaultBudgetSummary(String yearMonth) {
-		return new BudgetSummary(yearMonth, 0, 0, BigDecimal.ZERO, false, false);
+		return new BudgetSummary(yearMonth, 0, 0, 0, BigDecimal.ZERO, false, false);
+	}
+
+	private static int remainingAmount(int monthlyBudgetAmount, int spentAmount) {
+		return monthlyBudgetAmount - spentAmount;
+	}
+
+	private static boolean budgetExhausted(int monthlyBudgetAmount, int spentAmount) {
+		return monthlyBudgetAmount > 0 && spentAmount >= monthlyBudgetAmount;
 	}
 
 	private static ZoneId resolveZoneId(String timezone) {
