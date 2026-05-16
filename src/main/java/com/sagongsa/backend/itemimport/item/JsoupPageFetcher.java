@@ -1,16 +1,12 @@
 package com.sagongsa.backend.itemimport.item;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
-@Component
 public class JsoupPageFetcher implements PageFetcher {
 
 	private static final String ANDROID_USER_AGENT =
@@ -23,7 +19,7 @@ public class JsoupPageFetcher implements PageFetcher {
 		URI currentUri = uri;
 		try {
 			for (int redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
-				validatePublicHost(currentUri);
+				ShoppingUrlSafety.validatePublicHost(currentUri);
 				Connection.Response response = Jsoup.connect(currentUri.toString())
 					.userAgent(ANDROID_USER_AGENT)
 					.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
@@ -52,27 +48,6 @@ public class JsoupPageFetcher implements PageFetcher {
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page redirected too many times");
 		} catch (IOException exception) {
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to fetch shopping page", exception);
-		}
-	}
-
-	private void validatePublicHost(URI uri) {
-		String host = uri.getHost();
-		if (host == null || host.isBlank()) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Shopping url host is required");
-		}
-
-		try {
-			for (InetAddress address : InetAddress.getAllByName(host)) {
-				if (address.isAnyLocalAddress()
-					|| address.isLoopbackAddress()
-					|| address.isLinkLocalAddress()
-					|| address.isSiteLocalAddress()
-					|| address.isMulticastAddress()) {
-					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Private network shopping urls are not supported");
-				}
-			}
-		} catch (UnknownHostException exception) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Shopping url host could not be resolved", exception);
 		}
 	}
 
