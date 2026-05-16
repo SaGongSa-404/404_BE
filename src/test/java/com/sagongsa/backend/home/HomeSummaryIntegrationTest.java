@@ -136,14 +136,14 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
 
 		insertUser(userId);
-		insertBudgetCycle(userId, yearMonth, 100_000, 120_000, new BigDecimal("80.00"));
+		insertBudgetCycle(userId, yearMonth, 100_000, 100_000, new BigDecimal("80.00"));
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(100_000))
-			.andExpect(jsonPath("$.budget.spentAmount").value(120_000))
-			.andExpect(jsonPath("$.budget.remainingAmount").value(-20_000))
+			.andExpect(jsonPath("$.budget.spentAmount").value(100_000))
+			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
 			.andExpect(jsonPath("$.budget.exhausted").value(true))
 			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true));
 	}

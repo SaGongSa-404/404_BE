@@ -135,6 +135,23 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void completesGoDecisionWhileBudgetAlreadyExhausted() throws Exception {
+		UUID userId = createReadyUser();
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		insertBudgetCycle(userId, yearMonth, 100_000, 120_000);
+		UUID itemId = insertSavedItem(userId, "Already exhausted target", "FASHION", "SAVED", 10_000);
+
+		mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", null, true, false, false, false)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.budgetAfterAmount").value(130_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(true))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(false));
+	}
+
+	@Test
 	void getsDecisionResult() throws Exception {
 		UUID userId = createReadyUser();
 		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 0);
