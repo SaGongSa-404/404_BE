@@ -9,6 +9,8 @@ import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.UUID;
@@ -51,9 +53,10 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		insertBudgetCycle(userId, yearMonth, 500_000, 125_000, new BigDecimal("80.00"));
 		insertNotification(firstNotificationId, userId, "BUDGET_WARNING", "Budget", "Close to limit", "/budget", false, null, BASE_TIME.plusSeconds(30));
 		insertNotification(secondNotificationId, userId, "WISHLIST_REMINDER", "Wishlist", "Check saved item", "/items", true, BASE_TIME.plusSeconds(40), BASE_TIME.plusSeconds(20));
-		insertDecision(userId, "GO", "RATIONAL", 1, BASE_TIME.plusSeconds(50));
-		insertDecision(userId, "STOP", "IRRATIONAL", 3, BASE_TIME.plusSeconds(60));
-		insertDecision(userId, "GO", "IRRATIONAL", 2, BASE_TIME.plusSeconds(70));
+		Instant currentMonthDecisionTime = currentMonthInstant();
+		insertDecision(userId, "GO", "RATIONAL", 1, currentMonthDecisionTime.plusSeconds(50));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, currentMonthDecisionTime.plusSeconds(60));
+		insertDecision(userId, "GO", "IRRATIONAL", 2, currentMonthDecisionTime.plusSeconds(70));
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
@@ -346,5 +349,10 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 	private Timestamp timestamp(Instant instant) {
 		return instant == null ? null : Timestamp.from(instant);
+	}
+
+	private Instant currentMonthInstant() {
+		LocalDate dayInCurrentMonth = YearMonth.now(SEOUL_ZONE).atDay(10);
+		return dayInCurrentMonth.atTime(LocalTime.NOON).atZone(SEOUL_ZONE).toInstant();
 	}
 }
