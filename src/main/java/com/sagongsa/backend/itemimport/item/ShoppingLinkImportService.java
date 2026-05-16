@@ -279,29 +279,54 @@ public class ShoppingLinkImportService {
 	}
 
 	private ItemCategory classifyCategory(String sourceDomain, String title, String summary) {
-		String haystack = ((sourceDomain == null ? "" : sourceDomain) + " " + (title == null ? "" : title) + " " + (summary == null ? "" : summary))
+		String productText = ((title == null ? "" : title) + " " + (summary == null ? "" : summary))
 			.toLowerCase(Locale.ROOT);
+		ItemCategory productCategory = classifyProductText(productText);
+		if (productCategory != ItemCategory.ETC) {
+			return productCategory;
+		}
 
-		if (containsAny(haystack, "셔츠", "니트", "팬츠", "아우터", "원피스", "스니커즈", "신발", "가방", "musinsa", "zigzag", "ably", "29cm")) {
+		return classifySourceDomain(sourceDomain);
+	}
+
+	private ItemCategory classifyProductText(String value) {
+		if (containsAny(value, "셔츠", "티셔츠", "니트", "가디건", "팬츠", "데님", "아우터", "자켓", "재킷", "점퍼", "원피스",
+			"스커트", "스니커즈", "신발", "구두", "샌들", "부츠", "레인부츠", "가방", "백팩", "숄더백", "모자", "볼캡", "벨트",
+			"지갑", "양말", "트위드", "boutique")) {
 			return ItemCategory.FASHION;
 		}
-		if (containsAny(haystack, "립", "쿠션", "에센스", "크림", "마스크팩", "oliveyoung", "향수", "샴푸")) {
+		if (containsAny(value, "립", "틴트", "쿠션", "파운데이션", "에센스", "세럼", "앰플", "크림", "로션", "토너", "스킨",
+			"마스크팩", "패드", "선크림", "선케어", "클렌징", "향수", "샴푸", "바디워시", "바디오일", "스크럽", "네일")) {
 			return ItemCategory.BEAUTY;
 		}
-		if (containsAny(haystack, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "ipad", "monitor", "ssd")) {
+		if (containsAny(value, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "아이패드", "ipad", "monitor",
+			"모니터", "ssd", "케이스", "충전기", "케이블", "태블릿", "스마트워치", "보조배터리", "디바이스")) {
 			return ItemCategory.DIGITAL;
 		}
-		if (containsAny(haystack, "컵", "머그", "침구", "수납", "조명", "청소", "커피머신", "테이블")) {
+		if (containsAny(value, "컵", "머그", "이불", "홑이불", "침구", "베개", "러그", "매트", "수납", "조명", "청소",
+			"커피머신", "coffee machine", "테이블", "도자기", "접시", "그릇", "주방", "욕실", "디퓨저", "방향제", "생활가전")) {
 			return ItemCategory.LIVING;
 		}
-		if (containsAny(haystack, "간식", "음료", "커피", "프로틴", "식품", "라면", "과자")) {
+		if (containsAny(value, "간식", "음료", "커피", "프로틴", "식품", "라면", "과자", "쉐이크", "단백질", "초콜릿", "젤리",
+			"스낵", "베이글칩", "부각")) {
 			return ItemCategory.FOOD;
 		}
-		if (containsAny(haystack, "레고", "피규어", "게임", "취미", "캠핑", "자전거")) {
+		if (containsAny(value, "레고", "피규어", "게임", "취미", "캠핑", "자전거", "보드게임", "퍼즐", "낚시", "등산", "키링")) {
 			return ItemCategory.HOBBY;
 		}
-		if (containsAny(haystack, "subscription", "멤버십", "정기구독", "월간", "연간 구독")) {
+		if (containsAny(value, "subscription", "멤버십", "정기구독", "월간", "연간 구독", "구독권", "이용권", "기프트카드", "선물카드")) {
 			return ItemCategory.SUBSCRIPTION;
+		}
+		return ItemCategory.ETC;
+	}
+
+	private ItemCategory classifySourceDomain(String sourceDomain) {
+		String domain = Optional.ofNullable(sourceDomain).orElse("").toLowerCase(Locale.ROOT);
+		if (containsAny(domain, "musinsa", "zigzag", "a-bly", "ably")) {
+			return ItemCategory.FASHION;
+		}
+		if (containsAny(domain, "oliveyoung")) {
+			return ItemCategory.BEAUTY;
 		}
 		return ItemCategory.ETC;
 	}

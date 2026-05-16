@@ -147,6 +147,58 @@ class ShoppingLinkImportServiceTest {
 			});
 	}
 
+	@Test
+	void classifiesProductKeywordBeforeOliveYoungDomainSignal() {
+		String url = "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A0000001";
+		pageFetcher.stub(url, productHtml("고소한 베이글칩 간식 세트", "바삭한 스낵과 부각 구성"));
+
+		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.FOOD);
+	}
+
+	@Test
+	void classifiesProductKeywordBeforeMultiCategoryStoreSignal() {
+		String url = "https://www.29cm.co.kr/product/123456";
+		pageFetcher.stub(url, productHtml("전자동 커피머신", "주방에서 사용하는 홈카페 생활가전"));
+
+		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.LIVING);
+	}
+
+	@Test
+	void usesFashionDomainSignalWhenProductKeywordIsWeak() {
+		String url = "https://www.musinsa.com/products/987654";
+		pageFetcher.stub(url, productHtml("단독 특가 상품", "오늘만 제공되는 한정 혜택"));
+
+		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
+	void classifiesDigitalKeywordBeforeHobbyKeyword() {
+		String url = "https://globalbunjang.com/product/337816518";
+		pageFetcher.stub(url, productHtml("무선 게이밍 키보드", "게임과 취미용으로 쓰기 좋은 키보드"));
+
+		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.DIGITAL);
+	}
+
+	private ShoppingLinkImportResponse importSharedLink(String url) {
+		return service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
+		);
+	}
+
+	private String productHtml(String title, String description) {
+		return """
+			<html>
+			<head>
+			  <meta property="og:title" content="%s" />
+			  <meta property="og:description" content="%s" />
+			  <meta property="og:image" content="https://cdn.example.com/product.jpg" />
+			  <meta property="product:price:amount" content="10000" />
+			</head>
+			<body></body>
+			</html>
+			""".formatted(title, description);
+	}
+
 	private static final class FakePageFetcher implements PageFetcher {
 
 		private final Map<String, String> pages = new java.util.HashMap<>();
