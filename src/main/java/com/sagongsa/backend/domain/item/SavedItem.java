@@ -87,6 +87,7 @@ public class SavedItem extends UserScopedEntity {
 
 	public String getTitle() { return title; }
 	public String getImageUrl() { return imageUrl; }
+	public String getOriginalUrl() { return originalUrl; }
 	public Integer getListedPrice() { return listedPrice; }
 	public ItemCategory getCategory() { return category; }
 	public ItemStatus getStatus() { return status; }

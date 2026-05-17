@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -69,6 +70,21 @@ public class DevController {
 	public ResponseEntity<Void> deleteTestProfile(@PathVariable UUID userId) {
 		jdbcTemplate.update("DELETE FROM user_profiles WHERE user_id = ?", userId);
 		return ResponseEntity.noContent().build();
+	}
+
+	record TestItemRequest(String name, Integer price, String link) {}
+
+	@PostMapping("/items/test")
+	@Transactional
+	public ResponseEntity<Map<String, String>> createTestItem(
+		@CurrentUserId UUID userId, @RequestBody TestItemRequest request) {
+		UserAccount user = userAccountRepository.findById(userId)
+			.orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없음"));
+		String name = (request.name() != null && !request.name().isBlank()) ? request.name() : "테스트 상품";
+		SavedItem item = SavedItem.create(user, name, request.price(), null, request.link(),
+			ItemCategory.DIGITAL, ItemInputSource.DIRECT_INPUT);
+		savedItemRepository.save(item);
+		return ResponseEntity.ok(Map.of("itemId", item.getId().toString()));
 	}
 
 	@PostMapping("/wishes/test")
