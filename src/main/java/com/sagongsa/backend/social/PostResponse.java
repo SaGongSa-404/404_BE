@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record PostResponse(
 	UUID id,
-	UUID userId,
+	String authorNickname,
 	String title,
 	String body,
 	String imageUrl,
@@ -18,10 +18,10 @@ public record PostResponse(
 	PostVoteType myVote,
 	Instant createdAt
 ) {
-	public static PostResponse of(FeedPost post, long commentCount, PostVoteType myVote) {
+	public static PostResponse of(FeedPost post, String authorNickname, long commentCount, PostVoteType myVote) {
 		return new PostResponse(
 			post.getId(),
-			post.getUser().getId(),
+			authorNickname,
 			post.getTitle(),
 			post.getBody(),
 			post.getImageUrl(),

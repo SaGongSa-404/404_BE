@@ -9,12 +9,17 @@ import com.sagongsa.backend.domain.item.SavedItem;
 import com.sagongsa.backend.domain.item.SavedItemRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,13 +32,43 @@ public class DevController {
 	private final UserAccountRepository userAccountRepository;
 	private final SavedItemRepository savedItemRepository;
 	private final EntityManager em;
+	private final JdbcTemplate jdbcTemplate;
 
 	public DevController(UserAccountRepository userAccountRepository,
 		SavedItemRepository savedItemRepository,
-		EntityManager em) {
+		EntityManager em,
+		JdbcTemplate jdbcTemplate) {
 		this.userAccountRepository = userAccountRepository;
 		this.savedItemRepository = savedItemRepository;
 		this.em = em;
+		this.jdbcTemplate = jdbcTemplate;
+	}
+
+	@PostMapping("/users/test")
+	@Transactional
+	public ResponseEntity<Map<String, String>> createTestUser() {
+		UUID userId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+		jdbcTemplate.update(
+			"INSERT INTO users (id, status, onboarding_status, created_at, updated_at) VALUES (?, 'ACTIVE', 'COMPLETED', ?, ?)",
+			userId, now, now);
+
+		Long seq = jdbcTemplate.queryForObject("SELECT nextval('user_nickname_seq')", Long.class);
+		String nickname = "너굴" + seq;
+
+		jdbcTemplate.update(
+			"INSERT INTO user_profiles (user_id, nickname, mascot_name, timezone, notification_enabled, created_at, updated_at) VALUES (?, ?, '너구리', 'Asia/Seoul', true, ?, ?)",
+			userId, nickname, now, now);
+
+		return ResponseEntity.ok(Map.of("userId", userId.toString(), "nickname", nickname));
+	}
+
+	@DeleteMapping("/profiles/{userId}")
+	@Transactional
+	public ResponseEntity<Void> deleteTestProfile(@PathVariable UUID userId) {
+		jdbcTemplate.update("DELETE FROM user_profiles WHERE user_id = ?", userId);
+		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/wishes/test")

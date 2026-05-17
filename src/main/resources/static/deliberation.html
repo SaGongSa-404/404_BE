@@ -168,8 +168,8 @@
 <!-- 결정 버튼 (하단 고정) -->
 <div class="decision-area" id="decisionArea">
     <div class="decision-buttons">
-        <button class="decision-btn restrain" id="restrainBtn" onclick="decide('RESTRAINED')" disabled>참을게요</button>
-        <button class="decision-btn buy" id="buyBtn" onclick="decide('BOUGHT')" disabled>살게요</button>
+        <button class="decision-btn restrain" id="restrainBtn" onclick="decide('STOP')" disabled>참을게요</button>
+        <button class="decision-btn buy" id="buyBtn" onclick="decide('GO')" disabled>살게요</button>
     </div>
 </div>
 
@@ -290,8 +290,8 @@
             <div class="question-card">
                 <div class="question-text">${q.text}</div>
                 <div class="yn-buttons">
-                    <button class="yn-btn yes" data-q="${q.id}" data-v="true" onclick="selectAnswer(${q.id}, true, this)">Y</button>
-                    <button class="yn-btn no"  data-q="${q.id}" data-v="false" onclick="selectAnswer(${q.id}, false, this)">N</button>
+                    <button class="yn-btn yes" data-q="${q.code}" data-v="true" onclick="selectAnswer('${q.code}', true, this)">Y</button>
+                    <button class="yn-btn no"  data-q="${q.code}" data-v="false" onclick="selectAnswer('${q.code}', false, this)">N</button>
                 </div>
             </div>
         `).join('');
@@ -345,13 +345,13 @@
         document.getElementById('restrainBtn').disabled = true;
         document.getElementById('buyBtn').disabled = true;
 
-        const answersArr = questions.map(q => answers[q.id]);
+        const selfCheckAnswers = questions.map(q => ({ questionCode: q.code, answerBoolean: answers[q.code] }));
 
         try {
-            const res = await fetch(`/api/wishes/${wishId}/deliberation`, {
+            const res = await fetch('/api/v1/decisions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ answers: answersArr, decision })
+                body: JSON.stringify({ itemId: wishId, result: decision, selfCheckAnswers })
             });
 
             const text = await res.text();
@@ -381,7 +381,7 @@
 
     // ─── 결과 화면 ────────────────────────────────────────
     function showResult(data) {
-        const isBought = data.decision === 'BOUGHT';
+        const isBought = data.result === 'GO';
         document.getElementById('resultEmoji').textContent = isBought ? '🛍️' : '💪';
         document.getElementById('resultTitle').textContent = isBought ? '구매했어요' : '참았어요!';
         document.getElementById('resultDesc').textContent = data.warningTriggered
