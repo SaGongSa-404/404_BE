@@ -10,6 +10,8 @@ import com.sagongsa.backend.domain.item.SavedItemRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -69,6 +72,65 @@ public class DevController {
 	public ResponseEntity<Void> deleteTestProfile(@PathVariable UUID userId) {
 		jdbcTemplate.update("DELETE FROM user_profiles WHERE user_id = ?", userId);
 		return ResponseEntity.noContent().build();
+	}
+
+	record TestDecisionRequest(String title, Integer price, String result) {}
+
+	@PostMapping("/decisions/test")
+	@Transactional
+	public ResponseEntity<Map<String, String>> createTestDecision(
+		@CurrentUserId UUID userId,
+		@RequestBody TestDecisionRequest request) {
+
+		String title = request.title() != null ? request.title() : "테스트 상품";
+		int price = request.price() != null ? request.price() : 0;
+		String result = request.result() != null ? request.result().toUpperCase() : "GO";
+
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		String yearMonth = YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
+
+		// 예산 사이클 없으면 생성
+		UUID budgetCycleId = jdbcTemplate.query(
+			"SELECT id FROM budget_cycles WHERE user_id = ? AND year_month = ?",
+			(rs, i) -> rs.getObject("id", UUID.class),
+			userId, yearMonth
+		).stream().findFirst().orElseGet(() -> {
+			UUID id = UUID.randomUUID();
+			jdbcTemplate.update(
+				"INSERT INTO budget_cycles (id, user_id, year_month, monthly_budget_amount, spent_amount, warning_threshold_rate, created_at, updated_at) VALUES (?, ?, ?, 500000, 0, 80.00, ?, ?)",
+				id, userId, yearMonth, now, now
+			);
+			return id;
+		});
+
+		// 상품 삽입
+		UUID itemId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"INSERT INTO saved_items (id, user_id, input_source, title, listed_price, currency_code, category, category_locked_by_user, status, created_at, updated_at) VALUES (?, ?, 'DIRECT_INPUT', ?, ?, 'KRW', 'DIGITAL', false, ?, ?, ?)",
+			itemId, userId, title, price, result, now, now
+		);
+
+		// 결정 삽입
+		UUID decisionId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"INSERT INTO purchase_decisions (id, user_id, item_id, budget_cycle_id, result, final_price, rationality_result, self_check_yes_count, is_changed, change_count, decided_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'RATIONAL', 0, false, 0, ?, ?, ?)",
+			decisionId, userId, itemId, budgetCycleId, result, price, now, now, now
+		);
+
+		// GO면 예산 소비 반영
+		if ("GO".equals(result)) {
+			jdbcTemplate.update(
+				"UPDATE budget_cycles SET spent_amount = spent_amount + ?, updated_at = ? WHERE id = ?",
+				price, now, budgetCycleId
+			);
+		}
+
+		return ResponseEntity.ok(Map.of(
+			"decisionId", decisionId.toString(),
+			"itemId", itemId.toString(),
+			"result", result,
+			"month", yearMonth
+		));
 	}
 
 	@PostMapping("/wishes/test")
