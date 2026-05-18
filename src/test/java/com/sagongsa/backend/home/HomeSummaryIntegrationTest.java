@@ -26,7 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-	private static final Instant BASE_TIME = YearMonth.now(SEOUL_ZONE)
+	private static final YearMonth TEST_MONTH = YearMonth.now(SEOUL_ZONE);
+	private static final Instant BASE_TIME = TEST_MONTH
 		.atDay(15)
 		.atTime(LocalTime.NOON)
 		.atZone(SEOUL_ZONE)
@@ -48,7 +49,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000101");
 		UUID firstNotificationId = UUID.fromString("00000000-0000-0000-0000-000000000201");
 		UUID secondNotificationId = UUID.fromString("00000000-0000-0000-0000-000000000202");
-		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		String yearMonth = TEST_MONTH.toString();
 
 		insertUser(userId);
 		insertUserProfile(userId, "Jae", "Neogul", "Asia/Seoul");
@@ -82,7 +83,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void returnsDefaultsWhenOptionalHomeDataIsMissing() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000102");
-		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		String yearMonth = TEST_MONTH.toString();
 
 		insertUser(userId);
 
@@ -100,6 +101,24 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.notifications.unreadCount").value(0))
 			.andExpect(jsonPath("$.notifications.latestNotifications").isEmpty())
 			.andExpect(jsonPath("$.rationalChoiceRate").value(nullValue()));
+	}
+
+	@Test
+	void calculatesRationalChoiceRateByUserTimezoneMonthBoundary() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000105");
+		Instant monthStart = TEST_MONTH.atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+		Instant nextMonthStart = TEST_MONTH.plusMonths(1).atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+
+		insertUser(userId);
+		insertUserProfile(userId, "Jae", "Neogul", "Asia/Seoul");
+		insertDecision(userId, "GO", "IRRATIONAL", 2, monthStart.minusSeconds(1));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, monthStart);
+		insertDecision(userId, "GO", "IRRATIONAL", 2, nextMonthStart.minusSeconds(1));
+		insertDecision(userId, "GO", "RATIONAL", 1, nextMonthStart);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.rationalChoiceRate").value(50.00));
 	}
 
 	@Test
