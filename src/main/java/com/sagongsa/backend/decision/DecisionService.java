@@ -131,6 +131,9 @@ public class DecisionService {
 		BudgetExhaustion budgetExhaustion = budgetExhaustionOverride == null
 			? budgetExhaustion(decision)
 			: budgetExhaustionOverride;
+		if (budgetExhaustionOverride == null) {
+			budgetExhaustion = new BudgetExhaustion(budgetExhaustion.exhaustedAfter(), false);
+		}
 
 		return new DecisionResultResponse(
 			decision.id(),

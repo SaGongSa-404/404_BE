@@ -124,14 +124,24 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 		insertBudgetCycle(userId, yearMonth, 100_000, 90_000);
 		UUID itemId = insertSavedItem(userId, "Budget limit target", "FASHION", "SAVED", 10_000);
 
-		mockMvc.perform(post(DECISIONS_PATH)
+		String body = mockMvc.perform(post(DECISIONS_PATH)
 				.header(USER_ID_HEADER, userId)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(decisionRequest(itemId, "GO", null, true, false, false, false)))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.budgetAfterAmount").value(100_000))
 			.andExpect(jsonPath("$.budgetExhaustedAfter").value(true))
-			.andExpect(jsonPath("$.budgetBecameExhausted").value(true));
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(true))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		String decisionId = objectMapper.readTree(body).get("decisionId").asText();
+
+		mockMvc.perform(get(DECISIONS_PATH + "/{decisionId}/result", decisionId)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(true))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(false));
 	}
 
 	@Test
@@ -148,6 +158,23 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.budgetAfterAmount").value(130_000))
 			.andExpect(jsonPath("$.budgetExhaustedAfter").value(true))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(false));
+	}
+
+	@Test
+	void doesNotTreatZeroBudgetAsExhausted() throws Exception {
+		UUID userId = createReadyUser();
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		insertBudgetCycle(userId, yearMonth, 0, 0);
+		UUID itemId = insertSavedItem(userId, "Zero budget target", "FASHION", "SAVED", 10_000);
+
+		mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", null, true, false, false, false)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.budgetAfterAmount").value(10_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(false))
 			.andExpect(jsonPath("$.budgetBecameExhausted").value(false));
 	}
 

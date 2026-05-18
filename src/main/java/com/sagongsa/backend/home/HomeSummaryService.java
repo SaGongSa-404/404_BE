@@ -263,7 +263,7 @@ public class HomeSummaryService {
 	}
 
 	private static int remainingAmount(int monthlyBudgetAmount, int spentAmount) {
-		return monthlyBudgetAmount - spentAmount;
+		return Math.max(0, monthlyBudgetAmount - spentAmount);
 	}
 
 	private static boolean budgetExhausted(int monthlyBudgetAmount, int spentAmount) {
