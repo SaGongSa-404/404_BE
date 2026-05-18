@@ -9,14 +9,21 @@ import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.Response;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
+import jakarta.annotation.PreDestroy;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
-public class BrowserPageFetcher implements PageFetcher {
+public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 
 	private final ShoppingImportProperties.BrowserFetch properties;
+	private final Object browserLock = new Object();
+	private Playwright playwright;
+	private Browser browser;
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties) {
 		this.properties = properties;
@@ -26,9 +33,9 @@ public class BrowserPageFetcher implements PageFetcher {
 	public FetchedPage fetch(URI uri) {
 		ShoppingUrlSafety.validatePublicHost(uri);
 
-		try (Playwright playwright = Playwright.create();
-			 Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
-			 BrowserContext context = browser.newContext(contextOptions())) {
+		AtomicReference<String> blockedRequestUrl = new AtomicReference<>();
+		try (BrowserContext context = browser().newContext(contextOptions())) {
+			installRequestSafetyGuard(context, blockedRequestUrl);
 			Page page = context.newPage();
 			try {
 				Response response = page.navigate(
@@ -39,6 +46,7 @@ public class BrowserPageFetcher implements PageFetcher {
 				);
 				waitForNetworkIdle(page);
 				waitForRenderDelay(page);
+				rejectIfBlockedRequestOccurred(blockedRequestUrl);
 
 				URI finalUri = URI.create(page.url());
 				ShoppingUrlSafety.validatePublicHost(finalUri);
@@ -56,8 +64,39 @@ public class BrowserPageFetcher implements PageFetcher {
 		} catch (IllegalArgumentException exception) {
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Invalid rendered shopping page url", exception);
 		} catch (PlaywrightException exception) {
+			rejectIfBlockedRequestOccurred(blockedRequestUrl, exception);
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to render shopping page", exception);
 		}
+	}
+
+	private Browser browser() {
+		synchronized (browserLock) {
+			if (browser == null) {
+				playwright = Playwright.create();
+				browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+			}
+			return browser;
+		}
+	}
+
+	private void installRequestSafetyGuard(BrowserContext context, AtomicReference<String> blockedRequestUrl) {
+		context.route("**/*", route -> {
+			String requestUrl = route.request().url();
+			try {
+				URI requestUri = URI.create(requestUrl);
+				String scheme = Optional.ofNullable(requestUri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
+				if (!scheme.equals("http") && !scheme.equals("https")) {
+					route.resume();
+					return;
+				}
+				ShoppingUrlSafety.validatePublicHost(requestUri);
+				route.resume();
+			}
+			catch (RuntimeException exception) {
+				blockedRequestUrl.compareAndSet(null, requestUrl);
+				route.abort();
+			}
+		});
 	}
 
 	private Browser.NewContextOptions contextOptions() {
@@ -99,5 +138,34 @@ public class BrowserPageFetcher implements PageFetcher {
 			return 0;
 		}
 		return duration.toMillis();
+	}
+
+	private void rejectIfBlockedRequestOccurred(AtomicReference<String> blockedRequestUrl) {
+		rejectIfBlockedRequestOccurred(blockedRequestUrl, null);
+	}
+
+	private void rejectIfBlockedRequestOccurred(AtomicReference<String> blockedRequestUrl, Throwable cause) {
+		if (blockedRequestUrl.get() != null) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Rendered shopping page requested a private network resource",
+				cause
+			);
+		}
+	}
+
+	@Override
+	@PreDestroy
+	public void close() {
+		synchronized (browserLock) {
+			if (browser != null) {
+				browser.close();
+				browser = null;
+			}
+			if (playwright != null) {
+				playwright.close();
+				playwright = null;
+			}
+		}
 	}
 }
