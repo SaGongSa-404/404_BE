@@ -11,6 +11,7 @@ import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -37,7 +38,9 @@ public class ShoppingLinkImportService {
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
 	);
-	private static final double DEFAULT_CATEGORY_CONFIDENCE = 0.35d;
+	private static final double STRONG_CATEGORY_CONFIDENCE = 0.70d;
+	private static final double WEAK_CATEGORY_CONFIDENCE = 0.45d;
+	private static final double DOMAIN_FALLBACK_CONFIDENCE = 0.25d;
 
 	private final PageFetcher pageFetcher;
 	private final ObjectMapper objectMapper;
@@ -85,7 +88,7 @@ public class ShoppingLinkImportService {
 			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Unable to extract shopping metadata");
 		}
 
-		ItemCategory category = classifyCategory(sourceDomain(page.finalUri()), extracted.title(), extracted.summary());
+		CategoryRecommendation category = recommendCategory(sourceDomain(page.finalUri()), extracted.title(), extracted.summary());
 		SavedItemDraft item = new SavedItemDraft(
 			ItemInputSource.SHARE,
 			originalUri.toString(),
@@ -96,8 +99,8 @@ public class ShoppingLinkImportService {
 			extracted.imageUrl(),
 			extracted.price(),
 			"KRW",
-			category,
-			category == ItemCategory.ETC ? null : DEFAULT_CATEGORY_CONFIDENCE,
+			category.category(),
+			category.confidence(),
 			false,
 			ItemStatus.SAVED
 		);
@@ -136,7 +139,7 @@ public class ShoppingLinkImportService {
 		String normalizedTitle = normalizeWhitespace(request.title());
 		String normalizedBrandName = normalizeWhitespace(request.brandName());
 		String normalizedImageUrl = normalizeImageUrl(request.imageUrl());
-		ItemCategory category = classifyCategory(
+		CategoryRecommendation category = recommendCategory(
 			normalizedUri == null ? null : sourceDomain(normalizedUri),
 			normalizedTitle,
 			null
@@ -152,7 +155,7 @@ public class ShoppingLinkImportService {
 			normalizedImageUrl,
 			request.price(),
 			request.price() == null ? null : "KRW",
-			category,
+			category.category(),
 			null,
 			false,
 			ItemStatus.SAVED
@@ -278,46 +281,51 @@ public class ShoppingLinkImportService {
 		);
 	}
 
-	private ItemCategory classifyCategory(String sourceDomain, String title, String summary) {
+	private CategoryRecommendation recommendCategory(String sourceDomain, String title, String summary) {
 		String productText = ((title == null ? "" : title) + " " + (summary == null ? "" : summary))
 			.toLowerCase(Locale.ROOT);
-		ItemCategory productCategory = classifyProductText(productText);
-		if (productCategory != ItemCategory.ETC) {
-			return productCategory;
+		CategoryScore productCategory = classifyProductText(productText);
+		if (productCategory.category() != ItemCategory.ETC) {
+			ItemCategory recommendationCategory = toRecommendationCategory(productCategory.category());
+			return new CategoryRecommendation(
+				recommendationCategory,
+				recommendationCategory == ItemCategory.ETC
+					? null
+					: productCategory.score() >= 2 ? STRONG_CATEGORY_CONFIDENCE : WEAK_CATEGORY_CONFIDENCE
+			);
 		}
 
-		return classifySourceDomain(sourceDomain);
+		ItemCategory domainCategory = classifySourceDomain(sourceDomain);
+		if (domainCategory != ItemCategory.ETC) {
+			return new CategoryRecommendation(toRecommendationCategory(domainCategory), DOMAIN_FALLBACK_CONFIDENCE);
+		}
+		return new CategoryRecommendation(ItemCategory.ETC, null);
 	}
 
-	private ItemCategory classifyProductText(String value) {
-		if (containsAny(value, "셔츠", "티셔츠", "니트", "가디건", "팬츠", "데님", "아우터", "자켓", "재킷", "점퍼", "원피스",
+	private CategoryScore classifyProductText(String value) {
+		Map<ItemCategory, Integer> scores = new EnumMap<>(ItemCategory.class);
+		addScore(scores, ItemCategory.FASHION, value, "셔츠", "티셔츠", "니트", "가디건", "팬츠", "데님", "아우터", "자켓", "재킷", "점퍼", "원피스",
 			"스커트", "스니커즈", "신발", "구두", "샌들", "부츠", "레인부츠", "가방", "백팩", "숄더백", "모자", "볼캡", "벨트",
-			"지갑", "양말", "트위드", "boutique")) {
-			return ItemCategory.FASHION;
+			"지갑", "양말", "트위드", "boutique");
+		addScore(scores, ItemCategory.BEAUTY, value, "립", "틴트", "쿠션", "파운데이션", "에센스", "세럼", "앰플", "크림", "로션", "토너", "스킨",
+			"마스크팩", "패드", "선크림", "선케어", "클렌징", "향수", "샴푸", "바디워시", "바디오일", "스크럽", "네일");
+		addScore(scores, ItemCategory.DIGITAL, value, "이어폰", "헤드폰", "키보드", "게이밍 키보드", "마우스", "노트북", "갤럭시", "아이폰", "아이패드", "ipad", "monitor",
+			"모니터", "ssd", "케이스", "충전기", "케이블", "태블릿", "스마트워치", "보조배터리", "디바이스");
+		addScore(scores, ItemCategory.LIVING, value, "컵", "머그", "이불", "홑이불", "침구", "베개", "러그", "매트", "수납", "조명", "청소",
+			"커피머신", "coffee machine", "테이블", "도자기", "접시", "그릇", "주방", "욕실", "디퓨저", "방향제", "생활가전");
+		addScore(scores, ItemCategory.FOOD, value, "간식", "음료", "커피", "프로틴", "식품", "라면", "과자", "쉐이크", "단백질", "초콜릿", "젤리",
+			"스낵", "베이글칩", "부각");
+		addScore(scores, ItemCategory.HOBBY, value, "레고", "피규어", "게임", "취미", "캠핑", "자전거", "보드게임", "퍼즐", "낚시", "등산", "키링");
+		addScore(scores, ItemCategory.SUBSCRIPTION, value, "subscription", "멤버십", "정기구독", "월간", "연간 구독", "구독권", "이용권", "기프트카드", "선물카드");
+
+		CategoryScore bestScore = new CategoryScore(ItemCategory.ETC, 0);
+		for (ItemCategory category : ItemCategory.values()) {
+			int score = scores.getOrDefault(category, 0);
+			if (score > bestScore.score()) {
+				bestScore = new CategoryScore(category, score);
+			}
 		}
-		if (containsAny(value, "립", "틴트", "쿠션", "파운데이션", "에센스", "세럼", "앰플", "크림", "로션", "토너", "스킨",
-			"마스크팩", "패드", "선크림", "선케어", "클렌징", "향수", "샴푸", "바디워시", "바디오일", "스크럽", "네일")) {
-			return ItemCategory.BEAUTY;
-		}
-		if (containsAny(value, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "아이패드", "ipad", "monitor",
-			"모니터", "ssd", "케이스", "충전기", "케이블", "태블릿", "스마트워치", "보조배터리", "디바이스")) {
-			return ItemCategory.DIGITAL;
-		}
-		if (containsAny(value, "컵", "머그", "이불", "홑이불", "침구", "베개", "러그", "매트", "수납", "조명", "청소",
-			"커피머신", "coffee machine", "테이블", "도자기", "접시", "그릇", "주방", "욕실", "디퓨저", "방향제", "생활가전")) {
-			return ItemCategory.LIVING;
-		}
-		if (containsAny(value, "간식", "음료", "커피", "프로틴", "식품", "라면", "과자", "쉐이크", "단백질", "초콜릿", "젤리",
-			"스낵", "베이글칩", "부각")) {
-			return ItemCategory.FOOD;
-		}
-		if (containsAny(value, "레고", "피규어", "게임", "취미", "캠핑", "자전거", "보드게임", "퍼즐", "낚시", "등산", "키링")) {
-			return ItemCategory.HOBBY;
-		}
-		if (containsAny(value, "subscription", "멤버십", "정기구독", "월간", "연간 구독", "구독권", "이용권", "기프트카드", "선물카드")) {
-			return ItemCategory.SUBSCRIPTION;
-		}
-		return ItemCategory.ETC;
+		return bestScore;
 	}
 
 	private ItemCategory classifySourceDomain(String sourceDomain) {
@@ -329,6 +337,26 @@ public class ShoppingLinkImportService {
 			return ItemCategory.BEAUTY;
 		}
 		return ItemCategory.ETC;
+	}
+
+	private void addScore(Map<ItemCategory, Integer> scores, ItemCategory category, String value, String... keywords) {
+		int score = 0;
+		for (String keyword : keywords) {
+			if (value.contains(keyword.toLowerCase(Locale.ROOT))) {
+				score++;
+			}
+		}
+		if (score > 0) {
+			scores.merge(category, score, Integer::sum);
+		}
+	}
+
+	private ItemCategory toRecommendationCategory(ItemCategory category) {
+		return switch (category) {
+			case FASHION, BEAUTY, DIGITAL, LIVING, ETC -> category;
+			case FOOD, HOBBY -> ItemCategory.LIVING;
+			case SUBSCRIPTION -> ItemCategory.ETC;
+		};
 	}
 
 	private String bestImage(Document document) {
@@ -584,6 +612,12 @@ public class ShoppingLinkImportService {
 			}
 		}
 		return null;
+	}
+
+	private record CategoryRecommendation(ItemCategory category, Double confidence) {
+	}
+
+	private record CategoryScore(ItemCategory category, int score) {
 	}
 
 	private record NormalizationResult(URI uri, List<String> warnings) {

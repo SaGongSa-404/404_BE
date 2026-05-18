@@ -152,7 +152,10 @@ class ShoppingLinkImportServiceTest {
 		String url = "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A0000001";
 		pageFetcher.stub(url, productHtml("고소한 베이글칩 간식 세트", "바삭한 스낵과 부각 구성"));
 
-		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.FOOD);
+		ShoppingLinkImportResponse response = importSharedLink(url);
+
+		assertThat(response.item().category()).isEqualTo(ItemCategory.LIVING);
+		assertThat(response.item().categoryConfidence()).isEqualTo(0.70d);
 	}
 
 	@Test
@@ -160,7 +163,10 @@ class ShoppingLinkImportServiceTest {
 		String url = "https://www.29cm.co.kr/product/123456";
 		pageFetcher.stub(url, productHtml("전자동 커피머신", "주방에서 사용하는 홈카페 생활가전"));
 
-		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.LIVING);
+		ShoppingLinkImportResponse response = importSharedLink(url);
+
+		assertThat(response.item().category()).isEqualTo(ItemCategory.LIVING);
+		assertThat(response.item().categoryConfidence()).isEqualTo(0.70d);
 	}
 
 	@Test
@@ -168,7 +174,10 @@ class ShoppingLinkImportServiceTest {
 		String url = "https://www.musinsa.com/products/987654";
 		pageFetcher.stub(url, productHtml("단독 특가 상품", "오늘만 제공되는 한정 혜택"));
 
-		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.FASHION);
+		ShoppingLinkImportResponse response = importSharedLink(url);
+
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+		assertThat(response.item().categoryConfidence()).isEqualTo(0.25d);
 	}
 
 	@Test
@@ -176,7 +185,21 @@ class ShoppingLinkImportServiceTest {
 		String url = "https://globalbunjang.com/product/337816518";
 		pageFetcher.stub(url, productHtml("무선 게이밍 키보드", "게임과 취미용으로 쓰기 좋은 키보드"));
 
-		assertThat(importSharedLink(url).item().category()).isEqualTo(ItemCategory.DIGITAL);
+		ShoppingLinkImportResponse response = importSharedLink(url);
+
+		assertThat(response.item().category()).isEqualTo(ItemCategory.DIGITAL);
+		assertThat(response.item().categoryConfidence()).isEqualTo(0.70d);
+	}
+
+	@Test
+	void mapsUnsupportedDetailedCategoryToEtcRecommendation() {
+		String url = "https://example.com/products/monthly-membership";
+		pageFetcher.stub(url, productHtml("월간 정기구독 이용권", "멤버십과 기프트카드 혜택"));
+
+		ShoppingLinkImportResponse response = importSharedLink(url);
+
+		assertThat(response.item().category()).isEqualTo(ItemCategory.ETC);
+		assertThat(response.item().categoryConfidence()).isNull();
 	}
 
 	private ShoppingLinkImportResponse importSharedLink(String url) {
