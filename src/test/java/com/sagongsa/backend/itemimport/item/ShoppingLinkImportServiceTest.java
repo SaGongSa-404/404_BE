@@ -166,6 +166,25 @@ class ShoppingLinkImportServiceTest {
 			});
 	}
 
+	@Test
+	void rejectsShareUrlWithUserInfo() {
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://user:password@shopping.example.com/products/100",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+			});
+	}
+
 	private static final class FakePageFetcher implements PageFetcher {
 
 		private final Map<String, String> pages = new java.util.HashMap<>();

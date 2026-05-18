@@ -2,8 +2,6 @@ package com.sagongsa.backend.wishlist;
 
 import com.sagongsa.backend.auth.CurrentUserId;
 import java.net.URI;
-import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,7 +34,7 @@ public class WishlistController {
 	}
 
 	@GetMapping
-	public List<WishlistItemSummaryResponse> list(
+	public WishlistItemPageResponse list(
 		@CurrentUserId UUID userId,
 		@RequestParam(required = false) String category,
 		@RequestParam(required = false) Integer limit,
@@ -71,15 +69,10 @@ public class WishlistController {
 		return ResponseEntity.noContent().build();
 	}
 
-	private Instant parseCursor(String cursor) {
+	private WishlistCursor parseCursor(String cursor) {
 		if (cursor == null || cursor.isBlank()) {
 			return null;
 		}
-		try {
-			return Instant.parse(cursor.trim());
-		}
-		catch (RuntimeException exception) {
-			throw new BadRequestException("cursor must be an ISO-8601 instant.");
-		}
+		return WishlistCursor.parse(cursor);
 	}
 }

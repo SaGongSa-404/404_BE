@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -130,7 +131,7 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<WishlistItemSummaryResponse> list(UUID userId, String rawCategory, Integer requestedLimit, Instant cursor) {
+	public WishlistItemPageResponse list(UUID userId, String rawCategory, Integer requestedLimit, WishlistCursor cursor) {
 		ensureWishlistUserAllowed(userId);
 
 		String category = null;
@@ -138,66 +139,43 @@ public class WishlistService {
 			category = parseRequiredEnum(rawCategory, ItemCategory.class, "category").name();
 		}
 		int limit = normalizeLimit(requestedLimit);
+		List<Object> parameters = new ArrayList<>();
+		parameters.add(userId);
 
-		if (category == null) {
-			if (cursor == null) {
-				return jdbcTemplate.query(
-					summarySelect() + """
-					where si.user_id = ?
-					  and si.status = 'SAVED'
-					order by si.created_at desc
-					limit ?
-					""",
-					this::mapSummaryRow,
-					userId,
-					limit
-				);
-			}
-			return jdbcTemplate.query(
-				summarySelect() + """
-				where si.user_id = ?
-				  and si.status = 'SAVED'
-				  and si.created_at < ?
-				order by si.created_at desc
-				limit ?
-				""",
-				this::mapSummaryRow,
-				userId,
-				cursor.atOffset(ZoneOffset.UTC),
-				limit
-			);
-		}
-
-		if (cursor == null) {
-			return jdbcTemplate.query(
-				summarySelect() + """
-				where si.user_id = ?
-				  and si.status = 'SAVED'
-				  and si.category = ?
-				order by si.created_at desc
-				limit ?
-				""",
-				this::mapSummaryRow,
-				userId,
-				category,
-				limit
-			);
-		}
-		return jdbcTemplate.query(
-			summarySelect() + """
+		StringBuilder query = new StringBuilder(summarySelect());
+		query.append("""
 			where si.user_id = ?
 			  and si.status = 'SAVED'
-			  and si.category = ?
-			  and si.created_at < ?
-			order by si.created_at desc
+			""");
+		if (category != null) {
+			query.append("  and si.category = ?\n");
+			parameters.add(category);
+		}
+		if (cursor != null && cursor.hasTieBreaker()) {
+			query.append("  and (si.created_at < ? or (si.created_at = ? and si.id < ?))\n");
+			OffsetDateTime cursorCreatedAt = cursor.createdAt().atOffset(ZoneOffset.UTC);
+			parameters.add(cursorCreatedAt);
+			parameters.add(cursorCreatedAt);
+			parameters.add(cursor.id());
+		} else if (cursor != null) {
+			query.append("  and si.created_at < ?\n");
+			parameters.add(cursor.createdAt().atOffset(ZoneOffset.UTC));
+		}
+		query.append("""
+			order by si.created_at desc, si.id desc
 			limit ?
-			""",
+			""");
+		parameters.add(limit + 1);
+
+		List<WishlistItemSummaryResponse> fetched = jdbcTemplate.query(
+			query.toString(),
 			this::mapSummaryRow,
-			userId,
-			category,
-			cursor.atOffset(ZoneOffset.UTC),
-			limit
+			parameters.toArray()
 		);
+		boolean hasMore = fetched.size() > limit;
+		List<WishlistItemSummaryResponse> items = hasMore ? fetched.subList(0, limit) : fetched;
+		String nextCursor = hasMore ? WishlistCursor.encode(items.getLast()) : null;
+		return new WishlistItemPageResponse(List.copyOf(items), nextCursor, hasMore);
 	}
 
 	@Transactional(readOnly = true)

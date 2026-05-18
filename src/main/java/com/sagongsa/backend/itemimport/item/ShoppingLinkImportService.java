@@ -445,6 +445,9 @@ public class ShoppingLinkImportService {
 			if (isBlank(uri.getHost())) {
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
 			}
+			if (!isBlank(uri.getUserInfo())) {
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "url must not include user info");
+			}
 			return uri;
 		} catch (IllegalArgumentException exception) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage, exception);

@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -37,6 +39,9 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	@BeforeEach
 	void setUp() {
@@ -203,16 +208,20 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
 				.header(USER_ID_HEADER, userId))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$", hasSize(2)))
-			.andExpect(jsonPath("$[0].id").value(newerSavedId.toString()))
-			.andExpect(jsonPath("$[1].id").value(olderSavedId.toString()));
+			.andExpect(jsonPath("$.items", hasSize(2)))
+			.andExpect(jsonPath("$.items[0].id").value(newerSavedId.toString()))
+			.andExpect(jsonPath("$.items[1].id").value(olderSavedId.toString()))
+			.andExpect(jsonPath("$.hasMore").value(false))
+			.andExpect(jsonPath("$.nextCursor").value(nullValue()));
 
 		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
 				.header(USER_ID_HEADER, userId)
 				.queryParam("category", "FASHION"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$", hasSize(1)))
-			.andExpect(jsonPath("$[0].id").value(olderSavedId.toString()));
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.items[0].id").value(olderSavedId.toString()))
+			.andExpect(jsonPath("$.hasMore").value(false))
+			.andExpect(jsonPath("$.nextCursor").value(nullValue()));
 
 		assertThat(droppedId).isNotNull();
 	}
@@ -227,22 +236,69 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 		UUID middleId = insertItem(userId, "Middle", "FASHION", "SAVED", middle);
 		UUID newestId = insertItem(userId, "Newest", "FASHION", "SAVED", newest);
 
-		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+		String firstPage = mockMvc.perform(get(WISHLIST_ITEMS_PATH)
 				.header(USER_ID_HEADER, userId)
 				.queryParam("limit", "1"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$", hasSize(1)))
-			.andExpect(jsonPath("$[0].id").value(newestId.toString()))
-			.andExpect(jsonPath("$[0].rawPayloadJson").doesNotExist())
-			.andExpect(jsonPath("$[0].sourceDomain").doesNotExist());
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.items[0].id").value(newestId.toString()))
+			.andExpect(jsonPath("$.items[0].rawPayloadJson").doesNotExist())
+			.andExpect(jsonPath("$.items[0].sourceDomain").doesNotExist())
+			.andExpect(jsonPath("$.hasMore").value(true))
+			.andExpect(jsonPath("$.nextCursor").isNotEmpty())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		String nextCursor = objectMapper.readTree(firstPage).path("nextCursor").asText();
 
 		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
 				.header(USER_ID_HEADER, userId)
 				.queryParam("limit", "1")
-				.queryParam("cursor", newest.toInstant().toString()))
+				.queryParam("cursor", nextCursor))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$", hasSize(1)))
-			.andExpect(jsonPath("$[0].id").value(middleId.toString()));
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.items[0].id").value(middleId.toString()))
+			.andExpect(jsonPath("$.hasMore").value(true))
+			.andExpect(jsonPath("$.nextCursor").isNotEmpty());
+	}
+
+	@Test
+	void listsWithStableCursorWhenCreatedAtTies() throws Exception {
+		UUID userId = createUser();
+		OffsetDateTime sameCreatedAt = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		insertItem(userId, "First same time", "FASHION", "SAVED", sameCreatedAt);
+		insertItem(userId, "Second same time", "FASHION", "SAVED", sameCreatedAt);
+
+		String firstPage = mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.queryParam("limit", "1"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.hasMore").value(true))
+			.andExpect(jsonPath("$.nextCursor").isNotEmpty())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		JsonNode firstJson = objectMapper.readTree(firstPage);
+		String firstId = firstJson.path("items").get(0).path("id").asText();
+		String nextCursor = firstJson.path("nextCursor").asText();
+
+		String secondPage = mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.queryParam("limit", "1")
+				.queryParam("cursor", nextCursor))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.hasMore").value(false))
+			.andExpect(jsonPath("$.nextCursor").value(nullValue()))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		JsonNode secondJson = objectMapper.readTree(secondPage);
+		String secondId = secondJson.path("items").get(0).path("id").asText();
+		assertThat(secondId).isNotEqualTo(firstId);
 	}
 
 	@Test
@@ -326,7 +382,9 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
 				.header(USER_ID_HEADER, userId))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$", hasSize(0)));
+			.andExpect(jsonPath("$.items", hasSize(0)))
+			.andExpect(jsonPath("$.hasMore").value(false))
+			.andExpect(jsonPath("$.nextCursor").value(nullValue()));
 	}
 
 	@Test
