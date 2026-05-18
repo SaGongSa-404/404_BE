@@ -85,6 +85,7 @@ public class DecisionService {
 
 		MascotReaction mascotReaction = updateMascotReaction(userId, item.id(), decisionId, normalized.result(), rationality.result(), now);
 		ReminderResponse reminder = maybeScheduleRegretReminder(userId, item.id(), decisionId, normalized.result(), zoneId, now);
+		boolean budgetExhausted = budgetCycle.monthlyBudgetAmount() > 0 && budgetAfterAmount >= budgetCycle.monthlyBudgetAmount();
 
 		return new DecisionResultResponse(
 			decisionId,
@@ -101,7 +102,8 @@ public class DecisionService {
 			resultMessage(normalized.result()),
 			new MascotReactionResponse(mascotReaction.state().name(), mascotReaction.message()),
 			reminder,
-			now.toInstant()
+			now.toInstant(),
+			budgetExhausted
 		);
 	}
 
@@ -128,7 +130,8 @@ public class DecisionService {
 			resultMessage(PurchaseDecisionResult.valueOf(decision.result())),
 			mascot,
 			reminder,
-			decision.decidedAt()
+			decision.decidedAt(),
+			decision.budgetExhausted()
 		);
 	}
 
@@ -319,7 +322,7 @@ public class DecisionService {
 		try {
 			return jdbcTemplate.queryForObject(
 				"""
-				select id, year_month, spent_amount
+				select id, year_month, spent_amount, monthly_budget_amount
 				from budget_cycles
 				where user_id = ?
 				  and year_month = ?
@@ -884,7 +887,9 @@ public class DecisionService {
 				pd.rationality_result,
 				mse.new_state as mascot_state,
 				mse.reaction_message as last_reaction_message,
-				pd.decided_at
+				pd.decided_at,
+				case when bc.monthly_budget_amount > 0 and bc.spent_amount >= bc.monthly_budget_amount
+				     then true else false end as budget_exhausted
 			from purchase_decisions pd
 			join saved_items si on si.id = pd.item_id
 			left join budget_cycles bc on bc.id = pd.budget_cycle_id
@@ -981,7 +986,8 @@ public class DecisionService {
 		return new BudgetCycle(
 			rs.getObject("id", UUID.class),
 			rs.getString("year_month"),
-			rs.getInt("spent_amount")
+			rs.getInt("spent_amount"),
+			rs.getInt("monthly_budget_amount")
 		);
 	}
 
@@ -1014,7 +1020,8 @@ public class DecisionService {
 			rs.getString("rationality_result"),
 			Optional.ofNullable(rs.getString("mascot_state")).orElse(MascotState.DEFAULT.name()),
 			rs.getString("last_reaction_message"),
-			readInstant(rs, "decided_at")
+			readInstant(rs, "decided_at"),
+			rs.getBoolean("budget_exhausted")
 		);
 	}
 
@@ -1054,7 +1061,7 @@ public class DecisionService {
 	private record SavedItem(UUID id, UUID userId, String status, String title, Integer listedPrice, String category) {
 	}
 
-	private record BudgetCycle(UUID id, String yearMonth, int spentAmount) {
+	private record BudgetCycle(UUID id, String yearMonth, int spentAmount, int monthlyBudgetAmount) {
 	}
 
 	private record BudgetSpent(int spentAmount) {
@@ -1080,7 +1087,8 @@ public class DecisionService {
 		String rationalityResult,
 		String mascotState,
 		String mascotMessage,
-		Instant decidedAt
+		Instant decidedAt,
+		boolean budgetExhausted
 	) {
 	}
 

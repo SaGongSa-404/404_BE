@@ -60,7 +60,7 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.disable())
 			.authorizeHttpRequests(auth -> {
 				auth
-					.requestMatchers("/", "/index.html", "/favicon.ico", "/error").permitAll()
+					.requestMatchers("/", "/index.html", "/test-budget.html", "/favicon.ico", "/error").permitAll()
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
 					.requestMatchers("/api/auth/me").authenticated();

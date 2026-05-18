@@ -121,22 +121,53 @@ public class HomeSummaryService {
 	private Optional<BudgetSummary> findBudgetSummary(UUID userId, String yearMonth) {
 		return jdbcTemplate.query(
 				"""
-				select year_month, monthly_budget_amount, spent_amount, warning_threshold_rate
+				select year_month, monthly_budget_amount, spent_amount, warning_threshold_rate,
+				       budget_exhaustion_bubble_seen
 				from budget_cycles
 				where user_id = ?
 				  and year_month = ?
 				""",
-				(rs, rowNum) -> new BudgetSummary(
-					rs.getString("year_month"),
-					rs.getInt("monthly_budget_amount"),
-					rs.getInt("spent_amount"),
-					rs.getBigDecimal("warning_threshold_rate")
-				),
+				(rs, rowNum) -> {
+					int monthlyBudget = rs.getInt("monthly_budget_amount");
+					int spent = rs.getInt("spent_amount");
+					boolean bubbleSeen = rs.getBoolean("budget_exhaustion_bubble_seen");
+					boolean exhausted = monthlyBudget > 0 && spent >= monthlyBudget;
+					return new BudgetSummary(
+						rs.getString("year_month"),
+						monthlyBudget,
+						spent,
+						rs.getBigDecimal("warning_threshold_rate"),
+						exhausted,
+						exhausted && !bubbleSeen
+					);
+				},
 				userId,
 				yearMonth
 			)
 			.stream()
 			.findFirst();
+	}
+
+	@org.springframework.transaction.annotation.Transactional
+	public void markBubbleSeen(UUID userId) {
+		String timezone = jdbcTemplate.query(
+				"select timezone from user_profiles where user_id = ?",
+				(rs, rowNum) -> rs.getString("timezone"),
+				userId
+			)
+			.stream().findFirst().orElse(null);
+		String currentYearMonth = YearMonth.now(resolveZoneId(timezone)).toString();
+		jdbcTemplate.update(
+			"""
+			update budget_cycles
+			   set budget_exhaustion_bubble_seen = true,
+			       updated_at = now()
+			 where user_id = ?
+			   and year_month = ?
+			""",
+			userId,
+			currentYearMonth
+		);
 	}
 
 	private long countUnreadNotifications(UUID userId) {
@@ -220,7 +251,7 @@ public class HomeSummaryService {
 	}
 
 	private static BudgetSummary defaultBudgetSummary(String yearMonth) {
-		return new BudgetSummary(yearMonth, 0, 0, BigDecimal.ZERO);
+		return new BudgetSummary(yearMonth, 0, 0, BigDecimal.ZERO, false, false);
 	}
 
 	private static ZoneId resolveZoneId(String timezone) {
