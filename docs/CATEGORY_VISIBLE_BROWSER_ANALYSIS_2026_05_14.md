@@ -45,3 +45,11 @@
 | 실제 상품 상세 URL만 | 58 | 58/58 (100.0%) | 47/58 (81.0%) | 47/58 (81.0%) | 실제 상품 저장 시 자동분류 품질에 더 가까운 보수적 기준 |
 
 따라서 현재 근거로 답하면 “자동선택 + 유저 수정 가능”은 가능하고, 정확도는 검색 URL 포함 기준으로는 90%대까지 보이지만 실제 상품 상세 기준으로는 81.0%를 기준선으로 잡는 것이 더 안전하다. 현재 5개 카테고리(패션, 뷰티, 라이프, 디지털, 기타)로 합치면 FOOD/HOBBY/SUBSCRIPTION/LIVING이 단순화되므로 실제 운영 정확도는 이 상품 상세 8분류 테스트보다 올라갈 여지가 있다.
+
+## 재현 자료
+
+- 샘플 입력: `docs/category-experiment/NF-35_SAMPLE_INPUTS_2026_05_14.csv`
+- 실행 스크립트/커맨드: `docs/category-experiment/NF-35_CATEGORY_EXPERIMENT_REPRODUCIBILITY_2026_05_14.md`
+- 분류 규칙 버전: `docs/category-experiment/NF-35_CLASSIFIER_RULESET_2026_05_14.md`
+- 검색/카테고리 URL 포함 RAW 결과: `docs/category-experiment/nf35-category-experiment/results/visible-browser-category-analysis-2026-05-14.json`
+- 상품 상세 URL 기준 RAW 결과: `docs/category-experiment/nf35-category-experiment/results/product-only-category-analysis-2026-05-14.json`

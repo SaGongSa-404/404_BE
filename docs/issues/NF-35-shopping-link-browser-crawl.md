@@ -9,6 +9,9 @@
   - 실험 리포트: `docs/CATEGORY_VISIBLE_BROWSER_ANALYSIS_2026_05_14.html`
   - 검색/카테고리 URL 포함 결과: `docs/CATEGORY_VISIBLE_BROWSER_ANALYSIS_2026_05_14.md`
   - 실제 상품 상세 URL 기준 결과: `docs/CATEGORY_PRODUCT_ONLY_ANALYSIS_2026_05_14.md`
+  - 샘플 입력 목록: `docs/category-experiment/NF-35_SAMPLE_INPUTS_2026_05_14.csv`
+  - 재측정 커맨드/RAW 결과 위치: `docs/category-experiment/NF-35_CATEGORY_EXPERIMENT_REPRODUCIBILITY_2026_05_14.md`
+  - 분류 규칙 버전: `docs/category-experiment/NF-35_CLASSIFIER_RULESET_2026_05_14.md`
   - 기획팀 공유 문안: `docs/CATEGORY_AUTO_CLASSIFICATION_PLANNING_REPLY_2026_05_14.txt`
 
 ## 목적 (Why)
@@ -39,7 +42,7 @@
 - 실제 상품 상세 URL만 기준으로 보면 확보된 58개 중 58개 수집 성공, 분류 정확도 47/58(81.0%)였습니다.
 - 실제 상품 저장 상황에 더 가까운 기준은 상품 상세 URL 기준이므로, 운영 판단에는 81.0%를 보수적인 기준으로 사용합니다.
 - 현재 기획 카테고리는 패션, 뷰티, 라이프, 디지털, 기타 5개 대분류이므로, 실험에 사용한 8개 분류보다 운영 난이도는 낮습니다.
-- 현재 PR에는 전체 입력 샘플과 RAW 결과 파일이 별도 machine-readable 파일로 남아 있지 않으므로, 결과를 재실행 검증하려면 해당 자료를 별도 커밋해야 합니다.
+- 재측정에 필요한 전체 입력 샘플, 실행 커맨드, 분류 규칙 버전, RAW 결과 파일은 `docs/category-experiment/` 아래에 함께 남깁니다.
 
 ---
 
@@ -209,9 +212,12 @@ Metadata Extraction + Category Recommendation
   - 순차 실행
   - 렌더 대기 적용
   - 검색/카테고리 URL과 실제 상품 상세 URL 기준 분리
-- 재현성 한계:
-  - 현재 커밋에는 전체 입력 샘플 목록, 실행 명령, RAW 결과 JSON/CSV가 별도 파일로 남아 있지 않습니다.
-  - 동일 결과를 재검증하려면 위 자료를 추가해야 합니다.
+- 재현 자료:
+  - 샘플 입력 목록: `docs/category-experiment/NF-35_SAMPLE_INPUTS_2026_05_14.csv`
+  - 실행 커맨드: `docs/category-experiment/NF-35_CATEGORY_EXPERIMENT_REPRODUCIBILITY_2026_05_14.md`
+  - 분류 규칙 버전: `docs/category-experiment/NF-35_CLASSIFIER_RULESET_2026_05_14.md`
+  - 검색/카테고리 URL 포함 RAW: `docs/category-experiment/nf35-category-experiment/results/visible-browser-category-analysis-2026-05-14.json`
+  - 상품 상세 URL 기준 RAW: `docs/category-experiment/nf35-category-experiment/results/product-only-category-analysis-2026-05-14.json`
 
 ### 구현 완료 후 (전체 PR 머지 시)
 - 스크린샷/영상:

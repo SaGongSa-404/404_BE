@@ -6,29 +6,11 @@
 
 ## 요약
 
-- 전체 후보 샘플: 70
-- 상품 상세 URL 확보: 58/70
 - 상품 상세 샘플: 58
 - 추출 성공: 58/58 (100.0%)
 - weighted content-only 정확도: 47/58 (81.0%)
 - weighted url-assisted 정확도: 47/58 (81.0%)
 - 상품 상세 URL 미확보: 12
-
-## 해석 기준
-
-- `58/58`은 전체 후보 70개 중 성공했다는 뜻이 아니라, 상품 상세 URL을 확보한 58개를 대상으로 렌더링/추출이 모두 성공했다는 뜻이다.
-- 상품 상세 URL을 확보하지 못한 12개는 분류 정확도 계산에서 제외했다. 따라서 운영 판단에는 `상품 상세 URL 확보율 58/70`과 `확보된 상품 상세 URL 기준 정확도 47/58`을 함께 봐야 한다.
-- 검색/카테고리 URL은 상품 상세 링크를 찾는 보조 수단으로만 사용했고, 최종 정확도 평가는 실제 상품 상세 URL만 대상으로 했다.
-- 이 수치는 자동 선택값을 확정값으로 쓰기 위한 근거가 아니라, 유저가 수정할 수 있는 추천값으로 제공할 때의 보수적 기준선이다.
-
-## 재현 자료
-
-- 실행 환경: Playwright Chromium visible/headed, 렌더 대기 1200ms, 실행일 `2026-05-14T13:07:10.149Z`
-- 샘플 입력: `docs/category-experiment/NF-35_SAMPLE_INPUTS_2026_05_14.csv`
-- 실행 스크립트/커맨드: `docs/category-experiment/NF-35_CATEGORY_EXPERIMENT_REPRODUCIBILITY_2026_05_14.md`
-- 분류 규칙 버전: `docs/category-experiment/NF-35_CLASSIFIER_RULESET_2026_05_14.md`
-- RAW 결과: `docs/category-experiment/nf35-category-experiment/results/product-only-category-analysis-2026-05-14.json`
-- 비교용 검색/카테고리 URL 포함 RAW 결과: `docs/category-experiment/nf35-category-experiment/results/visible-browser-category-analysis-2026-05-14.json`
 
 ## 사이트별
 
