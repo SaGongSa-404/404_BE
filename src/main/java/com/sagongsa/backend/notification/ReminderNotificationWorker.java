@@ -6,6 +6,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class ReminderNotificationWorker {
 
 	private static final int BATCH_SIZE = 50;
+	private static final Logger log = LoggerFactory.getLogger(ReminderNotificationWorker.class);
 
 	private final JdbcTemplate jdbcTemplate;
 	private final TransactionTemplate transactionTemplate;
@@ -38,14 +41,18 @@ public class ReminderNotificationWorker {
 	private List<UUID> findDueReminderIds() {
 		return jdbcTemplate.query(
 			"""
-			select id
-			from reminder_schedules
-			where reminder_type = 'REGRET_CHECK_7_DAYS'
-			  and status = 'SCHEDULED'
-			  and scheduled_for <= ?
-			order by scheduled_for asc, id asc
+			select rs.id
+			from reminder_schedules rs
+			join users u on u.id = rs.user_id
+			left join user_notification_settings uns on uns.user_id = rs.user_id
+			where rs.reminder_type = 'REGRET_CHECK_7_DAYS'
+			  and rs.status = 'SCHEDULED'
+			  and rs.scheduled_for <= ?
+			  and u.status = 'ACTIVE'
+			  and coalesce(uns.regret_reminder_enabled, true) = true
+			order by rs.scheduled_for asc, rs.id asc
 			limit ?
-			for update skip locked
+			for update of rs skip locked
 			""",
 			(rs, rowNumber) -> rs.getObject("id", UUID.class),
 			OffsetDateTime.now(ZoneOffset.UTC),
@@ -59,6 +66,7 @@ public class ReminderNotificationWorker {
 			return Boolean.TRUE.equals(processed);
 		}
 		catch (RuntimeException exception) {
+			log.warn("Failed to process reminder {}", reminderId, exception);
 			return false;
 		}
 	}

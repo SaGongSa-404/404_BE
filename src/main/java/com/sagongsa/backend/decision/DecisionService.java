@@ -848,6 +848,7 @@ public class DecisionService {
 			       canceled_at = null,
 			       cancel_reason = null,
 			       updated_at = excluded.updated_at
+			 where reminder_schedules.status <> 'SENT'
 			""",
 			UUID.randomUUID(),
 			userId,

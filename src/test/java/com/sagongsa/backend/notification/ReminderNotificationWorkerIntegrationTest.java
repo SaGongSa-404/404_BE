@@ -92,6 +92,29 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 	}
 
 	@Test
+	void processesEligibleReminderEvenWhenOlderDisabledRemindersFillBatch() {
+		UUID disabledUserId = createReadyUser();
+		disableRegretReminder(disabledUserId);
+		OffsetDateTime oldDue = OffsetDateTime.now(ZoneOffset.UTC).minusHours(2);
+		for (int index = 0; index < 50; index++) {
+			UUID disabledItemId = insertSavedItem(disabledUserId, "설정 해제 상품 " + index, "GO");
+			UUID disabledDecisionId = insertDecision(disabledUserId, disabledItemId, "GO");
+			insertReminder(disabledUserId, disabledItemId, disabledDecisionId, "SCHEDULED", oldDue.plusSeconds(index));
+		}
+		UUID userId = createReadyUser();
+		UUID itemId = insertSavedItem(userId, "정상 처리 상품", "GO");
+		UUID decisionId = insertDecision(userId, itemId, "GO");
+		UUID reminderId = insertReminder(userId, itemId, decisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
+
+		int processedCount = reminderNotificationWorker.processDueReminders();
+
+		assertThat(processedCount).isEqualTo(1);
+		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SENT");
+		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isEqualTo(1);
+		assertThat(queryInteger("select count(*) from notifications where user_id = ?", disabledUserId)).isZero();
+	}
+
+	@Test
 	void skipsReminderForInactiveUser() {
 		UUID userId = createReadyUser();
 		jdbcTemplate.update(
