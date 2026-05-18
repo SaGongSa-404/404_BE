@@ -4,6 +4,7 @@ import com.sagongsa.backend.config.AppAuthProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HexFormat;
@@ -24,6 +25,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -66,6 +68,7 @@ public class JwtTokenService {
 		);
 	}
 
+	@Transactional
 	public TokenPair refresh(String refreshToken) {
 		if (!StringUtils.hasText(refreshToken)) {
 			throw new BadCredentialsException("Refresh token is required");
@@ -76,7 +79,7 @@ public class JwtTokenService {
 		if (!"refresh".equals(tokenType)) {
 			throw new BadCredentialsException("Invalid refresh token");
 		}
-		assertRefreshTokenActive(refreshToken);
+		consumeRefreshToken(refreshToken);
 
 		SocialUserProfile profile = SocialUserProfile.fromTokenClaims(jwt.getClaims());
 		List<String> authorityNames = jwt.getClaimAsStringList("authorities");
@@ -87,7 +90,6 @@ public class JwtTokenService {
 				.map(GrantedAuthority.class::cast)
 				.toList();
 
-		revokeRefreshToken(refreshToken);
 		return issueTokenPair(profile, authorities);
 	}
 
@@ -105,22 +107,30 @@ public class JwtTokenService {
 	) {
 		JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
 			.issuer(properties.getIssuer())
+			.id(UUID.randomUUID().toString())
 			.issuedAt(issuedAt)
 			.expiresAt(expiresAt)
 			.subject(profile.userId() != null ? profile.userId().toString() : profile.provider() + ":" + profile.providerUserId())
 			.claim("provider", profile.provider())
 			.claim("providerUserId", profile.providerUserId())
 			.claim("name", profile.name())
-			.claim("email", profile.email())
-			.claim("profileImageUrl", profile.profileImageUrl())
 			.claim("authorities", authorities)
 			.claim("token_type", tokenType);
+
+		claimIfPresent(builder, "email", profile.email());
+		claimIfPresent(builder, "profileImageUrl", profile.profileImageUrl());
 
 		if (profile.userId() != null) {
 			builder.claim("userId", profile.userId().toString());
 		}
 
 		return builder.build();
+	}
+
+	private void claimIfPresent(JwtClaimsSet.Builder builder, String name, Object value) {
+		if (value != null) {
+			builder.claim(name, value);
+		}
 	}
 
 	private List<String> normalizeAuthorities(Collection<? extends GrantedAuthority> authorities) {
@@ -149,35 +159,16 @@ public class JwtTokenService {
 			UUID.randomUUID(),
 			userId,
 			hashToken(refreshToken),
-			expiresAt,
-			issuedAt,
-			issuedAt
+			Timestamp.from(expiresAt),
+			Timestamp.from(issuedAt),
+			Timestamp.from(issuedAt)
 		);
 	}
 
-	private void assertRefreshTokenActive(String refreshToken) {
-		Boolean active = jdbcTemplate.queryForObject(
-			"""
-			select exists(
-				select 1
-				from refresh_tokens
-				where token_hash = ?
-				  and revoked_at is null
-				  and expires_at > ?
-			)
-			""",
-			Boolean.class,
-			hashToken(refreshToken),
-			Instant.now()
-		);
-		if (!Boolean.TRUE.equals(active)) {
-			throw new BadCredentialsException("Invalid refresh token");
-		}
-	}
-
-	private void revokeRefreshToken(String refreshToken) {
+	private void consumeRefreshToken(String refreshToken) {
 		Instant now = Instant.now();
-		jdbcTemplate.update(
+		Timestamp nowTimestamp = Timestamp.from(now);
+		int updated = jdbcTemplate.update(
 			"""
 			update refresh_tokens
 			set revoked_at = ?,
@@ -185,12 +176,17 @@ public class JwtTokenService {
 				updated_at = ?
 			where token_hash = ?
 			  and revoked_at is null
+			  and expires_at > ?
 			""",
-			now,
-			now,
-			now,
-			hashToken(refreshToken)
+			nowTimestamp,
+			nowTimestamp,
+			nowTimestamp,
+			hashToken(refreshToken),
+			nowTimestamp
 		);
+		if (updated != 1) {
+			throw new BadCredentialsException("Invalid refresh token");
+		}
 	}
 
 	private String hashToken(String token) {

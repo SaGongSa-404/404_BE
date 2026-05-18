@@ -41,6 +41,11 @@ class AppRedirectUriSupportTest {
 	}
 
 	@Test
+	void rejectsLocalhostRedirectBelowAllowedCallbackPath() {
+		assertThat(support.parseAllowedRedirectUri("http://localhost/auth/callback/extra")).isEmpty();
+	}
+
+	@Test
 	void buildsSuccessRedirectIntoFragment() {
 		JwtTokenService.TokenPair tokenPair = new JwtTokenService.TokenPair(
 			"Bearer",
