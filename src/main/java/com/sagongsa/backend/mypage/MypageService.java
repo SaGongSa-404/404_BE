@@ -23,8 +23,10 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -142,8 +144,8 @@ class MypageService {
 		jdbcTemplate.update("DELETE FROM purchase_decision_change_logs WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?)", userId);
 		jdbcTemplate.update("DELETE FROM purchase_reflections WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?)", userId);
 		jdbcTemplate.update("DELETE FROM mascot_state_events WHERE user_id = ?", userId);
-		jdbcTemplate.update("DELETE FROM reminder_schedules WHERE user_id = ?", userId);
 		jdbcTemplate.update("DELETE FROM notifications WHERE user_id = ?", userId);
+		jdbcTemplate.update("DELETE FROM reminder_schedules WHERE user_id = ?", userId);
 		jdbcTemplate.update("DELETE FROM purchase_decisions WHERE user_id = ?", userId);
 		jdbcTemplate.update("DELETE FROM item_source_metadata WHERE item_id IN (SELECT id FROM saved_items WHERE user_id = ?)", userId);
 
@@ -218,10 +220,16 @@ class MypageService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
+		List<UUID> postIds = posts.stream().map(p -> p.getId()).toList();
+		Map<UUID, Long> commentCounts = feedPostRepository.countCommentsByPostIds(postIds).stream()
+			.collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+		Map<UUID, PostVote> myVotes = postVoteRepository.findByPostIdsAndUserId(postIds, userId).stream()
+			.collect(Collectors.toMap(v -> v.getPost().getId(), v -> v));
+
 		var items = posts.stream().map(post -> {
-			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
-			var myVote = postVoteRepository.findByPostIdAndUserId(post.getId(), userId)
-				.filter(PostVote::isActive).map(PostVote::getVoteType).orElse(null);
+			long cc = commentCounts.getOrDefault(post.getId(), 0L);
+			var vote = myVotes.get(post.getId());
+			var myVote = (vote != null && vote.isActive()) ? vote.getVoteType() : null;
 			return PostResponse.of(post, cc, myVote);
 		}).toList();
 
@@ -238,9 +246,13 @@ class MypageService {
 		boolean hasMore = votes.size() > size;
 		if (hasMore) votes = votes.subList(0, size);
 
+		List<UUID> postIds = votes.stream().map(v -> v.getPost().getId()).toList();
+		Map<UUID, Long> commentCounts = feedPostRepository.countCommentsByPostIds(postIds).stream()
+			.collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+
 		var items = votes.stream().map(vote -> {
 			var post = vote.getPost();
-			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
+			long cc = commentCounts.getOrDefault(post.getId(), 0L);
 			return PostResponse.of(post, cc, vote.getVoteType());
 		}).toList();
 
