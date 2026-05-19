@@ -164,6 +164,8 @@ public class HomeSummaryService {
 			       updated_at = now()
 			 where user_id = ?
 			   and year_month = ?
+			   and monthly_budget_amount > 0
+			   and spent_amount >= monthly_budget_amount
 			""",
 			userId,
 			currentYearMonth

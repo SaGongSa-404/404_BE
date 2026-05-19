@@ -27,6 +27,9 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 	private static final Instant BASE_TIME = Instant.parse("2026-04-20T10:00:00Z");
+	// 결정 통계 쿼리는 현재 월 기준으로 필터하므로 이번 달 시각을 기준으로 사용
+	private static final Instant THIS_MONTH_BASE =
+		YearMonth.now(SEOUL_ZONE).atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -52,9 +55,9 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		insertBudgetCycle(userId, yearMonth, 500_000, 125_000, new BigDecimal("80.00"));
 		insertNotification(firstNotificationId, userId, "BUDGET_WARNING", "Budget", "Close to limit", "/budget", false, null, BASE_TIME.plusSeconds(30));
 		insertNotification(secondNotificationId, userId, "WISHLIST_REMINDER", "Wishlist", "Check saved item", "/items", true, BASE_TIME.plusSeconds(40), BASE_TIME.plusSeconds(20));
-		insertDecision(userId, "GO", "RATIONAL", 1, BASE_TIME.plusSeconds(50));
-		insertDecision(userId, "STOP", "IRRATIONAL", 3, BASE_TIME.plusSeconds(60));
-		insertDecision(userId, "GO", "IRRATIONAL", 2, BASE_TIME.plusSeconds(70));
+		insertDecision(userId, "GO", "RATIONAL", 1, THIS_MONTH_BASE.plusSeconds(50));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, THIS_MONTH_BASE.plusSeconds(60));
+		insertDecision(userId, "GO", "IRRATIONAL", 2, THIS_MONTH_BASE.plusSeconds(70));
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
@@ -169,6 +172,29 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.budget.exhausted").value(true))
 			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(false));
+	}
+
+	@Test
+	void markBubbleSeenDoesNothingWhenBudgetNotYetExhausted() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000108");
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 300_000, 100_000, new BigDecimal("80.00"));
+
+		mockMvc.perform(post("/api/v1/home/budget-exhaustion-bubble/seen").header("X-User-Id", userId))
+			.andExpect(status().isNoContent());
+
+		// 이후 예산이 소진되면 말풍선이 여전히 노출되어야 함
+		jdbcTemplate.update(
+			"update budget_cycles set spent_amount = 300000 where user_id = ? and year_month = ?",
+			userId, yearMonth
+		);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.exhausted").value(true))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true));
 	}
 
 	@Test

@@ -1,4 +1,3 @@
 spring:
   flyway:
     out-of-order: true
-    validate-on-migrate: false
