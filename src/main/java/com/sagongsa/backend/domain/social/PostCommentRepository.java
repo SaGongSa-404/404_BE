@@ -16,7 +16,7 @@ public interface PostCommentRepository extends JpaRepository<PostComment, UUID> 
 
 	long countByPostIdAndDeletedAtIsNull(UUID postId);
 
-	@Query("SELECT c.user.id FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL GROUP BY c.user.id ORDER BY MIN(c.createdAt) ASC")
+	@Query("SELECT c.user.id FROM PostComment c WHERE c.post.id = :postId GROUP BY c.user.id ORDER BY MIN(c.createdAt) ASC")
 	List<UUID> findCommenterIdsByPostIdOrderedByFirstComment(@Param("postId") UUID postId);
 
 	@Modifying

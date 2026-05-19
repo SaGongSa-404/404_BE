@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    out-of-order: true
+app:
+  auth:
+    trusted-user-id-header:
+      enabled: true

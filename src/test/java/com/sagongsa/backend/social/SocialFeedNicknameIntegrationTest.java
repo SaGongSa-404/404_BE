@@ -129,6 +129,48 @@ class SocialFeedNicknameIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void commentNicknameStableAfterFirstCommenterDeletes() throws Exception {
+		UUID postAuthorId = insertUserWithProfile();
+		UUID commenter1Id = insertUserWithProfile();
+		UUID commenter2Id = insertUserWithProfile();
+		UUID postId = insertPost(postAuthorId, "닉네임 안정성 테스트", "본문");
+
+		// commenter1이 첫 댓글 → 너굴1
+		String c1Body = mockMvc.perform(post("/api/v1/social/posts/{postId}/comments", postId)
+				.header("X-User-Id", commenter1Id.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"body":"첫 댓글"}
+					"""))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.authorNickname").value("너굴1"))
+			.andReturn().getResponse().getContentAsString();
+
+		// commenter2가 두 번째 댓글 → 너굴2
+		mockMvc.perform(post("/api/v1/social/posts/{postId}/comments", postId)
+				.header("X-User-Id", commenter2Id.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"body":"두 번째 댓글"}
+					"""))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.authorNickname").value("너굴2"));
+
+		// commenter1의 댓글 삭제
+		UUID comment1Id = UUID.fromString(objectMapper.readTree(c1Body).get("id").asText());
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+				.delete("/api/v1/social/posts/{postId}/comments/{commentId}", postId, comment1Id)
+				.header("X-User-Id", commenter1Id.toString()))
+			.andExpect(status().isNoContent());
+
+		// 댓글 목록 조회 시 commenter2는 여전히 너굴2 (번호가 당겨지지 않아야 함)
+		mockMvc.perform(get("/api/v1/social/posts/{postId}/comments", postId)
+				.header("X-User-Id", commenter2Id.toString()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.comments[0].authorNickname").value("너굴2"));
+	}
+
+	@Test
 	void nicknameTestPageFlowUsesDevUsersAndTrustedHeader() throws Exception {
 		UUID postAuthorId = createDevUser();
 		UUID commenter1Id = createDevUser();

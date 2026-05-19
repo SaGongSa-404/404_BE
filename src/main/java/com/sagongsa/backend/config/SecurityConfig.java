@@ -60,7 +60,7 @@ public class SecurityConfig {
 		Environment environment
 	) throws Exception {
 		boolean nonProd = !environment.acceptsProfiles(Profiles.of("prod"));
-		boolean trustedHeaderEnabled = trustedUserIdHeaderEnabled || nonProd;
+		boolean trustedHeaderEnabled = trustedUserIdHeaderEnabled;
 
 		http
 			.csrf(csrf -> csrf.disable())
