@@ -2,7 +2,6 @@ package com.sagongsa.backend.domain.social;
 
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.common.UserScopedEntity;
-import com.sagongsa.backend.domain.item.SavedItem;
 import com.sagongsa.backend.domain.decision.PurchaseDecision;
 import com.sagongsa.backend.domain.item.SavedItem;
 import jakarta.persistence.Column;
