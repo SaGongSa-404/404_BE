@@ -5,7 +5,7 @@ import com.sagongsa.backend.domain.social.FeedPost;
 import java.time.Instant;
 import java.util.UUID;
 
-record PostResponse(
+public record PostResponse(
 	UUID id,
 	UUID userId,
 	String title,
@@ -18,7 +18,7 @@ record PostResponse(
 	PostVoteType myVote,
 	Instant createdAt
 ) {
-	static PostResponse of(FeedPost post, long commentCount, PostVoteType myVote) {
+	public static PostResponse of(FeedPost post, long commentCount, PostVoteType myVote) {
 		return new PostResponse(
 			post.getId(),
 			post.getUser().getId(),

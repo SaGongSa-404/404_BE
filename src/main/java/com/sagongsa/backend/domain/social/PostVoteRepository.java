@@ -1,6 +1,7 @@
 package com.sagongsa.backend.domain.social;
 
 import com.sagongsa.backend.domain.enums.PostVoteType;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,8 +21,8 @@ public interface PostVoteRepository extends JpaRepository<PostVote, UUID> {
 	@Query("SELECT v FROM PostVote v WHERE v.user.id = :userId AND v.canceledAt IS NULL ORDER BY v.createdAt DESC")
 	List<PostVote> findActiveByUserId(@Param("userId") UUID userId, Pageable pageable);
 
-	@Query("SELECT v FROM PostVote v WHERE v.user.id = :userId AND v.canceledAt IS NULL AND v.post.id < :cursor ORDER BY v.createdAt DESC")
-	List<PostVote> findActiveByUserIdBefore(@Param("userId") UUID userId, @Param("cursor") UUID cursor, Pageable pageable);
+	@Query("SELECT v FROM PostVote v WHERE v.user.id = :userId AND v.canceledAt IS NULL AND v.createdAt < :cursor ORDER BY v.createdAt DESC")
+	List<PostVote> findActiveByUserIdBefore(@Param("userId") UUID userId, @Param("cursor") Instant cursor, Pageable pageable);
 
 	@Modifying
 	@Query("DELETE FROM PostVote v WHERE v.user.id = :userId")
