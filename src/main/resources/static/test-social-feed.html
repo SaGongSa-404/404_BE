@@ -385,12 +385,8 @@ const toast = (msg, duration = 2500) => {
 
 const fmtDate = (iso) => {
   const d = new Date(iso);
-  const now = new Date();
-  const diff = Math.floor((now - d) / 1000);
-  if (diff < 60) return '방금';
-  if (diff < 3600) return `${Math.floor(diff/60)}분 전`;
-  if (diff < 86400) return `${Math.floor(diff/3600)}시간 전`;
-  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 const fmtPrice = (p) => p != null ? p.toLocaleString('ko-KR') + '원' : '';
@@ -490,7 +486,7 @@ const postCardHTML = (p) => {
           <div class="post-author">${p.authorNickname || '(알 수 없음)'}${mineTag}</div>
           <div class="post-date">${fmtDate(p.createdAt)}</div>
         </div>
-        <button class="more-btn" onclick="openSheet('${p.id}',${p.mine})">⋯</button>
+        <button class="more-btn" onclick="openSheet('${p.id}',${p.mine},'${p.authorUserId}')">⋯</button>
       </div>
       ${p.body ? `<div class="post-body" onclick="openDetail('${p.id}')">${p.body}</div>` : ''}
       ${productHTML}
@@ -660,12 +656,14 @@ const loadDetail = async (postId) => {
           <div class="comment-item">
             <div class="comment-avatar">${(c.authorNickname||'?').charAt(0)}</div>
             <div class="comment-content">
-              <div class="comment-author">${c.authorNickname || '(알 수 없음)'}</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                <div class="comment-author">${c.authorNickname || '(알 수 없음)'}</div>
+                ${c.mine
+                  ? `<button class="comment-del" onclick="deleteComment('${postId}','${c.id}')">삭제</button>`
+                  : `<button class="comment-del" onclick="openCommentSheet('${postId}','${c.id}')">신고</button>`}
+              </div>
               <div class="comment-body">${c.body}</div>
               <div class="comment-date">${fmtDate(c.createdAt)}</div>
-              ${c.mine ? `<div class="comment-mine">
-                <button class="comment-del" onclick="deleteComment('${postId}','${c.id}')">삭제</button>
-              </div>` : ''}
             </div>
           </div>`).join('')
       : '<p style="color:var(--hint);font-size:13px;text-align:center;padding:20px 0">아직 댓글이 없어요</p>';
@@ -678,7 +676,7 @@ const loadDetail = async (postId) => {
             <div class="post-author">${post.authorNickname || '(알 수 없음)'}${mineTag}</div>
             <div class="post-date">${fmtDate(post.createdAt)}</div>
           </div>
-          <button class="more-btn" onclick="openSheet('${post.id}',${post.mine})">⋯</button>
+          <button class="more-btn" onclick="openSheet('${post.id}',${post.mine},'${post.authorUserId}')">⋯</button>
         </div>
         ${post.body ? `<div class="post-body" style="padding:0 0 12px">${post.body}</div>` : ''}
         ${productHTML}
@@ -733,7 +731,7 @@ const deleteComment = async (postId, commentId) => {
 };
 
 // ── 더보기 시트 ───────────────────────────────────────────────
-const openSheet = (postId, mine) => {
+const openSheet = (postId, mine, authorUserId) => {
   const items = document.getElementById('sheetItems');
   if (mine) {
     items.innerHTML = `
@@ -748,13 +746,23 @@ const openSheet = (postId, mine) => {
       </div>`;
   } else {
     items.innerHTML = `
-      <div class="sheet-item danger" onclick="reportPost('${postId}')">
+      <div class="sheet-item danger" onclick="confirmReportPost('${postId}')">
         <span class="icon">🚨</span> 신고
       </div>
-      <div class="sheet-item danger" onclick="blockUser('${postId}')">
+      <div class="sheet-item danger" onclick="confirmBlockUser('${authorUserId}')">
         <span class="icon">🚫</span> 차단
       </div>`;
   }
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('bottomSheet').classList.add('open');
+};
+
+const openCommentSheet = (postId, commentId) => {
+  const items = document.getElementById('sheetItems');
+  items.innerHTML = `
+    <div class="sheet-item danger" onclick="confirmReportComment('${postId}','${commentId}')">
+      <span class="icon">🚨</span> 댓글 신고
+    </div>`;
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('bottomSheet').classList.add('open');
 };
@@ -828,14 +836,42 @@ const sharePost = (postId) => {
 };
 
 // ── 신고 / 차단 ───────────────────────────────────────────────
-const reportPost = (postId) => {
+const confirmReportPost = (postId) => {
   closeSheet();
-  toast('신고 기능은 준비 중이에요');
+  openModal('게시글을 신고할까요?', '신고된 게시글은 관리자가 검토합니다.', async () => {
+    try {
+      await api('POST', `/api/v1/social/posts/${postId}/reports`, { reason: null });
+      toast('신고가 접수됐어요');
+    } catch(e) {
+      toast(e.message.includes('403') ? '이미 신고한 게시글이에요' : '신고 실패: ' + e.message);
+    }
+  });
 };
 
-const blockUser = (postId) => {
+const confirmReportComment = (postId, commentId) => {
   closeSheet();
-  toast('차단 기능은 준비 중이에요');
+  openModal('댓글을 신고할까요?', '신고된 댓글은 관리자가 검토합니다.', async () => {
+    try {
+      await api('POST', `/api/v1/social/posts/${postId}/comments/${commentId}/reports`, { reason: null });
+      toast('신고가 접수됐어요');
+    } catch(e) {
+      toast(e.message.includes('403') ? '이미 신고한 댓글이에요' : '신고 실패: ' + e.message);
+    }
+  });
+};
+
+const confirmBlockUser = (targetUserId) => {
+  closeSheet();
+  if (!targetUserId || targetUserId === 'undefined') { toast('작성자 정보를 확인할 수 없어요'); return; }
+  openModal('이 사용자를 차단할까요?', '차단하면 해당 사용자의 게시글과 댓글이 더 이상 보이지 않아요.', async () => {
+    try {
+      await api('POST', `/api/v1/users/${targetUserId}/block`);
+      toast('차단됐어요. 새로고침하면 해당 게시글이 사라져요');
+      await loadPosts(true);
+    } catch(e) {
+      toast(e.message.includes('403') ? '이미 차단한 사용자예요' : '차단 실패: ' + e.message);
+    }
+  });
 };
 
 // ── 모달 ─────────────────────────────────────────────────────
