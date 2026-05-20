@@ -9,6 +9,7 @@ import java.util.UUID;
 public record PostResponse(
 	UUID id,
 	String authorNickname,
+	UUID authorUserId,
 	String title,
 	String body,
 	String imageUrl,
@@ -19,11 +20,12 @@ public record PostResponse(
 	PostVoteType myVote,
 	ProductSection product,
 	boolean linkAvailable,
+	boolean mine,
 	Instant createdAt
 ) {
 	public record ProductSection(String name, Integer price, String link) {}
 
-	public static PostResponse of(FeedPost post, String authorNickname, long commentCount, PostVoteType myVote) {
+	public static PostResponse of(FeedPost post, String authorNickname, long commentCount, PostVoteType myVote, UUID currentUserId) {
 		SavedItem item = post.getItem();
 		ProductSection product = null;
 		boolean linkAvailable = false;
@@ -31,9 +33,12 @@ public record PostResponse(
 			product = new ProductSection(item.getTitle(), item.getListedPrice(), item.getOriginalUrl());
 			linkAvailable = item.getOriginalUrl() != null && !item.getOriginalUrl().isBlank();
 		}
+		UUID authorUserId = post.getUser().getId();
+		boolean mine = currentUserId != null && currentUserId.equals(authorUserId);
 		return new PostResponse(
 			post.getId(),
 			authorNickname,
+			authorUserId,
 			post.getTitle(),
 			post.getBody(),
 			post.getImageUrl(),
@@ -44,6 +49,7 @@ public record PostResponse(
 			myVote,
 			product,
 			linkAvailable,
+			mine,
 			post.getCreatedAt()
 		);
 	}

@@ -55,7 +55,7 @@ class SocialPostService {
 		feedPostRepository.save(post);
 		String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-		return PostResponse.of(post, authorNickname, 0, null);
+		return PostResponse.of(post, authorNickname, 0, null, userId);
 	}
 
 	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
@@ -79,7 +79,7 @@ class SocialPostService {
 		PostVoteType myVote = resolveMyVote(userId, postId);
 		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-		return PostResponse.of(post, authorNickname, commentCount, myVote);
+		return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
 	}
 
 	@Transactional
@@ -139,7 +139,7 @@ class SocialPostService {
 				PostVoteType myVote = (vote != null && vote.isActive()) ? vote.getVoteType() : null;
 				String authorNickname = existingProfileIds.contains(post.getUser().getId())
 					? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-				return PostResponse.of(post, authorNickname, commentCount, myVote);
+				return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
 			})
 			.toList();
 	}
