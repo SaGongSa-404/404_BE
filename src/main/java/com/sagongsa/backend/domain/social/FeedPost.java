@@ -31,7 +31,7 @@ public class FeedPost extends UserScopedEntity {
 	@JoinColumn(name = "decision_id")
 	private PurchaseDecision decision;
 
-	@Column(nullable = false, length = 140)
+	@Column(length = 140)
 	private String title;
 
 	@Column(columnDefinition = "text")
