@@ -193,6 +193,66 @@ public class DevController {
 		return ResponseEntity.ok(Map.of("created", cases.size(), "decisionIds", ids));
 	}
 
+	// 마이페이지 소비관리 테스트용: GO 2건 + STOP 1건 결정 데이터 생성
+	@PostMapping("/decisions/test")
+	@Transactional
+	public ResponseEntity<Map<String, Object>> createTestDecisions(@CurrentUserId UUID userId) {
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		String yearMonth = YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
+
+		UUID budgetCycleId = jdbcTemplate.queryForObject(
+			"SELECT id FROM budget_cycles WHERE user_id = ? AND year_month = ?",
+			UUID.class, userId, yearMonth);
+
+		record TestCase(String title, int price, String category, String result, int yesCount, String rationality) {}
+		var cases = java.util.List.of(
+			new TestCase("테스트 에어팟 프로", 350000, "DIGITAL", "GO", 1, "RATIONAL"),
+			new TestCase("테스트 나이키 운동화", 150000, "FASHION", "GO", 3, "IRRATIONAL"),
+			new TestCase("테스트 스타벅스 텀블러", 55000, "LIVING", "STOP", 2, "IRRATIONAL")
+		);
+
+		int totalGoSpent = 0;
+		var ids = new java.util.ArrayList<String>();
+		for (var tc : cases) {
+			UUID itemId = UUID.randomUUID();
+			jdbcTemplate.update(
+				"INSERT INTO saved_items (id, user_id, input_source, title, listed_price, category, status, created_at, updated_at) VALUES (?, ?, 'DIRECT_INPUT', ?, ?, ?, ?, ?, ?)",
+				itemId, userId, tc.title(), tc.price(), tc.category(), tc.result(), now, now);
+
+			Integer finalPrice = tc.result().equals("GO") ? tc.price() : null;
+			if (tc.result().equals("GO")) totalGoSpent += tc.price();
+			int budgetAfter = totalGoSpent;
+
+			UUID decId = UUID.randomUUID();
+			jdbcTemplate.update("""
+				INSERT INTO purchase_decisions
+				  (id, user_id, item_id, budget_cycle_id, result, final_price,
+				   budget_after_amount, similar_category_spend_amount,
+				   rationality_result, self_check_yes_count, decided_at, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+				""",
+				decId, userId, itemId, budgetCycleId, tc.result(), finalPrice,
+				budgetAfter, tc.rationality(), tc.yesCount(), now, now, now);
+
+			UUID scId = UUID.randomUUID();
+			jdbcTemplate.update(
+				"INSERT INTO self_check_response_sets (id, decision_id, yes_count, rationality_result, submitted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				scId, decId, tc.yesCount(), tc.rationality(), now, now, now);
+			for (String code : new String[]{"NEED", "BUDGET", "ALTERNATIVE", "DELAY"}) {
+				jdbcTemplate.update(
+					"INSERT INTO self_check_answers (id, response_set_id, question_code, answer_boolean, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+					UUID.randomUUID(), scId, code, tc.yesCount() > 0 && !code.equals("DELAY"), now, now);
+			}
+			ids.add(decId.toString());
+		}
+
+		jdbcTemplate.update(
+			"UPDATE budget_cycles SET spent_amount = spent_amount + ? WHERE id = ?",
+			totalGoSpent, budgetCycleId);
+
+		return ResponseEntity.ok(Map.of("created", cases.size(), "decisionIds", ids));
+	}
+
 	@PostMapping("/wishes/test")
 	@Transactional
 	public ResponseEntity<Map<String, String>> createTestWish(@CurrentUserId UUID userId) {
