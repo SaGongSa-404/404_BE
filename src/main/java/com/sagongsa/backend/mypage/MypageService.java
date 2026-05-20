@@ -226,7 +226,7 @@ class MypageService {
 			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
 			var myVote = postVoteRepository.findByPostIdAndUserId(post.getId(), userId)
 				.filter(PostVote::isActive).map(PostVote::getVoteType).orElse(null);
-			return PostResponse.of(post, myNickname, cc, myVote);
+			return PostResponse.of(post, myNickname, cc, myVote, userId);
 		}).toList();
 
 		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
@@ -251,7 +251,7 @@ class MypageService {
 			String authorNickname = existingProfileIds.contains(post.getUser().getId())
 				? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
 			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
-			return PostResponse.of(post, authorNickname, cc, vote.getVoteType());
+			return PostResponse.of(post, authorNickname, cc, vote.getVoteType(), userId);
 		}).toList();
 
 		Instant nextCursor = hasMore && !votes.isEmpty() ? votes.get(votes.size() - 1).getCreatedAt() : null;
