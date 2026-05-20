@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -71,6 +72,14 @@ public class SocialFeedController {
 		@CurrentUserId UUID userId,
 		@PathVariable UUID postId) {
 		return ResponseEntity.ok(socialPostService.getPost(userId, postId));
+	}
+
+	@PatchMapping("/{postId}")
+	public ResponseEntity<PostResponse> updatePost(
+		@CurrentUserId UUID userId,
+		@PathVariable UUID postId,
+		@Valid @RequestBody UpdatePostRequest request) {
+		return ResponseEntity.ok(socialPostService.updatePost(userId, postId, request));
 	}
 
 	@DeleteMapping("/{postId}")

@@ -83,6 +83,8 @@ public class FeedPost extends UserScopedEntity {
 
 	public void softDelete() { this.deletedAt = Instant.now(); }
 
+	public void updateBody(String body) { this.body = body; }
+
 	public void incrementGoCount() { this.goCount++; }
 	public void decrementGoCount() { if (this.goCount > 0) this.goCount--; }
 	public void incrementStopCount() { this.stopCount++; }

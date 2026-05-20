@@ -83,6 +83,20 @@ class SocialPostService {
 	}
 
 	@Transactional
+	PostResponse updatePost(UUID userId, UUID postId, UpdatePostRequest request) {
+		FeedPost post = findPostOrThrow(postId);
+		if (!post.getUser().getId().equals(userId)) {
+			throw new SocialFeedForbiddenException("본인의 게시글만 수정할 수 있습니다.");
+		}
+		post.updateBody(request.body());
+		long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(postId);
+		PostVoteType myVote = resolveMyVote(userId, postId);
+		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
+			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+		return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
+	}
+
+	@Transactional
 	void deletePost(UUID userId, UUID postId) {
 		FeedPost post = findPostOrThrow(postId);
 		if (!post.getUser().getId().equals(userId)) {
