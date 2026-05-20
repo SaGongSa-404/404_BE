@@ -64,6 +64,11 @@ public class DevController {
 			"INSERT INTO user_profiles (user_id, nickname, mascot_name, timezone, notification_enabled, created_at, updated_at) VALUES (?, ?, '너구리', 'Asia/Seoul', true, ?, ?)",
 			userId, nickname, now, now);
 
+		String yearMonth = YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
+		jdbcTemplate.update(
+			"INSERT INTO budget_cycles (id, user_id, year_month, monthly_budget_amount, spent_amount, warning_threshold_rate, created_at, updated_at) VALUES (?, ?, ?, 500000, 0, 80.00, ?, ?)",
+			UUID.randomUUID(), userId, yearMonth, now, now);
+
 		return ResponseEntity.ok(Map.of("userId", userId.toString(), "nickname", nickname));
 	}
 
