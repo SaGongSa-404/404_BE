@@ -30,15 +30,18 @@ public class SocialFeedController {
 	private final VoteService voteService;
 	private final CommentService commentService;
 	private final FileUploadService fileUploadService;
+	private final ReportService reportService;
 
 	public SocialFeedController(SocialPostService socialPostService,
 		VoteService voteService,
 		CommentService commentService,
-		FileUploadService fileUploadService) {
+		FileUploadService fileUploadService,
+		ReportService reportService) {
 		this.socialPostService = socialPostService;
 		this.voteService = voteService;
 		this.commentService = commentService;
 		this.fileUploadService = fileUploadService;
+		this.reportService = reportService;
 	}
 
 	@PostMapping
@@ -124,6 +127,25 @@ public class SocialFeedController {
 		@PathVariable UUID postId,
 		@PathVariable UUID commentId) {
 		commentService.deleteComment(userId, postId, commentId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{postId}/reports")
+	public ResponseEntity<Void> reportPost(
+		@CurrentUserId UUID userId,
+		@PathVariable UUID postId,
+		@Valid @RequestBody ReportRequest request) {
+		reportService.reportPost(userId, postId, request.reason());
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{postId}/comments/{commentId}/reports")
+	public ResponseEntity<Void> reportComment(
+		@CurrentUserId UUID userId,
+		@PathVariable UUID postId,
+		@PathVariable UUID commentId,
+		@Valid @RequestBody ReportRequest request) {
+		reportService.reportComment(userId, postId, commentId, request.reason());
 		return ResponseEntity.noContent().build();
 	}
 }
