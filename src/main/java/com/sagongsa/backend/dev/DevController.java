@@ -102,7 +102,7 @@ public class DevController {
 
 		em.createNativeQuery("UPDATE saved_items SET created_at = :ts WHERE id = :id")
 			.setParameter("ts", Instant.now().minus(25, ChronoUnit.HOURS))
-			.setParameter("id", item.getId().toString())
+			.setParameter("id", item.getId())
 			.executeUpdate();
 
 		return ResponseEntity.ok(Map.of(
