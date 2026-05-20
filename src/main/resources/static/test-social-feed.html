@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>소셜 피드 테스트</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #222;
+      --border: #2a2a2a; --text: #f0f0f0; --sub: #888; --hint: #555;
+      --blue: #4a90d9; --green: #27ae60; --red: #e74c3c; --yellow: #f0c040;
+      --go: #27ae60; --stop: #e74c3c;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── 레이아웃 ── */
+    .screen { display: none; flex-direction: column; height: 100vh; }
+    .screen.active { display: flex; }
+
+    /* ── 공통 헤더 ── */
+    .top-bar { display: flex; align-items: center; padding: 14px 16px;
+      border-bottom: 1px solid var(--border); gap: 10px; flex-shrink: 0; }
+    .top-bar h1 { font-size: 17px; font-weight: 700; flex: 1; }
+    .icon-btn { background: none; border: none; color: var(--sub); font-size: 20px;
+      cursor: pointer; padding: 4px; line-height: 1; }
+    .icon-btn:active { opacity: .6; }
+
+    /* ── 버튼 ── */
+    .btn { display: inline-flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 10px 20px; border-radius: 10px; border: none;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+    .btn:active { opacity: .7; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-go { background: var(--go); color: #fff; }
+    .btn-stop { background: var(--stop); color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--sub); }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    .btn-full { width: 100%; }
+
+    /* ── 사용자 선택 화면 ── */
+    #loginScreen { padding: 24px; gap: 16px; overflow-y: auto; }
+    #loginScreen h2 { font-size: 18px; font-weight: 700; }
+    .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
+    .user-card { background: var(--surface); border: 2px solid var(--border);
+      border-radius: 12px; padding: 14px; cursor: pointer; transition: border-color .15s; }
+    .user-card:hover, .user-card.active { border-color: var(--blue); }
+    .user-card .nick { font-size: 15px; font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+    .user-card .uid { font-size: 10px; color: var(--hint); font-family: monospace; }
+    .empty-hint { color: var(--sub); font-size: 13px; }
+
+    /* ── 피드 화면 ── */
+    #feedScreen { overflow: hidden; }
+    .feed-content { flex: 1; overflow-y: auto; padding: 12px 0; }
+
+    /* ── 빈 피드 ── */
+    .empty-feed { display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; height: 100%; color: var(--sub); }
+    .empty-feed .icon { font-size: 48px; opacity: .3; }
+    .empty-feed p { font-size: 14px; }
+
+    /* ── + 버튼 (FAB) ── */
+    .fab { position: fixed; bottom: 24px; right: 20px;
+      width: 52px; height: 52px; border-radius: 50%;
+      background: var(--blue); color: #fff; font-size: 24px;
+      border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+      display: flex; align-items: center; justify-content: center; z-index: 10; }
+    .fab:active { opacity: .75; }
+
+    /* ── 피드 카드 ── */
+    .post-card { background: var(--surface); margin: 0 12px 10px;
+      border-radius: 14px; overflow: hidden; }
+    .post-header { display: flex; align-items: center; padding: 14px 14px 0; gap: 8px; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%;
+      background: var(--blue); display: flex; align-items: center;
+      justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+    .post-meta { flex: 1; }
+    .post-author { font-size: 13px; font-weight: 700; }
+    .post-date { font-size: 11px; color: var(--sub); }
+    .more-btn { background: none; border: none; color: var(--sub);
+      font-size: 18px; cursor: pointer; padding: 4px; line-height: 1; }
+
+    .post-body { padding: 10px 14px; font-size: 14px; line-height: 1.55; color: #ddd; }
+
+    /* ── 상품 박스 ── */
+    .product-box { margin: 0 14px 12px; background: var(--surface2);
+      border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--border); cursor: pointer; }
+    .product-img { width: 100%; height: 140px; object-fit: cover; background: #222;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px; color: var(--hint); }
+    .product-img img { width: 100%; height: 100%; object-fit: cover; }
+    .product-info { padding: 10px 12px; }
+    .product-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .product-price { font-size: 13px; color: var(--yellow); }
+    .product-link-badge { font-size: 10px; color: var(--blue); margin-top: 3px; }
+
+    /* ── 액션 바 ── */
+    .action-bar { display: flex; padding: 0 14px 14px; gap: 8px; align-items: center; }
+    .vote-btn { display: flex; align-items: center; gap: 5px; padding: 7px 14px;
+      border-radius: 20px; border: 1.5px solid var(--border); background: none;
+      font-size: 13px; font-weight: 600; cursor: pointer; color: var(--sub); }
+    .vote-btn.go-active { border-color: var(--go); color: var(--go); background: rgba(39,174,96,.1); }
+    .vote-btn.stop-active { border-color: var(--stop); color: var(--stop); background: rgba(231,76,60,.1); }
+    .vote-btn:active { opacity: .7; }
+    .comment-btn { display: flex; align-items: center; gap: 4px; margin-left: auto;
+      background: none; border: none; color: var(--sub); font-size: 13px; cursor: pointer; }
+
+    /* ── 위시리스트 선택 화면 ── */
+    #wishlistScreen { overflow: hidden; }
+    .wish-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .wish-item { background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 12px; padding: 12px 14px; display: flex; gap: 12px;
+      align-items: center; cursor: pointer; transition: border-color .15s; }
+    .wish-item:hover { border-color: var(--blue); }
+    .wish-thumb { width: 48px; height: 48px; border-radius: 8px; background: var(--surface2);
+      display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .wish-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+    .wish-title { font-size: 14px; font-weight: 600; }
+    .wish-price { font-size: 13px; color: var(--yellow); margin-top: 2px; }
+
+    /* ── 글 작성 화면 ── */
+    #composeScreen { overflow: hidden; }
+    .compose-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .selected-product-card { background: var(--surface); border-radius: 12px;
+      overflow: hidden; border: 1.5px solid var(--blue); }
+    .selected-product-img { width: 100%; height: 120px; object-fit: cover; background: #222;
+      display: flex; align-items: center; justify-content: center; font-size: 36px; }
+    .selected-product-img img { width: 100%; height: 100%; object-fit: cover; }
+    .selected-product-info { padding: 10px 12px; }
+    .selected-product-name { font-size: 14px; font-weight: 600; }
+    .selected-product-price { font-size: 13px; color: var(--yellow); margin-top: 2px; }
+
+    .compose-label { font-size: 12px; color: var(--sub); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+    .compose-textarea { background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 10px; padding: 12px; color: var(--text); font-size: 14px;
+      line-height: 1.55; resize: none; min-height: 120px; font-family: inherit; width: 100%; }
+    .compose-textarea:focus { outline: none; border-color: var(--blue); }
+    .char-count { font-size: 11px; color: var(--hint); text-align: right; }
+    .compose-footer { padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
+
+    /* ── 게시글 상세 + 댓글 ── */
+    #detailScreen { overflow: hidden; }
+    .detail-body { flex: 1; overflow-y: auto; }
+    .detail-post { padding: 16px; border-bottom: 1px solid var(--border); }
+    .comments-section { padding: 12px 16px; }
+    .comments-title { font-size: 13px; font-weight: 700; color: var(--sub); margin-bottom: 12px; }
+    .comment-item { display: flex; gap: 10px; margin-bottom: 14px; }
+    .comment-avatar { width: 28px; height: 28px; border-radius: 50%;
+      background: var(--surface2); display: flex; align-items: center;
+      justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .comment-content { flex: 1; }
+    .comment-author { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+    .comment-body { font-size: 13px; color: #ccc; line-height: 1.5; }
+    .comment-date { font-size: 10px; color: var(--hint); margin-top: 3px; }
+    .comment-mine { display: flex; justify-content: flex-end; margin-top: 2px; }
+    .comment-del { background: none; border: none; color: var(--hint);
+      font-size: 11px; cursor: pointer; }
+
+    .comment-input-bar { display: flex; gap: 8px; padding: 10px 16px;
+      border-top: 1px solid var(--border); flex-shrink: 0; }
+    .comment-input { flex: 1; background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 20px; padding: 8px 14px; color: var(--text); font-size: 13px;
+      font-family: inherit; }
+    .comment-input:focus { outline: none; border-color: var(--blue); }
+    .comment-send { background: var(--blue); border: none; color: #fff;
+      border-radius: 50%; width: 36px; height: 36px; font-size: 16px;
+      cursor: pointer; flex-shrink: 0; }
+
+    /* ── 더보기 바텀 시트 ── */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; display: none; }
+    .overlay.open { display: block; }
+    .sheet { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface);
+      border-radius: 20px 20px 0 0; padding: 12px 0 32px; z-index: 101;
+      transform: translateY(100%); transition: transform .25s ease; }
+    .sheet.open { transform: translateY(0); }
+    .sheet-handle { width: 36px; height: 4px; background: var(--border);
+      border-radius: 2px; margin: 0 auto 16px; }
+    .sheet-item { display: flex; align-items: center; gap: 14px;
+      padding: 14px 20px; font-size: 15px; cursor: pointer; }
+    .sheet-item:active { background: var(--surface2); }
+    .sheet-item .icon { font-size: 20px; width: 28px; text-align: center; }
+    .sheet-item.danger { color: var(--red); }
+
+    /* ── 확인 모달 ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7);
+      z-index: 200; display: none; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border-radius: 16px; padding: 24px 20px;
+      max-width: 320px; width: calc(100% - 40px); }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .modal p { font-size: 14px; color: var(--sub); line-height: 1.5; margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 8px; }
+    .modal-actions .btn { flex: 1; }
+
+    /* ── 수정 화면 ── */
+    #editScreen { overflow: hidden; }
+    .edit-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── 토스트 ── */
+    .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: #333; color: #fff; padding: 10px 20px; border-radius: 20px;
+      font-size: 13px; opacity: 0; transition: opacity .3s; z-index: 300;
+      white-space: nowrap; pointer-events: none; }
+    .toast.show { opacity: 1; }
+
+    /* ── 태그 ── */
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 700; }
+    .tag-me { background: rgba(74,144,217,.2); color: var(--blue); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ 유저 선택 화면 -->
+<div class="screen active" id="loginScreen">
+  <div style="padding:24px; display:flex; flex-direction:column; gap:20px; height:100%; overflow-y:auto;">
+    <div>
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">소셜 피드 테스트</h2>
+      <p style="font-size:13px;color:var(--sub)">유저를 선택하거나 생성하세요. 여러 유저로 다양한 시나리오를 테스트할 수 있습니다.</p>
+    </div>
+
+    <div>
+      <p style="font-size:12px;color:var(--sub);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">활성 유저</p>
+      <div class="user-grid" id="userGrid">
+        <p class="empty-hint">아직 생성된 유저가 없습니다.</p>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="createUser()">+ 유저 생성</button>
+      <button class="btn btn-outline" onclick="goToFeed()" id="goFeedBtn" style="display:none">피드 보기 →</button>
+    </div>
+    <p style="font-size:12px;color:var(--hint)">현재 선택 유저: <span id="currentUserLabel">없음</span></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 피드 화면 -->
+<div class="screen" id="feedScreen">
+  <div class="top-bar">
+    <button class="icon-btn" onclick="showScreen('loginScreen')">←</button>
+    <h1>피드</h1>
+    <span id="feedUserBadge" style="font-size:12px;color:var(--sub)"></span>
+  </div>
+  <div class="feed-content" id="feedContent">
+    <div class="empty-feed" id="emptyFeed">
+      <div class="icon">📭</div>
+      <p>아직 게시글이 없어요</p>
+    </div>
+    <div id="postList"></div>
+  </div>
+  <button class="fab" onclick="goToWishlist()" title="게시글 작성">+</button>
+</div>
+
+<!-- ═══════════════════════════════════════════ 위시리스트 선택 화면 -->
+<div class="screen" id="wishlistScreen">
+  <div class="top-bar">
+    <button class="icon-btn" onclick="showScreen('feedScreen')">←</button>
+    <h1>위시리스트에서 선택</h1>
+  </div>
+  <div class="wish-list" id="wishList">
+    <p style="color:var(--sub);font-size:13px;text-align:center;padding:40px 0">불러오는 중…</p>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border)">
+    <button class="btn btn-outline btn-full btn-sm" onclick="composeWithoutItem()">상품 없이 글쓰기</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 글 작성 화면 -->
+<div class="screen" id="composeScreen">
+  <div class="top-bar">
+    <button class="icon-btn" onclick="confirmLeaveCompose()">←</button>
+    <h1>새 게시글</h1>
+    <button class="btn btn-primary btn-sm" onclick="submitPost()">완료</button>
+  </div>
+  <div class="compose-body" id="composeBody">
+    <div id="selectedProductCard"></div>
+    <div>
+      <p class="compose-label">본문 <span style="color:var(--sub);font-weight:400;text-transform:none;letter-spacing:0">(최대 500자)</span></p>
+      <textarea class="compose-textarea" id="composeBodyText" placeholder="이 상품에 대한 생각을 공유해보세요…" maxlength="500"
+        oninput="document.getElementById('bodyCount').textContent=this.value.length"></textarea>
+      <p class="char-count"><span id="bodyCount">0</span> / 500</p>
+    </div>
+  </div>
+  <div class="compose-footer">
+    <button class="btn btn-primary btn-full" onclick="submitPost()">게시하기</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 게시글 상세 화면 -->
+<div class="screen" id="detailScreen">
+  <div class="top-bar">
+    <button class="icon-btn" onclick="showScreen('feedScreen')">←</button>
+    <h1>게시글</h1>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+  <div class="comment-input-bar">
+    <input class="comment-input" id="commentInput" placeholder="댓글을 입력하세요…" maxlength="200"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment();}">
+    <button class="comment-send" onclick="submitComment()">↑</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 게시글 수정 화면 -->
+<div class="screen" id="editScreen">
+  <div class="top-bar">
+    <button class="icon-btn" onclick="showScreen('detailScreen')">←</button>
+    <h1>게시글 수정</h1>
+    <button class="btn btn-primary btn-sm" onclick="submitEdit()">완료</button>
+  </div>
+  <div class="edit-body">
+    <div id="editProductCard"></div>
+    <div>
+      <p class="compose-label">본문</p>
+      <textarea class="compose-textarea" id="editBodyText" placeholder="본문을 수정하세요…" maxlength="500"
+        oninput="document.getElementById('editCount').textContent=this.value.length"></textarea>
+      <p class="char-count"><span id="editCount">0</span> / 500</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 더보기 시트 -->
+<div class="overlay" id="sheetOverlay" onclick="closeSheet()"></div>
+<div class="sheet" id="bottomSheet">
+  <div class="sheet-handle"></div>
+  <div id="sheetItems"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 확인 모달 -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalDesc"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="modalCancel" onclick="closeModal()">취소</button>
+      <button class="btn btn-stop" id="modalConfirm">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── 상태 ──────────────────────────────────────────────────────
+let users = [];          // { userId, nickname }
+let currentUser = null;  // { userId, nickname }
+let posts = [];          // PostResponse[]
+let nextCursor = null;
+let activePostId = null; // 상세 보기 중인 postId
+let composeItem = null;  // 선택된 위시리스트 아이템 (null 가능)
+
+// ── 유틸 ──────────────────────────────────────────────────────
+const api = async (method, path, body, userId) => {
+  const uid = userId ?? currentUser?.userId;
+  const res = await fetch(path, {
+    method,
+    headers: {
+      ...(uid ? { 'X-User-Id': uid } : {}),
+      ...(body ? { 'Content-Type': 'application/json' } : {})
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('application/json') && res.status !== 204) return res.json();
+  return null;
+};
+
+const showScreen = (id) => {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+};
+
+const toast = (msg, duration = 2500) => {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+};
+
+const fmtDate = (iso) => {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return '방금';
+  if (diff < 3600) return `${Math.floor(diff/60)}분 전`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}시간 전`;
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+};
+
+const fmtPrice = (p) => p != null ? p.toLocaleString('ko-KR') + '원' : '';
+
+// ── 유저 ──────────────────────────────────────────────────────
+const renderUsers = () => {
+  const grid = document.getElementById('userGrid');
+  if (!users.length) {
+    grid.innerHTML = '<p class="empty-hint">아직 생성된 유저가 없습니다.</p>';
+    document.getElementById('goFeedBtn').style.display = 'none';
+    return;
+  }
+  grid.innerHTML = users.map(u => `
+    <div class="user-card ${currentUser?.userId===u.userId?'active':''}"
+      onclick="selectUser('${u.userId}','${u.nickname}')">
+      <div class="nick">${u.nickname}</div>
+      <div class="uid">${u.userId.slice(0,8)}…</div>
+    </div>
+  `).join('');
+  document.getElementById('goFeedBtn').style.display = currentUser ? '' : 'none';
+};
+
+const createUser = async () => {
+  try {
+    const data = await api('POST', '/api/dev/users/test');
+    users.push({ userId: data.userId, nickname: data.nickname });
+    if (!currentUser) selectUser(data.userId, data.nickname);
+    else renderUsers();
+    toast(`유저 생성: ${data.nickname}`);
+  } catch(e) { toast('유저 생성 실패: ' + e.message); }
+};
+
+const selectUser = (uid, nick) => {
+  currentUser = { userId: uid, nickname: nick };
+  renderUsers();
+  document.getElementById('currentUserLabel').textContent = nick;
+  document.getElementById('goFeedBtn').style.display = '';
+};
+
+const goToFeed = async () => {
+  if (!currentUser) { toast('유저를 먼저 선택하세요'); return; }
+  document.getElementById('feedUserBadge').textContent = currentUser.nickname;
+  showScreen('feedScreen');
+  await loadPosts(true);
+};
+
+// ── 피드 로드 ─────────────────────────────────────────────────
+const loadPosts = async (reset = false) => {
+  if (reset) { posts = []; nextCursor = null; }
+  try {
+    const qs = nextCursor ? `?cursor=${encodeURIComponent(nextCursor)}&size=20` : '?size=20';
+    const data = await api('GET', '/api/v1/social/posts' + qs);
+    posts = reset ? data.posts : [...posts, ...data.posts];
+    nextCursor = data.hasMore ? data.nextCursor : null;
+    renderFeed();
+  } catch(e) { toast('피드 로드 실패: ' + e.message); }
+};
+
+const renderFeed = () => {
+  const empty = document.getElementById('emptyFeed');
+  const list  = document.getElementById('postList');
+  if (!posts.length) {
+    empty.style.display = 'flex';
+    list.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = posts.map(p => postCardHTML(p)).join('');
+};
+
+const postCardHTML = (p) => {
+  const initials = (p.authorNickname || '?').charAt(0);
+  const mineTag = p.mine ? `<span class="tag tag-me" style="margin-left:4px">나</span>` : '';
+  const voteGoClass = p.myVote === 'GO' ? 'go-active' : '';
+  const voteStopClass = p.myVote === 'STOP' ? 'stop-active' : '';
+
+  let productHTML = '';
+  if (p.product) {
+    productHTML = `
+      <div class="product-box" onclick="openProduct('${p.product.link||''}',${p.linkAvailable})">
+        <div class="product-img">${p.imageUrl
+          ? `<img src="${p.imageUrl}" alt="" onerror="this.parentNode.textContent='🛍'"/>`
+          : '🛍'}</div>
+        <div class="product-info">
+          <div class="product-name">${p.product.name || '상품'}</div>
+          ${p.product.price != null ? `<div class="product-price">${fmtPrice(p.product.price)}</div>` : ''}
+          ${p.linkAvailable ? '<div class="product-link-badge">🔗 링크 있음 · 탭하면 이동</div>' : ''}
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="post-card" id="pc-${p.id}">
+      <div class="post-header">
+        <div class="avatar">${initials}</div>
+        <div class="post-meta">
+          <div class="post-author">${p.authorNickname || '(알 수 없음)'}${mineTag}</div>
+          <div class="post-date">${fmtDate(p.createdAt)}</div>
+        </div>
+        <button class="more-btn" onclick="openSheet('${p.id}',${p.mine})">⋯</button>
+      </div>
+      ${p.body ? `<div class="post-body" onclick="openDetail('${p.id}')">${p.body}</div>` : ''}
+      ${productHTML}
+      <div class="action-bar">
+        <button class="vote-btn ${voteGoClass}" onclick="vote('${p.id}','GO')">
+          ✅ GO <span>${p.goCount}</span>
+        </button>
+        <button class="vote-btn ${voteStopClass}" onclick="vote('${p.id}','STOP')">
+          🛑 STOP <span>${p.stopCount}</span>
+        </button>
+        <button class="comment-btn" onclick="openDetail('${p.id}')">
+          💬 ${p.commentCount}
+        </button>
+      </div>
+    </div>`;
+};
+
+// ── 상품 열기 (링크 처리) ─────────────────────────────────────
+const openProduct = (link, available) => {
+  if (!available || !link) { toast('링크가 없는 상품이에요'); return; }
+  window.open(link, '_blank', 'noopener');
+};
+
+// ── 투표 ─────────────────────────────────────────────────────
+const vote = async (postId, voteType) => {
+  try {
+    const data = await api('POST', `/api/v1/social/posts/${postId}/votes`, { voteType });
+    const idx = posts.findIndex(p => p.id === postId);
+    if (idx >= 0) {
+      posts[idx] = { ...posts[idx], goCount: data.goCount, stopCount: data.stopCount, myVote: data.myVote ?? null };
+      renderFeed();
+    }
+  } catch(e) { toast('투표 실패: ' + e.message); }
+};
+
+// ── 위시리스트 ────────────────────────────────────────────────
+const goToWishlist = async () => {
+  showScreen('wishlistScreen');
+  try {
+    const items = await api('GET', '/api/v1/wishlist/items');
+    const list = document.getElementById('wishList');
+    if (!items.length) {
+      list.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--sub)">
+        <div style="font-size:40px;margin-bottom:12px">🛒</div>
+        <p>위시리스트가 비어있어요</p>
+        <button class="btn btn-outline btn-sm" style="margin-top:16px" onclick="composeWithoutItem()">상품 없이 글쓰기</button>
+      </div>`;
+      return;
+    }
+    list.innerHTML = items.map(it => `
+      <div class="wish-item" onclick="selectWishItem(${JSON.stringify(JSON.stringify(it)).slice(1,-1)})">
+        <div class="wish-thumb">
+          ${it.imageUrl
+            ? `<img src="${it.imageUrl}" alt="" onerror="this.parentNode.textContent='🛍'"/>`
+            : '🛍'}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="wish-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || '이름 없음'}</div>
+          ${it.listedPrice != null ? `<div class="wish-price">${fmtPrice(it.listedPrice)}</div>` : ''}
+        </div>
+        <span style="color:var(--sub);font-size:18px">›</span>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('wishList').innerHTML = `<p style="color:var(--red);font-size:13px;padding:20px">불러오기 실패: ${e.message}</p>`;
+  }
+};
+
+const selectWishItem = (itemJson) => {
+  composeItem = JSON.parse(itemJson);
+  goToCompose();
+};
+
+const composeWithoutItem = () => {
+  composeItem = null;
+  goToCompose();
+};
+
+// ── 글 작성 화면 ──────────────────────────────────────────────
+const goToCompose = () => {
+  document.getElementById('composeBodyText').value = '';
+  document.getElementById('bodyCount').textContent = '0';
+
+  const card = document.getElementById('selectedProductCard');
+  if (composeItem) {
+    card.innerHTML = `
+      <div class="selected-product-card">
+        <div class="selected-product-img">
+          ${composeItem.imageUrl
+            ? `<img src="${composeItem.imageUrl}" alt="" onerror="this.parentNode.textContent='🛍'"/>`
+            : '🛍'}
+        </div>
+        <div class="selected-product-info">
+          <div class="selected-product-name">${composeItem.title || '이름 없음'}</div>
+          ${composeItem.listedPrice != null ? `<div class="selected-product-price">${fmtPrice(composeItem.listedPrice)}</div>` : ''}
+        </div>
+      </div>`;
+  } else {
+    card.innerHTML = '';
+  }
+  showScreen('composeScreen');
+};
+
+const confirmLeaveCompose = () => {
+  const hasBody = document.getElementById('composeBodyText').value.trim().length > 0;
+  if (!hasBody) { showScreen(composeItem ? 'wishlistScreen' : 'feedScreen'); return; }
+  openModal(
+    '작성 중인 글이 있어요',
+    '지금 나가면 작성 중인 글이 사라져요. 그래도 나가시겠어요?',
+    () => { showScreen('feedScreen'); }
+  );
+};
+
+const submitPost = async () => {
+  const body = document.getElementById('composeBodyText').value.trim();
+  if (!body) { toast('본문을 입력해 주세요'); return; }
+  try {
+    const payload = { body, itemId: composeItem?.id ?? null };
+    const post = await api('POST', '/api/v1/social/posts', payload);
+    posts.unshift(post);
+    renderFeed();
+    showScreen('feedScreen');
+    toast('게시글이 올라갔어요!');
+    // 방금 만든 게시글로 스크롤
+    setTimeout(() => {
+      const el = document.getElementById('pc-' + post.id);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+  } catch(e) { toast('게시 실패: ' + e.message); }
+};
+
+// ── 게시글 상세 ───────────────────────────────────────────────
+const openDetail = async (postId) => {
+  activePostId = postId;
+  showScreen('detailScreen');
+  await loadDetail(postId);
+};
+
+const loadDetail = async (postId) => {
+  try {
+    const [post, commentData] = await Promise.all([
+      api('GET', `/api/v1/social/posts/${postId}`),
+      api('GET', `/api/v1/social/posts/${postId}/comments?size=50`)
+    ]);
+
+    const initials = (post.authorNickname || '?').charAt(0);
+    const mineTag = post.mine ? `<span class="tag tag-me" style="margin-left:4px">나</span>` : '';
+    const voteGoClass = post.myVote === 'GO' ? 'go-active' : '';
+    const voteStopClass = post.myVote === 'STOP' ? 'stop-active' : '';
+
+    let productHTML = '';
+    if (post.product) {
+      productHTML = `
+        <div class="product-box" onclick="openProduct('${post.product.link||''}',${post.linkAvailable})">
+          <div class="product-img">${post.imageUrl
+            ? `<img src="${post.imageUrl}" alt="" onerror="this.parentNode.textContent='🛍'"/>`
+            : '🛍'}</div>
+          <div class="product-info">
+            <div class="product-name">${post.product.name || '상품'}</div>
+            ${post.product.price != null ? `<div class="product-price">${fmtPrice(post.product.price)}</div>` : ''}
+            ${post.linkAvailable ? '<div class="product-link-badge">🔗 링크 있음 · 탭하면 이동</div>' : ''}
+          </div>
+        </div>`;
+    }
+
+    const commentsHTML = commentData.comments.length
+      ? commentData.comments.map(c => `
+          <div class="comment-item">
+            <div class="comment-avatar">${(c.authorNickname||'?').charAt(0)}</div>
+            <div class="comment-content">
+              <div class="comment-author">${c.authorNickname || '(알 수 없음)'}</div>
+              <div class="comment-body">${c.body}</div>
+              <div class="comment-date">${fmtDate(c.createdAt)}</div>
+              ${c.mine ? `<div class="comment-mine">
+                <button class="comment-del" onclick="deleteComment('${postId}','${c.id}')">삭제</button>
+              </div>` : ''}
+            </div>
+          </div>`).join('')
+      : '<p style="color:var(--hint);font-size:13px;text-align:center;padding:20px 0">아직 댓글이 없어요</p>';
+
+    document.getElementById('detailBody').innerHTML = `
+      <div class="detail-post">
+        <div class="post-header" style="padding:0 0 12px">
+          <div class="avatar">${initials}</div>
+          <div class="post-meta">
+            <div class="post-author">${post.authorNickname || '(알 수 없음)'}${mineTag}</div>
+            <div class="post-date">${fmtDate(post.createdAt)}</div>
+          </div>
+          <button class="more-btn" onclick="openSheet('${post.id}',${post.mine})">⋯</button>
+        </div>
+        ${post.body ? `<div class="post-body" style="padding:0 0 12px">${post.body}</div>` : ''}
+        ${productHTML}
+        <div class="action-bar" style="padding:10px 0 0">
+          <button class="vote-btn ${voteGoClass}" id="dv-go-${post.id}" onclick="voteDetail('${post.id}','GO')">
+            ✅ GO <span id="dgo-${post.id}">${post.goCount}</span>
+          </button>
+          <button class="vote-btn ${voteStopClass}" id="dv-stop-${post.id}" onclick="voteDetail('${post.id}','STOP')">
+            🛑 STOP <span id="dstop-${post.id}">${post.stopCount}</span>
+          </button>
+        </div>
+      </div>
+      <div class="comments-section">
+        <p class="comments-title">댓글 ${commentData.totalCount ?? commentData.comments.length}개</p>
+        <div id="commentList">${commentsHTML}</div>
+      </div>`;
+  } catch(e) { toast('상세 로드 실패: ' + e.message); }
+};
+
+const voteDetail = async (postId, voteType) => {
+  try {
+    const data = await api('POST', `/api/v1/social/posts/${postId}/votes`, { voteType });
+    document.getElementById('dgo-' + postId).textContent = data.goCount;
+    document.getElementById('dstop-' + postId).textContent = data.stopCount;
+    const gBtn = document.getElementById('dv-go-' + postId);
+    const sBtn = document.getElementById('dv-stop-' + postId);
+    if (gBtn) { gBtn.className = 'vote-btn' + (data.myVote === 'GO' ? ' go-active' : ''); }
+    if (sBtn) { sBtn.className = 'vote-btn' + (data.myVote === 'STOP' ? ' stop-active' : ''); }
+    const idx = posts.findIndex(p => p.id === postId);
+    if (idx >= 0) posts[idx] = { ...posts[idx], goCount: data.goCount, stopCount: data.stopCount, myVote: data.myVote ?? null };
+  } catch(e) { toast('투표 실패: ' + e.message); }
+};
+
+// ── 댓글 ─────────────────────────────────────────────────────
+const submitComment = async () => {
+  const input = document.getElementById('commentInput');
+  const body = input.value.trim();
+  if (!body || !activePostId) return;
+  try {
+    await api('POST', `/api/v1/social/posts/${activePostId}/comments`, { body });
+    input.value = '';
+    await loadDetail(activePostId);
+  } catch(e) { toast('댓글 실패: ' + e.message); }
+};
+
+const deleteComment = async (postId, commentId) => {
+  try {
+    await api('DELETE', `/api/v1/social/posts/${postId}/comments/${commentId}`);
+    await loadDetail(postId);
+    toast('댓글이 삭제됐어요');
+  } catch(e) { toast('댓글 삭제 실패: ' + e.message); }
+};
+
+// ── 더보기 시트 ───────────────────────────────────────────────
+const openSheet = (postId, mine) => {
+  const items = document.getElementById('sheetItems');
+  if (mine) {
+    items.innerHTML = `
+      <div class="sheet-item" onclick="editPost('${postId}')">
+        <span class="icon">✏️</span> 수정
+      </div>
+      <div class="sheet-item" onclick="sharePost('${postId}')">
+        <span class="icon">🔗</span> 공유
+      </div>
+      <div class="sheet-item danger" onclick="confirmDeletePost('${postId}')">
+        <span class="icon">🗑</span> 삭제
+      </div>`;
+  } else {
+    items.innerHTML = `
+      <div class="sheet-item danger" onclick="reportPost('${postId}')">
+        <span class="icon">🚨</span> 신고
+      </div>
+      <div class="sheet-item danger" onclick="blockUser('${postId}')">
+        <span class="icon">🚫</span> 차단
+      </div>`;
+  }
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('bottomSheet').classList.add('open');
+};
+
+const closeSheet = () => {
+  document.getElementById('sheetOverlay').classList.remove('open');
+  document.getElementById('bottomSheet').classList.remove('open');
+};
+
+// ── 수정 ─────────────────────────────────────────────────────
+const editPost = async (postId) => {
+  closeSheet();
+  const post = posts.find(p => p.id === postId)
+    ?? await api('GET', `/api/v1/social/posts/${postId}`);
+
+  document.getElementById('editBodyText').value = post.body || '';
+  document.getElementById('editCount').textContent = (post.body || '').length;
+
+  const card = document.getElementById('editProductCard');
+  if (post.product) {
+    card.innerHTML = `
+      <div class="selected-product-card">
+        <div class="selected-product-img">
+          ${post.imageUrl ? `<img src="${post.imageUrl}" alt="" onerror="this.parentNode.textContent='🛍'"/>` : '🛍'}
+        </div>
+        <div class="selected-product-info">
+          <div class="selected-product-name">${post.product.name || '상품'}</div>
+          ${post.product.price != null ? `<div class="selected-product-price">${fmtPrice(post.product.price)}</div>` : ''}
+        </div>
+      </div>`;
+  } else { card.innerHTML = ''; }
+
+  activePostId = postId;
+  showScreen('editScreen');
+};
+
+const submitEdit = async () => {
+  const body = document.getElementById('editBodyText').value.trim();
+  if (!body) { toast('본문을 입력해 주세요'); return; }
+  try {
+    const updated = await api('PATCH', `/api/v1/social/posts/${activePostId}`, { body });
+    const idx = posts.findIndex(p => p.id === activePostId);
+    if (idx >= 0) posts[idx] = updated;
+    toast('수정됐어요');
+    await loadDetail(activePostId);
+    showScreen('detailScreen');
+  } catch(e) { toast('수정 실패: ' + e.message); }
+};
+
+// ── 삭제 ─────────────────────────────────────────────────────
+const confirmDeletePost = (postId) => {
+  closeSheet();
+  openModal('게시글을 삭제할까요?', '삭제된 게시글은 복구할 수 없어요.', async () => {
+    try {
+      await api('DELETE', `/api/v1/social/posts/${postId}`);
+      posts = posts.filter(p => p.id !== postId);
+      renderFeed();
+      if (document.getElementById('detailScreen').classList.contains('active')) {
+        showScreen('feedScreen');
+      }
+      toast('삭제됐어요');
+    } catch(e) { toast('삭제 실패: ' + e.message); }
+  });
+};
+
+// ── 공유 ─────────────────────────────────────────────────────
+const sharePost = (postId) => {
+  closeSheet();
+  const url = `${location.origin}/api/v1/social/posts/${postId}`;
+  navigator.clipboard.writeText(url).then(() => toast('링크가 복사됐어요')).catch(() => toast('복사 실패: ' + url));
+};
+
+// ── 신고 / 차단 ───────────────────────────────────────────────
+const reportPost = (postId) => {
+  closeSheet();
+  toast('신고 기능은 준비 중이에요');
+};
+
+const blockUser = (postId) => {
+  closeSheet();
+  toast('차단 기능은 준비 중이에요');
+};
+
+// ── 모달 ─────────────────────────────────────────────────────
+let _modalCallback = null;
+const openModal = (title, desc, onConfirm) => {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalDesc').textContent = desc;
+  _modalCallback = onConfirm;
+  document.getElementById('confirmModal').classList.add('open');
+  document.getElementById('modalConfirm').onclick = () => { closeModal(); _modalCallback?.(); };
+};
+const closeModal = () => document.getElementById('confirmModal').classList.remove('open');
+</script>
+</body>
+</html>
