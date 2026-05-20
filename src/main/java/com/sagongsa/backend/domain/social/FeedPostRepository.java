@@ -17,6 +17,12 @@ public interface FeedPostRepository extends JpaRepository<FeedPost, UUID> {
 	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
 	List<FeedPost> findAllVisibleBefore(@Param("cursor") Instant cursor, Pageable pageable);
 
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.user.id NOT IN :excludedIds ORDER BY p.createdAt DESC")
+	List<FeedPost> findAllVisibleExcluding(@Param("excludedIds") List<UUID> excludedIds, Pageable pageable);
+
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.createdAt < :cursor AND p.user.id NOT IN :excludedIds ORDER BY p.createdAt DESC")
+	List<FeedPost> findAllVisibleBeforeExcluding(@Param("cursor") Instant cursor, @Param("excludedIds") List<UUID> excludedIds, Pageable pageable);
+
 	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.user.id = :userId AND p.deletedAt IS NULL ORDER BY p.createdAt DESC")
 	List<FeedPost> findByUserIdVisible(@Param("userId") UUID userId, Pageable pageable);
 
