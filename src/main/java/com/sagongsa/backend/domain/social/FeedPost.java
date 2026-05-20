@@ -1,5 +1,6 @@
 package com.sagongsa.backend.domain.social;
 
+import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.common.UserScopedEntity;
 import com.sagongsa.backend.domain.decision.PurchaseDecision;
 import com.sagongsa.backend.domain.item.SavedItem;
@@ -36,6 +37,12 @@ public class FeedPost extends UserScopedEntity {
 	@Column(columnDefinition = "text")
 	private String body;
 
+	@Column(columnDefinition = "text")
+	private String imageUrl;
+
+	@Column
+	private Integer price;
+
 	@Column(nullable = false)
 	private int goCount;
 
@@ -47,4 +54,31 @@ public class FeedPost extends UserScopedEntity {
 
 	protected FeedPost() {
 	}
+
+	public FeedPost(UserAccount user, String title, String body, String imageUrl, Integer price) {
+		super(user);
+		this.title = title;
+		this.body = body;
+		this.imageUrl = imageUrl;
+		this.price = price;
+		this.goCount = 0;
+		this.stopCount = 0;
+	}
+
+	public String getTitle() { return title; }
+	public String getBody() { return body; }
+	public String getImageUrl() { return imageUrl; }
+	public Integer getPrice() { return price; }
+	public int getGoCount() { return goCount; }
+	public int getStopCount() { return stopCount; }
+	public Instant getDeletedAt() { return deletedAt; }
+
+	public boolean isDeleted() { return deletedAt != null; }
+
+	public void softDelete() { this.deletedAt = Instant.now(); }
+
+	public void incrementGoCount() { this.goCount++; }
+	public void decrementGoCount() { if (this.goCount > 0) this.goCount--; }
+	public void incrementStopCount() { this.stopCount++; }
+	public void decrementStopCount() { if (this.stopCount > 0) this.stopCount--; }
 }
