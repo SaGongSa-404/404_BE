@@ -597,8 +597,8 @@
 
     // ⑤ 결과 화면 렌더링
     function renderResult(data) {
-        const state      = data.mascotReaction?.state ?? 'SMILE';
-        const mascotMsg  = data.mascotReaction?.message ?? '';
+        const state      = data.mascot?.state ?? 'SMILE';
+        const mascotMsg  = data.mascot?.message ?? '';
         const isBought   = data.result === 'GO';
         const irrational = data.rationalityResult === 'IRRATIONAL';
 
