@@ -263,7 +263,8 @@
             headers: authHeaders()
         });
         if (!res.ok) {
-            alert('숙려 화면 로드 실패: ' + res.status);
+            const body = await res.text().catch(() => '');
+            alert(`숙려 화면 로드 실패: ${res.status}\nX-User-Id: ${devUserId}\n${body}`);
             return;
         }
         const data = await res.json();
