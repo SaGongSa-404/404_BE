@@ -32,19 +32,22 @@ class SocialPostService {
 	private final UserAccountRepository userAccountRepository;
 	private final UserProfileRepository userProfileRepository;
 	private final SavedItemRepository savedItemRepository;
+	private final BlockService blockService;
 
 	SocialPostService(FeedPostRepository feedPostRepository,
 		PostVoteRepository postVoteRepository,
 		PostCommentRepository postCommentRepository,
 		UserAccountRepository userAccountRepository,
 		UserProfileRepository userProfileRepository,
-		SavedItemRepository savedItemRepository) {
+		SavedItemRepository savedItemRepository,
+		BlockService blockService) {
 		this.feedPostRepository = feedPostRepository;
 		this.postVoteRepository = postVoteRepository;
 		this.postCommentRepository = postCommentRepository;
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
 		this.savedItemRepository = savedItemRepository;
+		this.blockService = blockService;
 	}
 
 	@Transactional
@@ -60,9 +63,13 @@ class SocialPostService {
 
 	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
-		List<FeedPost> posts = cursor != null
-			? feedPostRepository.findAllVisibleBefore(cursor, pageable)
-			: feedPostRepository.findAllVisible(pageable);
+		List<UUID> blockedIds = userId != null ? blockService.getBlockedUserIds(userId) : java.util.Collections.emptyList();
+		List<FeedPost> posts;
+		if (blockedIds.isEmpty()) {
+			posts = cursor != null ? feedPostRepository.findAllVisibleBefore(cursor, pageable) : feedPostRepository.findAllVisible(pageable);
+		} else {
+			posts = cursor != null ? feedPostRepository.findAllVisibleBeforeExcluding(cursor, blockedIds, pageable) : feedPostRepository.findAllVisibleExcluding(blockedIds, pageable);
+		}
 
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);

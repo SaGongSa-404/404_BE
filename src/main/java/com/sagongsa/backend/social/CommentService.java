@@ -26,15 +26,18 @@ class CommentService {
 	private final SocialPostService socialPostService;
 	private final UserAccountRepository userAccountRepository;
 	private final UserProfileRepository userProfileRepository;
+	private final BlockService blockService;
 
 	CommentService(PostCommentRepository postCommentRepository,
 		SocialPostService socialPostService,
 		UserAccountRepository userAccountRepository,
-		UserProfileRepository userProfileRepository) {
+		UserProfileRepository userProfileRepository,
+		BlockService blockService) {
 		this.postCommentRepository = postCommentRepository;
 		this.socialPostService = socialPostService;
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
+		this.blockService = blockService;
 	}
 
 	@Transactional
@@ -54,7 +57,14 @@ class CommentService {
 		Page<PostComment> commentPage = postCommentRepository.findVisibleByPostId(
 			postId, PageRequest.of(page - 1, size));
 
-		List<PostComment> comments = commentPage.getContent();
+		Set<UUID> blockedIds = userId != null
+			? new HashSet<>(blockService.getBlockedUserIds(userId))
+			: java.util.Collections.emptySet();
+
+		List<PostComment> comments = commentPage.getContent().stream()
+			.filter(c -> !blockedIds.contains(c.getUser().getId()))
+			.toList();
+
 		Map<UUID, String> nicknameMap = buildCommentNicknameMap(postId);
 
 		List<CommentResponse> items = comments.stream()
