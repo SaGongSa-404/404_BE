@@ -73,6 +73,7 @@ public class SecurityConfig {
 					.requestMatchers("/api/auth/me").authenticated();
 
 				if (nonProd) {
+					auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
 					auth.requestMatchers("/api/dev/**").permitAll();
 				}
 
