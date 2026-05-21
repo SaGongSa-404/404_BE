@@ -184,15 +184,15 @@
             <span style="font-weight:700" id="resYesCount"></span>
         </div>
         <div class="result-row">
-            <span style="color:#aaa;font-size:14px">이번 달 소비</span>
+            <span style="color:#aaa;font-size:14px">결정 후 남은 예산</span>
             <span style="font-weight:700;color:#e74c3c" id="resSpent"></span>
         </div>
         <div class="result-row">
-            <span style="color:#aaa;font-size:14px">비합리적 선택</span>
+            <span style="color:#aaa;font-size:14px">합리성 판정</span>
             <span style="font-weight:700;color:#ffd700" id="resIrrational"></span>
         </div>
         <div class="result-row">
-            <span style="color:#aaa;font-size:14px">기회비용</span>
+            <span style="color:#aaa;font-size:14px">상품명</span>
             <span style="font-weight:700;color:#4a90d9" id="resOpportunity"></span>
         </div>
     </div>
@@ -384,14 +384,16 @@
         const isBought = data.result === 'GO';
         document.getElementById('resultEmoji').textContent = isBought ? '🛍️' : '💪';
         document.getElementById('resultTitle').textContent = isBought ? '구매했어요' : '참았어요!';
-        document.getElementById('resultDesc').textContent = data.warningTriggered
-            ? `⚠️ Yes ${data.yesCount}개 — 충동구매 경고가 있었어요`
-            : `✅ Yes ${data.yesCount}개 — 신중한 선택이었어요`;
+        document.getElementById('resultDesc').textContent = data.resultMessage || (
+            isIrrational
+                ? `⚠️ Yes ${data.selfCheckYesCount}개 — 충동구매 경고가 있었어요`
+                : `✅ Yes ${data.selfCheckYesCount}개 — 신중한 선택이었어요`
+        );
 
-        document.getElementById('resYesCount').textContent = `${data.yesCount}개`;
-        document.getElementById('resSpent').textContent = fmt(data.monthStats.spentAmount);
-        document.getElementById('resIrrational').textContent = `${data.monthStats.irrationalCount}회`;
-        document.getElementById('resOpportunity').textContent = fmt(data.monthStats.opportunityCost);
+        document.getElementById('resYesCount').textContent = `${data.selfCheckYesCount}개`;
+        document.getElementById('resSpent').textContent = fmt(data.budgetAfterAmount);
+        document.getElementById('resIrrational').textContent = isIrrational ? '비합리적' : '합리적';
+        document.getElementById('resOpportunity').textContent = data.itemTitle || '-';
 
         document.getElementById('decisionArea').style.display = 'none';
         show('resultScreen');
