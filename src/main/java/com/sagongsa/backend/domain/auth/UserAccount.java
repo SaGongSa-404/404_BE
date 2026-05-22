@@ -43,4 +43,9 @@ public class UserAccount extends BaseEntity {
 	public Instant getWithdrawnAt() {
 		return withdrawnAt;
 	}
+
+	public void withdraw() {
+		this.status = UserStatus.WITHDRAWN;
+		this.withdrawnAt = Instant.now();
+	}
 }

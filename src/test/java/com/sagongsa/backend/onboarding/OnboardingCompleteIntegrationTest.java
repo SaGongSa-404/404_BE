@@ -49,7 +49,7 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 		assertThat(countRows("survey_response_sets", userId)).isEqualTo(1);
 		assertThat(countRows("mascot_profiles", userId)).isEqualTo(1);
 
-		assertThat(queryString("select nickname from user_profiles where user_id = ?", userId)).isEqualTo("planner");
+		assertThat(queryString("select nickname from user_profiles where user_id = ?", userId)).matches("너굴\\d+");
 		assertThat(queryString("select mascot_name from user_profiles where user_id = ?", userId)).isEqualTo("wigul");
 		assertThat(queryString("select timezone from user_profiles where user_id = ?", userId)).isEqualTo("Asia/Seoul");
 		assertThat(queryString("select year_month from budget_cycles where user_id = ?", userId)).isEqualTo(expectedYearMonth);
@@ -60,6 +60,31 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 		assertThat(queryString("select mascot_state from mascot_profiles where user_id = ?", userId)).isEqualTo("DEFAULT");
 		assertThat(queryOnboardingSurveyAnswer(userId)).isEqualTo("FOUR_OR_MORE");
 		assertThat(queryOnboardingSurveyAnswerNumber(userId)).isEqualTo(3);
+	}
+
+	@Test
+	void autoGeneratesUniqueNeoGulNicknames() throws Exception {
+		UUID userId1 = insertUser("NOT_STARTED");
+		UUID userId2 = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId1.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(onboardingRequestBody()))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId2.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(onboardingRequestBody()))
+			.andExpect(status().isOk());
+
+		String nickname1 = queryString("select nickname from user_profiles where user_id = ?", userId1);
+		String nickname2 = queryString("select nickname from user_profiles where user_id = ?", userId2);
+
+		assertThat(nickname1).matches("너굴\\d+");
+		assertThat(nickname2).matches("너굴\\d+");
+		assertThat(nickname1).isNotEqualTo(nickname2);
 	}
 
 	@Test
@@ -138,7 +163,6 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 	private String onboardingRequestBody() {
 		return """
 			{
-				"nickname": "planner",
 				"mascotName": "wigul",
 				"timezone": "Asia/Seoul",
 				"monthlyBudgetAmount": 300000,
