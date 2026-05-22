@@ -4,6 +4,8 @@ import java.security.Principal;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.MethodParameter;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -23,9 +25,10 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 
 	CurrentUserIdArgumentResolver(
 		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedHeaderEnabled,
-		@Value("${app.auth.trusted-user-id-header.name:X-User-Id}") String trustedHeaderName
+		@Value("${app.auth.trusted-user-id-header.name:X-User-Id}") String trustedHeaderName,
+		Environment environment
 	) {
-		this.trustedHeaderEnabled = trustedHeaderEnabled;
+		this.trustedHeaderEnabled = trustedHeaderEnabled || !environment.acceptsProfiles(Profiles.of("prod"));
 		this.trustedHeaderName = trustedHeaderName;
 	}
 
