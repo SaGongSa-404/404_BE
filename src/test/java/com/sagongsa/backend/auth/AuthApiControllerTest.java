@@ -50,7 +50,8 @@ class AuthApiControllerTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.userId").value(userId.toString()))
 			.andExpect(jsonPath("$.provider").value("google"))
 			.andExpect(jsonPath("$.providerUserId").value("google-123"))
-			.andExpect(jsonPath("$.email").value("google@test.dev"));
+			.andExpect(jsonPath("$.email").value("google@test.dev"))
+			.andExpect(jsonPath("$.rawAttributes").doesNotExist());
 	}
 
 	@Test

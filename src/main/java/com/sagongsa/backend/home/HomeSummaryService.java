@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
@@ -210,6 +211,9 @@ public class HomeSummaryService {
 	}
 
 	private BigDecimal findRationalChoiceRate(UUID userId, String yearMonth, ZoneId zoneId) {
+		YearMonth targetMonth = YearMonth.parse(yearMonth);
+		OffsetDateTime monthStart = OffsetDateTime.from(targetMonth.atDay(1).atStartOfDay(zoneId));
+		OffsetDateTime nextMonthStart = OffsetDateTime.from(targetMonth.plusMonths(1).atDay(1).atStartOfDay(zoneId));
 		List<RationalChoiceAggregate> aggregates = jdbcTemplate.query(
 				"""
 				select
@@ -222,15 +226,16 @@ public class HomeSummaryService {
 				  ), 0) as rational_count
 				from purchase_decisions
 				where user_id = ?
-				  and to_char(decided_at at time zone ?, 'YYYY-MM') = ?
+				  and decided_at >= ?
+				  and decided_at < ?
 				""",
 				(rs, rowNum) -> new RationalChoiceAggregate(
 					rs.getLong("total_count"),
 					rs.getLong("rational_count")
 				),
 				userId,
-				zoneId.getId(),
-				yearMonth
+				monthStart,
+				nextMonthStart
 			);
 		RationalChoiceAggregate aggregate = aggregates.getFirst();
 		if (aggregate.totalCount() == 0) {

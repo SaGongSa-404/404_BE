@@ -10,6 +10,7 @@ import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.UUID;
@@ -26,10 +27,14 @@ import org.springframework.test.web.servlet.MockMvc;
 class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-	private static final Instant BASE_TIME = Instant.parse("2026-04-20T10:00:00Z");
-	// 결정 통계 쿼리는 현재 월 기준으로 필터하므로 이번 달 시각을 기준으로 사용
+	private static final YearMonth TEST_MONTH = YearMonth.now(SEOUL_ZONE);
+	private static final Instant BASE_TIME = TEST_MONTH
+		.atDay(15)
+		.atTime(LocalTime.NOON)
+		.atZone(SEOUL_ZONE)
+		.toInstant();
 	private static final Instant THIS_MONTH_BASE =
-		YearMonth.now(SEOUL_ZONE).atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+		TEST_MONTH.atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -47,7 +52,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000101");
 		UUID firstNotificationId = UUID.fromString("00000000-0000-0000-0000-000000000201");
 		UUID secondNotificationId = UUID.fromString("00000000-0000-0000-0000-000000000202");
-		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		String yearMonth = TEST_MONTH.toString();
 
 		insertUser(userId);
 		insertUserProfile(userId, "Jae", "Neogul", "Asia/Seoul");
@@ -83,7 +88,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void returnsDefaultsWhenOptionalHomeDataIsMissing() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000102");
-		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		String yearMonth = TEST_MONTH.toString();
 
 		insertUser(userId);
 
@@ -103,6 +108,24 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.notifications.unreadCount").value(0))
 			.andExpect(jsonPath("$.notifications.latestNotifications").isEmpty())
 			.andExpect(jsonPath("$.rationalChoiceRate").value(nullValue()));
+	}
+
+	@Test
+	void calculatesRationalChoiceRateByUserTimezoneMonthBoundary() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000105");
+		Instant monthStart = TEST_MONTH.atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+		Instant nextMonthStart = TEST_MONTH.plusMonths(1).atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+
+		insertUser(userId);
+		insertUserProfile(userId, "Jae", "Neogul", "Asia/Seoul");
+		insertDecision(userId, "GO", "IRRATIONAL", 2, monthStart.minusSeconds(1));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, monthStart);
+		insertDecision(userId, "GO", "IRRATIONAL", 2, nextMonthStart.minusSeconds(1));
+		insertDecision(userId, "GO", "RATIONAL", 1, nextMonthStart);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.rationalChoiceRate").value(50.00));
 	}
 
 	@Test
@@ -135,7 +158,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000104");
 
 		insertUser(userId);
-		insertMascotProfile(userId, "SAD", "Old reaction", BASE_TIME, BASE_TIME.plusSeconds(1));
+		Instant expiredAt = Instant.now().minusSeconds(60);
+		insertMascotProfile(userId, "SAD", "Old reaction", expiredAt.minusSeconds(60), expiredAt);
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
@@ -145,8 +169,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 	@Test
 	void budgetExhaustedTrueAndShowBubbleTrueWhenSpentReachesLimit() throws Exception {
-		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000105");
-		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000109");
+		String yearMonth = TEST_MONTH.toString();
 
 		insertUser(userId);
 		insertBudgetCycle(userId, yearMonth, 300_000, 300_000, new BigDecimal("80.00"));
@@ -177,7 +201,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void markBubbleSeenDoesNothingWhenBudgetNotYetExhausted() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000108");
-		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		String yearMonth = TEST_MONTH.toString();
 
 		insertUser(userId);
 		insertBudgetCycle(userId, yearMonth, 300_000, 100_000, new BigDecimal("80.00"));
@@ -200,7 +224,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void budgetExhaustedFalseWhenSpentBelowLimit() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000107");
-		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		String yearMonth = TEST_MONTH.toString();
 
 		insertUser(userId);
 		insertBudgetCycle(userId, yearMonth, 300_000, 299_999, new BigDecimal("80.00"));
