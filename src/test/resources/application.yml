@@ -35,6 +35,6 @@ spring:
 app:
   auth:
     jwt-secret: test-jwt-secret
-    allowed-redirect-uri-prefixes: sagongsa404://auth/callback,http://localhost,http://127.0.0.1,https://localhost,https://127.0.0.1
+    allowed-redirect-uri-prefixes: sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://localhost/auth/callback,https://127.0.0.1/auth/callback
     trusted-user-id-header:
       enabled: true
