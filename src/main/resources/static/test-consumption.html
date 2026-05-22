@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>월별 소비기록 테스트</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #111; color: #eee; padding: 24px; }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+    h2 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .section { background: #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .btn { padding: 8px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn:active { opacity: 0.75; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #4a90d9; color: #fff; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid #444; color: #aaa; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .row label { font-size: 13px; color: #888; width: 80px; flex-shrink: 0; }
+    .row input, .row select { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; font-size: 13px; }
+    .log { background: #0a0a0a; border-radius: 8px; padding: 10px 12px; font-size: 12px; font-family: monospace; color: #0f0; min-height: 32px; max-height: 64px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 8px; }
+    .log.err { color: #e74c3c; }
+
+    /* 유저 카드 */
+    .users { display: flex; gap: 10px; flex-wrap: wrap; }
+    .user-card { background: #222; border-radius: 10px; padding: 12px 14px; min-width: 160px; border: 2px solid transparent; cursor: pointer; }
+    .user-card.selected { border-color: #4a90d9; }
+    .user-card .nick { font-size: 16px; font-weight: 700; color: #4a90d9; }
+    .user-card .uid { font-size: 10px; color: #555; font-family: monospace; }
+
+    /* 결정 목록 */
+    .decision-card { background: #222; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+    .decision-info { flex: 1; }
+    .decision-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .decision-meta { font-size: 12px; color: #888; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .badge-go { background: rgba(39,174,96,.2); color: #27ae60; }
+    .badge-stop { background: rgba(231,76,60,.2); color: #e74c3c; }
+    .changed-tag { font-size: 11px; color: #f39c12; margin-left: 6px; }
+    .empty { color: #555; font-size: 13px; text-align: center; padding: 20px; }
+
+    /* 월 네비 */
+    .month-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+    .month-nav input { padding: 7px 10px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; font-size: 13px; width: 120px; }
+    .month-nav span { font-size: 16px; font-weight: 700; color: #eee; }
+  </style>
+</head>
+<body>
+
+<h1>월별 소비기록 테스트</h1>
+<p class="subtitle">GET /my/consumption?month=YYYY-MM · PATCH /my/consumption/{id}</p>
+
+<!-- ① 유저 -->
+<div class="section">
+  <h2>① 테스트 유저</h2>
+  <div class="users" id="userList">
+    <div class="empty" style="width:100%">유저를 생성해주세요.</div>
+  </div>
+  <div style="margin-top:12px">
+    <button class="btn btn-primary" onclick="createUser()">+ 유저 생성</button>
+  </div>
+</div>
+
+<!-- ② 결정 데이터 만들기 -->
+<div class="section">
+  <h2>② 테스트 결정 데이터 생성</h2>
+  <p style="font-size:12px;color:#666;margin-bottom:10px">
+    선택한 유저로 숙려 → 결정 플로우를 거치거나, 아래에서 빠르게 직접 삽입합니다.
+  </p>
+  <div class="row">
+    <label>상품명</label>
+    <input id="itemTitle" value="에어팟 프로">
+  </div>
+  <div class="row">
+    <label>가격</label>
+    <input id="itemPrice" type="number" value="350000">
+  </div>
+  <div class="row">
+    <label>결정</label>
+    <select id="itemResult">
+      <option value="GO">GO (구매)</option>
+      <option value="STOP">STOP (참음)</option>
+    </select>
+  </div>
+  <button class="btn btn-success" onclick="insertDecision()">결정 데이터 삽입</button>
+  <div id="insertLog" class="log"></div>
+</div>
+
+<!-- ③ 소비기록 조회 -->
+<div class="section">
+  <h2>③ 월별 소비기록 조회</h2>
+  <div class="month-nav">
+    <input type="month" id="monthPicker" oninput="syncMonthInput()">
+    <button class="btn btn-outline btn-sm" onclick="prevMonth()">◀</button>
+    <span id="monthLabel">-</span>
+    <button class="btn btn-outline btn-sm" onclick="nextMonth()">▶</button>
+    <button class="btn btn-primary btn-sm" onclick="loadConsumption()">조회</button>
+  </div>
+  <div id="consumptionArea"><div class="empty">조회 버튼을 눌러주세요.</div></div>
+</div>
+
+<script>
+const users = [];
+let selectedIdx = null;
+let currentMonth = toYearMonth(new Date());
+
+// ── 초기화 ────────────────────────────────────────────
+initMonthPicker();
+
+function toYearMonth(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function initMonthPicker() {
+  document.getElementById('monthPicker').value = currentMonth;
+  document.getElementById('monthLabel').textContent = currentMonth;
+}
+function syncMonthInput() {
+  const v = document.getElementById('monthPicker').value;
+  if (v) { currentMonth = v; document.getElementById('monthLabel').textContent = v; }
+}
+function prevMonth() {
+  const [y, m] = currentMonth.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  currentMonth = toYearMonth(d);
+  document.getElementById('monthPicker').value = currentMonth;
+  document.getElementById('monthLabel').textContent = currentMonth;
+  loadConsumption();
+}
+function nextMonth() {
+  const [y, m] = currentMonth.split('-').map(Number);
+  const d = new Date(y, m, 1);
+  currentMonth = toYearMonth(d);
+  document.getElementById('monthPicker').value = currentMonth;
+  document.getElementById('monthLabel').textContent = currentMonth;
+  loadConsumption();
+}
+
+// ── 공통 ──────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+async function api(method, path, body, userId) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (userId) headers['X-User-Id'] = userId;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  const text = await res.text();
+  let data; try { data = JSON.parse(text); } catch { data = text; }
+  return { ok: res.ok, status: res.status, data };
+}
+function log(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'log' + (isErr ? ' err' : '');
+}
+
+// ── ① 유저 ──────────────────────────────────────────
+async function createUser() {
+  const r = await api('POST', '/api/dev/users/test');
+  if (!r.ok) { alert('유저 생성 실패: ' + JSON.stringify(r.data)); return; }
+  users.push({ userId: r.data.userId, nickname: r.data.nickname });
+  selectedIdx = users.length - 1;
+  renderUsers();
+}
+function selectUser(i) { selectedIdx = i; renderUsers(); }
+function renderUsers() {
+  const el = document.getElementById('userList');
+  if (!users.length) { el.innerHTML = '<div class="empty" style="width:100%">유저를 생성해주세요.</div>'; return; }
+  el.innerHTML = users.map((u, i) => `
+    <div class="user-card ${i === selectedIdx ? 'selected' : ''}" onclick="selectUser(${i})">
+      <div class="nick">${esc(u.nickname)}</div>
+      <div class="uid">${u.userId.slice(0, 8)}...</div>
+    </div>
+  `).join('');
+}
+
+// ── ② 데이터 삽입 ────────────────────────────────────
+async function insertDecision() {
+  if (selectedIdx === null) { alert('유저를 선택하세요.'); return; }
+  const userId = users[selectedIdx].userId;
+  const title = document.getElementById('itemTitle').value.trim() || '테스트 상품';
+  const price = parseInt(document.getElementById('itemPrice').value) || 0;
+  const result = document.getElementById('itemResult').value;
+
+  // 1) 상품 저장
+  const ir = await api('POST', '/api/v1/items', {
+    title, listedPrice: price, category: 'DIGITAL', inputSource: 'DIRECT_INPUT'
+  }, userId);
+  if (!ir.ok) {
+    // 상품 API가 없을 수 있으니 dev insert endpoint 시도
+    log('insertLog', '상품 API 실패 — /api/dev/decisions/test 를 통해 삽입합니다.', true);
+    await insertDecisionDev(userId, title, price, result);
+    return;
+  }
+  const itemId = ir.data.id;
+
+  // 2) 결정
+  const dr = await api('POST', '/api/v1/decisions', {
+    itemId,
+    result,
+    finalPrice: price,
+    selfCheckAnswers: [
+      { questionCode: 'NEED', answerBoolean: false },
+      { questionCode: 'BUDGET', answerBoolean: false },
+      { questionCode: 'ALTERNATIVE', answerBoolean: false },
+      { questionCode: 'DELAY', answerBoolean: false }
+    ]
+  }, userId);
+  if (!dr.ok) { log('insertLog', '결정 실패: ' + JSON.stringify(dr.data), true); return; }
+  log('insertLog', `삽입 완료 ✓  decisionId: ${dr.data.id}\nresult: ${dr.data.result}  finalPrice: ${dr.data.finalPrice}`);
+  await loadConsumption();
+}
+
+async function insertDecisionDev(userId, title, price, result) {
+  const r = await api('POST', '/api/dev/decisions/test', { title, price, result }, userId);
+  if (!r.ok) { log('insertLog', '삽입 실패: ' + JSON.stringify(r.data), true); return; }
+  log('insertLog', `삽입 완료 ✓\ndecisionId: ${r.data.decisionId}\nresult: ${r.data.result}  month: ${r.data.month}`);
+  await loadConsumption();
+}
+
+// ── ③ 소비기록 조회 ───────────────────────────────────
+async function loadConsumption() {
+  if (selectedIdx === null) { alert('유저를 선택하세요.'); return; }
+  const userId = users[selectedIdx].userId;
+  const r = await api('GET', `/api/v1/my/consumption?month=${currentMonth}`, null, userId);
+  if (!r.ok) {
+    document.getElementById('consumptionArea').innerHTML =
+      `<div class="empty" style="color:#e74c3c">오류: ${JSON.stringify(r.data)}</div>`;
+    return;
+  }
+
+  const items = r.data.items || [];
+  if (!items.length) {
+    document.getElementById('consumptionArea').innerHTML =
+      `<div class="empty">${currentMonth} 에 소비기록이 없습니다.</div>`;
+    return;
+  }
+
+  document.getElementById('consumptionArea').innerHTML = items.map(item => `
+    <div class="decision-card" id="dc-${item.id}">
+      <div class="decision-info">
+        <div class="decision-title">
+          ${esc(item.itemTitle)}
+          ${item.isChanged ? '<span class="changed-tag">✏ 변경됨 ×' + item.changeCount + '</span>' : ''}
+        </div>
+        <div class="decision-meta">
+          ${item.price != null ? item.price.toLocaleString() + '원' : '가격 없음'}
+          &nbsp;·&nbsp; ${new Date(item.decidedAt).toLocaleDateString('ko-KR')}
+        </div>
+      </div>
+      <span class="badge ${item.result === 'GO' ? 'badge-go' : 'badge-stop'}" id="badge-${item.id}">
+        ${item.result === 'GO' ? '구매' : '참음'}
+      </span>
+      <button class="btn btn-outline btn-sm" onclick="toggleResult('${item.id}', '${item.result}')">
+        ${item.result === 'GO' ? '→ 참음으로 변경' : '→ 구매로 변경'}
+      </button>
+    </div>
+  `).join('');
+}
+
+async function toggleResult(decisionId, currentResult) {
+  if (selectedIdx === null) return;
+  const userId = users[selectedIdx].userId;
+  const newResult = currentResult === 'GO' ? 'STOP' : 'GO';
+
+  const r = await api('PATCH', `/api/v1/my/consumption/${decisionId}`, { result: newResult }, userId);
+  if (!r.ok) {
+    alert('변경 실패: ' + JSON.stringify(r.data));
+    return;
+  }
+
+  // 낙관적 업데이트 후 전체 새로고침
+  await loadConsumption();
+}
+</script>
+</body>
+</html>
