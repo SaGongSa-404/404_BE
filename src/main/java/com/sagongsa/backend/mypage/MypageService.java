@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -142,8 +143,8 @@ class MypageService {
 		jdbcTemplate.update("DELETE FROM purchase_decision_change_logs WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?)", userId);
 		jdbcTemplate.update("DELETE FROM purchase_reflections WHERE decision_id IN (SELECT id FROM purchase_decisions WHERE user_id = ?)", userId);
 		jdbcTemplate.update("DELETE FROM mascot_state_events WHERE user_id = ?", userId);
-		jdbcTemplate.update("DELETE FROM reminder_schedules WHERE user_id = ?", userId);
 		jdbcTemplate.update("DELETE FROM notifications WHERE user_id = ?", userId);
+		jdbcTemplate.update("DELETE FROM reminder_schedules WHERE user_id = ?", userId);
 		jdbcTemplate.update("DELETE FROM purchase_decisions WHERE user_id = ?", userId);
 		jdbcTemplate.update("DELETE FROM item_source_metadata WHERE item_id IN (SELECT id FROM saved_items WHERE user_id = ?)", userId);
 
@@ -218,11 +219,14 @@ class MypageService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
+		String myNickname = userProfileRepository.findByUserId(userId).isPresent()
+			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+
 		var items = posts.stream().map(post -> {
 			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
 			var myVote = postVoteRepository.findByPostIdAndUserId(post.getId(), userId)
 				.filter(PostVote::isActive).map(PostVote::getVoteType).orElse(null);
-			return PostResponse.of(post, cc, myVote);
+			return PostResponse.of(post, myNickname, cc, myVote);
 		}).toList();
 
 		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
@@ -238,10 +242,16 @@ class MypageService {
 		boolean hasMore = votes.size() > size;
 		if (hasMore) votes = votes.subList(0, size);
 
+		List<UUID> authorIds = votes.stream()
+			.map(v -> v.getPost().getUser().getId()).distinct().toList();
+		Set<UUID> existingProfileIds = new HashSet<>(userProfileRepository.findExistingProfileUserIds(authorIds));
+
 		var items = votes.stream().map(vote -> {
 			var post = vote.getPost();
+			String authorNickname = existingProfileIds.contains(post.getUser().getId())
+				? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
 			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
-			return PostResponse.of(post, cc, vote.getVoteType());
+			return PostResponse.of(post, authorNickname, cc, vote.getVoteType());
 		}).toList();
 
 		Instant nextCursor = hasMore && !votes.isEmpty() ? votes.get(votes.size() - 1).getCreatedAt() : null;

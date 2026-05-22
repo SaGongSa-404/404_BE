@@ -5,7 +5,13 @@ import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.social.FeedPost;
 import com.sagongsa.backend.domain.social.PostComment;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
+import com.sagongsa.backend.domain.user.UserProfile;
+import com.sagongsa.backend.domain.user.UserProfileRepository;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -19,13 +25,16 @@ class CommentService {
 	private final PostCommentRepository postCommentRepository;
 	private final SocialPostService socialPostService;
 	private final UserAccountRepository userAccountRepository;
+	private final UserProfileRepository userProfileRepository;
 
 	CommentService(PostCommentRepository postCommentRepository,
 		SocialPostService socialPostService,
-		UserAccountRepository userAccountRepository) {
+		UserAccountRepository userAccountRepository,
+		UserProfileRepository userProfileRepository) {
 		this.postCommentRepository = postCommentRepository;
 		this.socialPostService = socialPostService;
 		this.userAccountRepository = userAccountRepository;
+		this.userProfileRepository = userProfileRepository;
 	}
 
 	@Transactional
@@ -36,7 +45,8 @@ class CommentService {
 
 		PostComment comment = new PostComment(post, user, request.body());
 		postCommentRepository.save(comment);
-		return CommentResponse.of(comment, userId);
+		String authorNickname = resolveCommentNickname(postId, userId);
+		return CommentResponse.of(comment, userId, authorNickname);
 	}
 
 	CommentListResponse getComments(UUID userId, UUID postId, int page, int size) {
@@ -44,11 +54,32 @@ class CommentService {
 		Page<PostComment> commentPage = postCommentRepository.findVisibleByPostId(
 			postId, PageRequest.of(page - 1, size));
 
-		List<CommentResponse> items = commentPage.getContent().stream()
-			.map(c -> CommentResponse.of(c, userId))
+		List<PostComment> comments = commentPage.getContent();
+		Map<UUID, String> nicknameMap = buildCommentNicknameMap(postId);
+
+		List<CommentResponse> items = comments.stream()
+			.map(c -> CommentResponse.of(c, userId,
+				nicknameMap.getOrDefault(c.getUser().getId(), UserProfile.UNKNOWN_NICKNAME)))
 			.toList();
 
 		return new CommentListResponse(items, commentPage.getTotalElements());
+	}
+
+	private Map<UUID, String> buildCommentNicknameMap(UUID postId) {
+		List<UUID> commenterIds = postCommentRepository.findCommenterIdsByPostIdOrderedByFirstComment(postId);
+		Set<UUID> existingProfileIds = new HashSet<>(userProfileRepository.findExistingProfileUserIds(commenterIds));
+		Map<UUID, String> map = new HashMap<>();
+		for (int i = 0; i < commenterIds.size(); i++) {
+			UUID uid = commenterIds.get(i);
+			map.put(uid, existingProfileIds.contains(uid)
+				? UserProfile.COMMENT_NICKNAME_PREFIX + (i + 1)
+				: UserProfile.UNKNOWN_NICKNAME);
+		}
+		return map;
+	}
+
+	private String resolveCommentNickname(UUID postId, UUID userId) {
+		return buildCommentNicknameMap(postId).getOrDefault(userId, UserProfile.UNKNOWN_NICKNAME);
 	}
 
 	@Transactional

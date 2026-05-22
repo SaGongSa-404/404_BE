@@ -48,7 +48,15 @@ public class UserProfile {
 	@Column(nullable = false)
 	private Instant updatedAt;
 
+	public static final String UNKNOWN_NICKNAME = "(알 수 없음)";
+	public static final String POST_AUTHOR_NICKNAME = "너굴이";
+	public static final String COMMENT_NICKNAME_PREFIX = "너굴";
+
 	protected UserProfile() {
+	}
+
+	public static String displayNickname(UserProfile profile) {
+		return profile != null ? profile.getNickname() : UNKNOWN_NICKNAME;
 	}
 
 	public static UserProfile create(UserAccount user, String nickname, String mascotName) {

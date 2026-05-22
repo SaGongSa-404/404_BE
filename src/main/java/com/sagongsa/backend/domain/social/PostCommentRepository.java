@@ -1,5 +1,6 @@
 package com.sagongsa.backend.domain.social;
 
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,9 @@ public interface PostCommentRepository extends JpaRepository<PostComment, UUID> 
 	Page<PostComment> findVisibleByPostId(@Param("postId") UUID postId, Pageable pageable);
 
 	long countByPostIdAndDeletedAtIsNull(UUID postId);
+
+	@Query("SELECT c.user.id FROM PostComment c WHERE c.post.id = :postId GROUP BY c.user.id ORDER BY MIN(c.createdAt) ASC")
+	List<UUID> findCommenterIdsByPostIdOrderedByFirstComment(@Param("postId") UUID postId);
 
 	@Modifying
 	@Query("DELETE FROM PostComment c WHERE c.user.id = :userId")

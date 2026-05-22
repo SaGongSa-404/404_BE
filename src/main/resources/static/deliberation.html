@@ -345,10 +345,7 @@
         document.getElementById('restrainBtn').disabled = true;
         document.getElementById('buyBtn').disabled = true;
 
-        const selfCheckAnswers = questions.map(q => ({
-            questionCode: q.code,
-            answerBoolean: answers[q.code]
-        }));
+        const selfCheckAnswers = questions.map(q => ({ questionCode: q.code, answerBoolean: answers[q.code] }));
 
         try {
             const res = await fetch('/api/v1/decisions', {
@@ -385,7 +382,6 @@
     // ─── 결과 화면 ────────────────────────────────────────
     function showResult(data) {
         const isBought = data.result === 'GO';
-        const isIrrational = data.rationalityResult === 'IRRATIONAL';
         document.getElementById('resultEmoji').textContent = isBought ? '🛍️' : '💪';
         document.getElementById('resultTitle').textContent = isBought ? '구매했어요' : '참았어요!';
         document.getElementById('resultDesc').textContent = data.resultMessage || (

@@ -261,7 +261,7 @@ async function api(method, path, body) {
 
 // ── 초기화 ────────────────────────────────────────────
 async function init() {
-    const r = await api('GET', '/api/users/me');
+    const r = await api('GET', '/api/v1/users/me');
     if (!r || !r.ok) { location.replace('/login.html'); return; }
     me = r.data;
     document.getElementById('headerNickname').textContent = me.nickname || '사용자';
@@ -288,7 +288,7 @@ function switchTab(name) {
 
 async function loadFeed(reset = true) {
     if (reset) { feedCursor = null; document.getElementById('feedList').innerHTML = ''; }
-    const path = feedCursor ? `/social/posts?cursor=${feedCursor}&size=10` : '/social/posts?size=10';
+    const path = feedCursor ? `/api/v1/social/posts?cursor=${feedCursor}&size=10` : '/api/v1/social/posts?size=10';
     const r = await api('GET', path);
     if (!r || !r.ok) return;
     const { posts, nextCursor, hasMore } = r.data;
@@ -317,7 +317,7 @@ function renderFeedCard(p) {
                 <button class="vote-btn go ${myGo ? 'active' : ''}" onclick="vote('${p.id}','GO')">GO ${p.goCount}</button>
                 <button class="vote-btn stop ${myStop ? 'active' : ''}" onclick="vote('${p.id}','STOP')">STOP ${p.stopCount}</button>
             </div>
-            <div class="feed-meta">댓글 ${p.commentCount}개 · ${fmtDate(p.createdAt)}</div>
+            <div class="feed-meta">${esc(p.authorNickname)} · 댓글 ${p.commentCount}개 · ${fmtDate(p.createdAt)}</div>
         </div>
         <div class="comment-area" id="comments-${p.id}">
             <div id="commentList-${p.id}" style="display:none"></div>
@@ -336,7 +336,7 @@ async function loadMoreFeed() { await loadFeed(false); }
 async function createPost() {
     const title = document.getElementById('postTitle').value.trim();
     if (!title) { alert('제목을 입력해주세요.'); return; }
-    const r = await api('POST', '/social/posts', {
+    const r = await api('POST', '/api/v1/social/posts', {
         title,
         body: document.getElementById('postBody').value.trim() || null,
         price: document.getElementById('postPrice').value ? parseInt(document.getElementById('postPrice').value) : null,
@@ -352,7 +352,7 @@ async function createPost() {
 }
 
 async function vote(postId, type) {
-    const r = await api('POST', `/social/posts/${postId}/votes`, { voteType: type });
+    const r = await api('POST', `/api/v1/social/posts/${postId}/votes`, { voteType: type });
     if (!r || !r.ok) { alert('투표 실패 (로그인 필요)'); return; }
     const { goCount, stopCount, myVote } = r.data;
     const card = document.getElementById(`post-${postId}`);
@@ -374,12 +374,12 @@ async function toggleComments(postId) {
 }
 
 async function loadComments(postId) {
-    const r = await api('GET', `/social/posts/${postId}/comments?page=1&size=20`);
+    const r = await api('GET', `/api/v1/social/posts/${postId}/comments?page=1&size=20`);
     if (!r || !r.ok) return;
     const list = document.getElementById(`commentList-${postId}`);
     list.innerHTML = r.data.comments.map(c => `
         <div class="comment-item">
-            <span>${esc(c.body)}</span>
+            <span><span style="color:#4a90d9;font-size:11px;margin-right:6px">${esc(c.authorNickname)}</span>${esc(c.body)}</span>
             ${c.mine ? `<button onclick="deleteComment('${postId}','${c.id}')" style="background:none;border:none;color:#e74c3c;font-size:11px;cursor:pointer">삭제</button>` : ''}
         </div>
     `).join('') || '<div style="color:#555;font-size:13px;padding:8px 0">댓글 없음</div>';
@@ -388,14 +388,14 @@ async function loadComments(postId) {
 async function submitComment(postId) {
     const input = document.getElementById(`ci-${postId}`);
     if (!input.value.trim()) return;
-    const r = await api('POST', `/social/posts/${postId}/comments`, { body: input.value.trim() });
+    const r = await api('POST', `/api/v1/social/posts/${postId}/comments`, { body: input.value.trim() });
     if (!r || !r.ok) { alert('댓글 작성 실패 (로그인 필요)'); return; }
     input.value = '';
     await loadComments(postId);
 }
 
 async function deleteComment(postId, commentId) {
-    const r = await api('DELETE', `/social/posts/${postId}/comments/${commentId}`);
+    const r = await api('DELETE', `/api/v1/social/posts/${postId}/comments/${commentId}`);
     if (!r) return;
     await loadComments(postId);
 }
@@ -417,19 +417,19 @@ async function createTestItem() {
 }
 
 async function loadDeliberation() {
-    const r = await api('GET', `/api/wishes/${currentItemId}/deliberation`);
+    const r = await api('GET', `/api/v1/deliberations/items/${currentItemId}`);
     if (!r || !r.ok) { alert('숙려 화면 로드 실패: ' + r?.status); return; }
     const d = r.data;
 
-    document.getElementById('dItemTitle').textContent = d.wish.title;
-    document.getElementById('dItemPrice').textContent = fmt(d.wish.price);
-    document.getElementById('dItemCategory').textContent = d.wish.category;
-    document.getElementById('dBudget').textContent = fmt(d.budget.monthlyBudget);
+    document.getElementById('dItemTitle').textContent = d.item.title;
+    document.getElementById('dItemPrice').textContent = fmt(d.item.listedPrice);
+    document.getElementById('dItemCategory').textContent = d.item.category;
+    document.getElementById('dBudget').textContent = fmt(d.budget.monthlyBudgetAmount);
     document.getElementById('dSpent').textContent = fmt(d.budget.spentAmount);
-    document.getElementById('dRemaining').textContent = fmt(d.budget.remainingBudget);
-    document.getElementById('dStatSpent').textContent = fmt(d.monthStats.spentAmount);
-    document.getElementById('dStatIrrational').textContent = d.monthStats.irrationalCount + '회';
-    document.getElementById('dStatOpportunity').textContent = fmt(d.monthStats.opportunityCost);
+    document.getElementById('dRemaining').textContent = fmt(d.budget.monthlyBudgetAmount - d.budget.spentAmount);
+    document.getElementById('dStatSpent').textContent = fmt(d.budget.spentAmount);
+    document.getElementById('dStatIrrational').textContent = fmt(d.similarCategorySpendAmount);
+    document.getElementById('dStatOpportunity').textContent = d.opportunityCostMessage;
 
     dQuestions = d.questions;
     dAnswers = {};
@@ -437,8 +437,8 @@ async function loadDeliberation() {
         <div class="question-card">
             <div class="question-text">${q.text}</div>
             <div class="yn-buttons">
-                <button class="yn-btn y" onclick="selectAnswer(${q.id}, true, this)">Y</button>
-                <button class="yn-btn n" onclick="selectAnswer(${q.id}, false, this)">N</button>
+                <button class="yn-btn y" onclick="selectAnswer('${q.code}', true, this)">Y</button>
+                <button class="yn-btn n" onclick="selectAnswer('${q.code}', false, this)">N</button>
             </div>
         </div>
     `).join('');
@@ -449,7 +449,7 @@ async function loadDeliberation() {
 
 function selectAnswer(qId, val, btn) {
     dAnswers[qId] = val;
-    document.querySelectorAll(`[onclick*="selectAnswer(${qId},"]`).forEach(b => b.classList.remove('sel'));
+    document.querySelectorAll(`[onclick*="selectAnswer('${qId}',"]`).forEach(b => b.classList.remove('sel'));
     btn.classList.add('sel');
     updateWarning();
     updateDecisionBtns();
@@ -473,8 +473,8 @@ function updateDecisionBtns() {
 async function decide(decision) {
     document.getElementById('restrainBtn').disabled = true;
     document.getElementById('buyBtn').disabled = true;
-    const answers = dQuestions.map(q => dAnswers[q.id]);
-    const r = await api('POST', `/api/wishes/${currentItemId}/deliberation`, { answers, decision });
+    const selfCheckAnswers = dQuestions.map(q => ({ questionCode: q.code, answerBoolean: dAnswers[q.code] }));
+    const r = await api('POST', '/api/v1/decisions', { itemId: currentItemId, result: decision, selfCheckAnswers });
     if (!r || !r.ok) {
         alert('오류: ' + JSON.stringify(r?.data));
         document.getElementById('restrainBtn').disabled = false;
@@ -484,11 +484,11 @@ async function decide(decision) {
     const d = r.data;
     document.getElementById('rEmoji').textContent = decision === 'GO' ? '🛍️' : '💪';
     document.getElementById('rTitle').textContent = decision === 'GO' ? '구매했어요' : '참았어요!';
-    document.getElementById('rDesc').textContent = d.warningTriggered ? `⚠️ Yes ${d.yesCount}개 — 충동구매 경고가 있었어요` : `✅ Yes ${d.yesCount}개 — 신중한 선택이었어요`;
-    document.getElementById('rYes').textContent = `${d.yesCount}개`;
-    document.getElementById('rSpent').textContent = fmt(d.monthStats.spentAmount);
-    document.getElementById('rIrrational').textContent = `${d.monthStats.irrationalCount}회`;
-    document.getElementById('rOpportunity').textContent = fmt(d.monthStats.opportunityCost);
+    document.getElementById('rDesc').textContent = d.selfCheckYesCount >= 2 ? `⚠️ Yes ${d.selfCheckYesCount}개 — 충동구매 경고가 있었어요` : `✅ Yes ${d.selfCheckYesCount}개 — 신중한 선택이었어요`;
+    document.getElementById('rYes').textContent = `${d.selfCheckYesCount}개`;
+    document.getElementById('rSpent').textContent = fmt(d.budgetAfterAmount);
+    document.getElementById('rIrrational').textContent = d.rationalityResult || '-';
+    document.getElementById('rOpportunity').textContent = d.resultMessage || '-';
     document.getElementById('stepDeliberation').style.display = 'none';
     document.getElementById('stepResult').style.display = 'block';
 }
@@ -506,7 +506,7 @@ function resetDeliberation() {
 // ══ 마이페이지 탭 ══════════════════════════════════════
 
 async function loadMyProfile() {
-    const r = await api('GET', '/api/users/me');
+    const r = await api('GET', '/api/v1/users/me');
     if (!r || !r.ok) return;
     me = r.data;
     document.getElementById('headerNickname').textContent = me.nickname || '사용자';
@@ -522,7 +522,7 @@ async function updateProfile() {
     const nickname = document.getElementById('mpNickname').value.trim();
     const raccoonName = document.getElementById('mpMascot').value.trim();
     if (!nickname && !raccoonName) { alert('닉네임 또는 마스코트 이름을 입력해주세요.'); return; }
-    const r = await api('PATCH', '/api/users/me/profile', { nickname: nickname || null, raccoonName: raccoonName || null });
+    const r = await api('PATCH', '/api/v1/users/me/profile', { nickname: nickname || null, raccoonName: raccoonName || null });
     if (!r) return;
     showMpResult(r);
     if (r.ok) await loadMyProfile();
@@ -531,13 +531,13 @@ async function updateProfile() {
 async function updateBudget() {
     const budget = parseInt(document.getElementById('mpBudget').value);
     if (!budget || budget < 0) { alert('유효한 예산을 입력해주세요.'); return; }
-    const r = await api('PATCH', '/api/users/me/budget', { monthlyBudget: budget });
+    const r = await api('PATCH', '/api/v1/users/me/budget', { monthlyBudget: budget });
     if (!r) return;
     showMpResult(r);
 }
 
 async function loadStats() {
-    const r = await api('GET', '/api/users/me/stats');
+    const r = await api('GET', '/api/v1/users/me/stats');
     if (!r || !r.ok) { showMpResult(r); return; }
     const d = r.data;
     document.getElementById('statsResult').innerHTML = `
@@ -552,7 +552,7 @@ async function loadStats() {
 
 async function deleteAccount() {
     if (!confirm('정말 탈퇴하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
-    const r = await api('DELETE', '/api/users/me');
+    const r = await api('DELETE', '/api/v1/users/me');
     if (!r) return;
     if (r.status === 204) { alert('탈퇴 완료'); location.replace('/login.html'); }
     else showMpResult(r);

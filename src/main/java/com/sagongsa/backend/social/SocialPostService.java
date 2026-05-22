@@ -8,6 +8,8 @@ import com.sagongsa.backend.domain.social.FeedPostRepository;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
 import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
+import com.sagongsa.backend.domain.user.UserProfile;
+import com.sagongsa.backend.domain.user.UserProfileRepository;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
@@ -26,15 +28,18 @@ class SocialPostService {
 	private final PostVoteRepository postVoteRepository;
 	private final PostCommentRepository postCommentRepository;
 	private final UserAccountRepository userAccountRepository;
+	private final UserProfileRepository userProfileRepository;
 
 	SocialPostService(FeedPostRepository feedPostRepository,
 		PostVoteRepository postVoteRepository,
 		PostCommentRepository postCommentRepository,
-		UserAccountRepository userAccountRepository) {
+		UserAccountRepository userAccountRepository,
+		UserProfileRepository userProfileRepository) {
 		this.feedPostRepository = feedPostRepository;
 		this.postVoteRepository = postVoteRepository;
 		this.postCommentRepository = postCommentRepository;
 		this.userAccountRepository = userAccountRepository;
+		this.userProfileRepository = userProfileRepository;
 	}
 
 	@Transactional
@@ -42,7 +47,9 @@ class SocialPostService {
 		UserAccount user = findUserOrThrow(userId);
 		FeedPost post = new FeedPost(user, request.title(), request.body(), request.imageUrl(), request.price());
 		feedPostRepository.save(post);
-		return PostResponse.of(post, 0, null);
+		String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
+			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+		return PostResponse.of(post, authorNickname, 0, null);
 	}
 
 	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
@@ -64,7 +71,9 @@ class SocialPostService {
 		FeedPost post = findPostOrThrow(postId);
 		long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(postId);
 		PostVoteType myVote = resolveMyVote(userId, postId);
-		return PostResponse.of(post, commentCount, myVote);
+		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
+			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+		return PostResponse.of(post, authorNickname, commentCount, myVote);
 	}
 
 	@Transactional
@@ -104,6 +113,7 @@ class SocialPostService {
 		if (posts.isEmpty()) return Collections.emptyList();
 
 		List<UUID> postIds = posts.stream().map(FeedPost::getId).toList();
+		List<UUID> authorIds = posts.stream().map(p -> p.getUser().getId()).distinct().toList();
 
 		Map<UUID, Long> commentCounts = feedPostRepository.countCommentsByPostIds(postIds).stream()
 			.collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
@@ -113,12 +123,17 @@ class SocialPostService {
 			: postVoteRepository.findByPostIdsAndUserId(postIds, userId).stream()
 				.collect(Collectors.toMap(v -> v.getPost().getId(), v -> v));
 
+		java.util.Set<UUID> existingProfileIds = new java.util.HashSet<>(
+				userProfileRepository.findExistingProfileUserIds(authorIds));
+
 		return posts.stream()
 			.map(post -> {
 				long commentCount = commentCounts.getOrDefault(post.getId(), 0L);
 				PostVote vote = myVotes.get(post.getId());
 				PostVoteType myVote = (vote != null && vote.isActive()) ? vote.getVoteType() : null;
-				return PostResponse.of(post, commentCount, myVote);
+				String authorNickname = existingProfileIds.contains(post.getUser().getId())
+					? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+				return PostResponse.of(post, authorNickname, commentCount, myVote);
 			})
 			.toList();
 	}

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>닉네임 시스템 테스트</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #111; color: #eee; padding: 24px; }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+    h2 { font-size: 14px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .section { background: #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .users { display: flex; gap: 12px; flex-wrap: wrap; }
+    .user-card { background: #222; border-radius: 10px; padding: 14px 16px; min-width: 180px; border: 2px solid transparent; cursor: pointer; transition: border-color 0.15s; }
+    .user-card.selected { border-color: #4a90d9; }
+    .user-card .label { font-size: 11px; color: #666; margin-bottom: 4px; }
+    .user-card .nickname { font-size: 18px; font-weight: 700; color: #4a90d9; margin-bottom: 4px; }
+    .user-card .uid { font-size: 10px; color: #555; font-family: monospace; word-break: break-all; }
+    .user-card .withdrawn { color: #e74c3c; font-size: 11px; margin-top: 4px; }
+    .btn { padding: 9px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+    .btn:active { opacity: 0.75; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #4a90d9; color: #fff; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid #444; color: #aaa; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .row label { font-size: 13px; color: #888; width: 80px; flex-shrink: 0; }
+    .row input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; font-size: 13px; }
+    .log { background: #0a0a0a; border-radius: 8px; padding: 12px; font-size: 12px; font-family: monospace; color: #0f0; min-height: 40px; max-height: 80px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+
+    /* 피드 */
+    .post-card { background: #222; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
+    .post-author { font-size: 13px; font-weight: 700; color: #4a90d9; margin-bottom: 4px; }
+    .post-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .post-actions { display: flex; gap: 8px; align-items: center; }
+    .comments-area { margin-top: 12px; border-top: 1px solid #333; padding-top: 12px; display: none; }
+    .comment-row { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid #1a1a1a; }
+    .comment-author { font-size: 12px; font-weight: 700; color: #4a90d9; flex-shrink: 0; }
+    .comment-body { font-size: 13px; color: #ccc; }
+    .add-comment { display: flex; gap: 6px; margin-top: 8px; }
+    .add-comment input { flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #fff; font-size: 13px; }
+    .empty { color: #555; font-size: 13px; text-align: center; padding: 20px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-blue { background: rgba(74,144,217,.2); color: #4a90d9; }
+    .badge-red { background: rgba(231,76,60,.2); color: #e74c3c; }
+  </style>
+</head>
+<body>
+
+<h1>닉네임 시스템 테스트</h1>
+<p class="subtitle">게시글 작성자 → 너굴이 고정 | 댓글 작성자 → 게시글별 너굴1, 너굴2... | 탈퇴 → (알 수 없음)</p>
+
+<!-- ① 유저 준비 -->
+<div class="section">
+  <h2>① 테스트 유저 준비</h2>
+  <div class="users" id="userList">
+    <div class="empty" style="width:100%">유저를 생성해주세요.</div>
+  </div>
+  <div style="margin-top:12px">
+    <button class="btn btn-primary" onclick="createUser()">+ 유저 생성</button>
+  </div>
+</div>
+
+<!-- ② 게시글 작성 -->
+<div class="section">
+  <h2>② 게시글 작성</h2>
+  <p style="font-size:12px;color:#666;margin-bottom:10px">위에서 유저를 선택한 뒤 작성합니다. 게시글 작성자는 항상 <strong style="color:#4a90d9">너굴이</strong>로 표시됩니다.</p>
+  <div class="row">
+    <label>제목</label>
+    <input id="postTitle" value="닉네임 테스트 게시글">
+  </div>
+  <button class="btn btn-success" onclick="createPost()">게시글 작성</button>
+  <div id="postLog" class="log" style="margin-top:8px"></div>
+</div>
+
+<!-- ③ 피드 + 댓글 -->
+<div class="section">
+  <h2>③ 피드 & 댓글 확인</h2>
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn btn-outline" onclick="loadFeed()">피드 새로고침</button>
+  </div>
+  <div id="feedArea"><div class="empty">게시글을 작성하고 피드를 새로고침하세요.</div></div>
+</div>
+
+<!-- ④ 탈퇴 시뮬레이션 -->
+<div class="section">
+  <h2>④ 탈퇴 시뮬레이션</h2>
+  <p style="font-size:12px;color:#666;margin-bottom:10px">
+    선택한 유저의 프로필만 삭제합니다. 해당 유저가 작성한 게시글·댓글의 닉네임이 <strong style="color:#e74c3c">(알 수 없음)</strong>으로 바뀝니다.
+  </p>
+  <button class="btn btn-danger" onclick="simulateWithdrawal()">선택 유저 프로필 삭제</button>
+  <div id="withdrawLog" class="log" style="margin-top:8px"></div>
+</div>
+
+<script>
+// ── 상태 ──────────────────────────────────────────────
+const users = [];   // [{userId, nickname, withdrawn}]
+let selectedIdx = null;
+let lastPostId = null;
+
+// ── 헬퍼 ──────────────────────────────────────────────
+function uid(userId) {
+  return userId ? userId.slice(0, 8) + '...' : '-';
+}
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+async function api(method, path, body, asUserId) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (asUserId) headers['X-User-Id'] = asUserId;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = text; }
+  return { ok: res.ok, status: res.status, data };
+}
+function log(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+}
+
+// ── ① 유저 생성 ───────────────────────────────────────
+async function createUser() {
+  const r = await api('POST', '/api/dev/users/test');
+  if (!r.ok) { alert('유저 생성 실패: ' + JSON.stringify(r.data)); return; }
+  users.push({ userId: r.data.userId, nickname: r.data.nickname, withdrawn: false });
+  selectedIdx = users.length - 1;
+  renderUsers();
+}
+
+function selectUser(idx) {
+  selectedIdx = idx;
+  renderUsers();
+}
+
+function renderUsers() {
+  const el = document.getElementById('userList');
+  if (!users.length) {
+    el.innerHTML = '<div class="empty" style="width:100%">유저를 생성해주세요.</div>';
+    return;
+  }
+  el.innerHTML = users.map((u, i) => `
+    <div class="user-card ${i === selectedIdx ? 'selected' : ''}" onclick="selectUser(${i})">
+      <div class="label">유저 ${i + 1} ${i === selectedIdx ? '✓ 선택됨' : ''}</div>
+      <div class="nickname">${esc(u.nickname)}</div>
+      <div class="uid">${uid(u.userId)}</div>
+      ${u.withdrawn ? '<div class="withdrawn">⚠ 프로필 삭제됨</div>' : ''}
+    </div>
+  `).join('');
+}
+
+// ── ② 게시글 작성 ─────────────────────────────────────
+async function createPost() {
+  if (selectedIdx === null) { alert('유저를 먼저 선택하세요.'); return; }
+  const user = users[selectedIdx];
+  const title = document.getElementById('postTitle').value.trim() || '닉네임 테스트 게시글';
+
+  const r = await api('POST', '/api/v1/social/posts', { title }, user.userId);
+  if (!r.ok) { log('postLog', '실패: ' + JSON.stringify(r.data)); return; }
+
+  lastPostId = r.data.id;
+  log('postLog', `작성 완료 ✓\npostId: ${r.data.id}\nauthorNickname: ${r.data.authorNickname}`);
+  await loadFeed();
+}
+
+// ── ③ 피드 + 댓글 ─────────────────────────────────────
+async function loadFeed() {
+  const viewerUserId = users.length ? users[0].userId : null;
+  const r = await api('GET', '/api/v1/social/posts', null, viewerUserId);
+  if (!r.ok) { document.getElementById('feedArea').innerHTML = '<div class="empty">피드 로드 실패</div>'; return; }
+
+  const posts = r.data.posts || [];
+  if (!posts.length) {
+    document.getElementById('feedArea').innerHTML = '<div class="empty">게시글이 없습니다.</div>';
+    return;
+  }
+
+  document.getElementById('feedArea').innerHTML = posts.map(p => `
+    <div class="post-card">
+      <div class="post-author">
+        ${p.authorNickname === '너굴이'
+          ? `<span class="badge badge-blue">너굴이</span>`
+          : `<span class="badge badge-red">${esc(p.authorNickname)}</span>`}
+      </div>
+      <div class="post-title">${esc(p.title)}</div>
+      <div class="post-actions">
+        <button class="btn btn-outline" style="font-size:12px;padding:6px 12px" onclick="toggleComments('${p.id}', this)">댓글 보기</button>
+      </div>
+      <div class="comments-area" id="ca-${p.id}">
+        <div id="cl-${p.id}"></div>
+        <div class="add-comment">
+          <input id="ci-${p.id}" placeholder="댓글 입력...">
+          <button class="btn btn-primary" style="font-size:12px;padding:6px 12px" onclick="addComment('${p.id}')">등록</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleComments(postId, btn) {
+  const area = document.getElementById(`ca-${postId}`);
+  if (area.style.display === 'block') {
+    area.style.display = 'none';
+    btn.textContent = '댓글 보기';
+  } else {
+    area.style.display = 'block';
+    btn.textContent = '댓글 닫기';
+    await loadComments(postId);
+  }
+}
+
+async function loadComments(postId) {
+  const viewerUserId = users.length ? users[0].userId : null;
+  const r = await api('GET', `/api/v1/social/posts/${postId}/comments`, null, viewerUserId);
+  const list = document.getElementById(`cl-${postId}`);
+  if (!r.ok || !r.data.comments.length) {
+    list.innerHTML = '<div style="color:#555;font-size:12px;padding:6px 0">댓글 없음</div>';
+    return;
+  }
+  list.innerHTML = r.data.comments.map(c => `
+    <div class="comment-row">
+      <span class="comment-author ${c.authorNickname === '(알 수 없음)' ? 'badge-red' : 'badge-blue'}" style="padding:1px 6px;border-radius:4px;background:${c.authorNickname === '(알 수 없음)' ? 'rgba(231,76,60,.2)' : 'rgba(74,144,217,.2)'}">
+        ${esc(c.authorNickname)}
+      </span>
+      <span class="comment-body">${esc(c.body)}</span>
+    </div>
+  `).join('');
+}
+
+async function addComment(postId) {
+  if (selectedIdx === null) { alert('유저를 선택하세요.'); return; }
+  const user = users[selectedIdx];
+  const input = document.getElementById(`ci-${postId}`);
+  const body = input.value.trim();
+  if (!body) return;
+
+  const r = await api('POST', `/api/v1/social/posts/${postId}/comments`, { body }, user.userId);
+  if (!r.ok) { alert('댓글 실패: ' + JSON.stringify(r.data)); return; }
+  input.value = '';
+  await loadComments(postId);
+}
+
+// ── ④ 탈퇴 시뮬레이션 ────────────────────────────────
+async function simulateWithdrawal() {
+  if (selectedIdx === null) { alert('유저를 선택하세요.'); return; }
+  const user = users[selectedIdx];
+  if (!confirm(`유저 "${user.nickname}"의 프로필을 삭제합니다.\n피드/댓글에서 이 유저의 닉네임이 "(알 수 없음)"으로 바뀝니다.`)) return;
+
+  const r = await api('DELETE', `/api/dev/profiles/${user.userId}`);
+  if (!r.ok && r.status !== 204) {
+    log('withdrawLog', '실패: ' + JSON.stringify(r.data));
+    return;
+  }
+  users[selectedIdx].withdrawn = true;
+  renderUsers();
+  log('withdrawLog', `유저 "${user.nickname}" 프로필 삭제 완료 ✓\n피드를 새로고침하면 "(알 수 없음)"으로 표시됩니다.`);
+  await loadFeed();
+}
+</script>
+</body>
+</html>
