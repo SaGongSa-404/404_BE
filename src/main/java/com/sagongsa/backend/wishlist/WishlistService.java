@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +32,8 @@ public class WishlistService {
 
 	private static final BigDecimal MIN_CONFIDENCE = BigDecimal.ZERO;
 	private static final BigDecimal MAX_CONFIDENCE = BigDecimal.valueOf(100);
+	private static final int DEFAULT_LIST_LIMIT = 20;
+	private static final int MAX_LIST_LIMIT = 50;
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
 	);
@@ -46,12 +49,15 @@ public class WishlistService {
 	@Transactional
 	public WishlistItemResponse create(UUID userId, WishlistItemCreateRequest request) {
 		ensureWishlistUserAllowed(userId);
+		if (request == null) {
+			throw new BadRequestException("Request body is required.");
+		}
 
 		ItemInputSource inputSource = parseRequiredEnum(request.inputSource(), ItemInputSource.class, "inputSource");
 		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
 		String title = cleanRequired(request.title(), "title", 255);
 		String originalUrl = cleanOptional(request.originalUrl(), "originalUrl");
-		String normalizedUrl = normalizeSavedUrl(originalUrl, cleanOptional(request.normalizedUrl(), "normalizedUrl"));
+		String normalizedUrl = normalizeSavedUrl(inputSource, originalUrl, cleanOptional(request.normalizedUrl(), "normalizedUrl"));
 		String imageUrl = cleanOptional(request.imageUrl(), "imageUrl");
 		Integer listedPrice = validateListedPrice(request.listedPrice());
 		String currencyCode = cleanCurrencyCode(request.currencyCode());
@@ -125,37 +131,51 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<WishlistItemResponse> list(UUID userId, String rawCategory) {
+	public WishlistItemPageResponse list(UUID userId, String rawCategory, Integer requestedLimit, WishlistCursor cursor) {
 		ensureWishlistUserAllowed(userId);
 
 		String category = null;
 		if (StringUtils.hasText(rawCategory)) {
 			category = parseRequiredEnum(rawCategory, ItemCategory.class, "category").name();
 		}
+		int limit = normalizeLimit(requestedLimit);
+		List<Object> parameters = new ArrayList<>();
+		parameters.add(userId);
 
-		if (category == null) {
-			return jdbcTemplate.query(
-				baseSelect() + """
-				where si.user_id = ?
-				  and si.status = 'SAVED'
-				order by si.created_at desc
-				""",
-				this::mapRow,
-				userId
-			);
-		}
-
-		return jdbcTemplate.query(
-			baseSelect() + """
+		StringBuilder query = new StringBuilder(summarySelect());
+		query.append("""
 			where si.user_id = ?
 			  and si.status = 'SAVED'
-			  and si.category = ?
-			order by si.created_at desc
-			""",
-			this::mapRow,
-			userId,
-			category
+			""");
+		if (category != null) {
+			query.append("  and si.category = ?\n");
+			parameters.add(category);
+		}
+		if (cursor != null && cursor.hasTieBreaker()) {
+			query.append("  and (si.created_at < ? or (si.created_at = ? and si.id < ?))\n");
+			OffsetDateTime cursorCreatedAt = cursor.createdAt().atOffset(ZoneOffset.UTC);
+			parameters.add(cursorCreatedAt);
+			parameters.add(cursorCreatedAt);
+			parameters.add(cursor.id());
+		} else if (cursor != null) {
+			query.append("  and si.created_at < ?\n");
+			parameters.add(cursor.createdAt().atOffset(ZoneOffset.UTC));
+		}
+		query.append("""
+			order by si.created_at desc, si.id desc
+			limit ?
+			""");
+		parameters.add(limit + 1);
+
+		List<WishlistItemSummaryResponse> fetched = jdbcTemplate.query(
+			query.toString(),
+			this::mapSummaryRow,
+			parameters.toArray()
 		);
+		boolean hasMore = fetched.size() > limit;
+		List<WishlistItemSummaryResponse> items = hasMore ? fetched.subList(0, limit) : fetched;
+		String nextCursor = hasMore ? WishlistCursor.encode(items.getLast()) : null;
+		return new WishlistItemPageResponse(List.copyOf(items), nextCursor, hasMore);
 	}
 
 	@Transactional(readOnly = true)
@@ -167,6 +187,9 @@ public class WishlistService {
 	@Transactional
 	public WishlistItemResponse updateCategory(UUID userId, UUID itemId, WishlistCategoryUpdateRequest request) {
 		ensureWishlistUserAllowed(userId);
+		if (request == null) {
+			throw new BadRequestException("Request body is required.");
+		}
 		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
@@ -324,6 +347,28 @@ public class WishlistService {
 			""";
 	}
 
+	private String summarySelect() {
+		return """
+			select
+				si.id,
+				si.user_id,
+				si.input_source,
+				si.original_url,
+				si.normalized_url,
+				si.title,
+				si.image_url,
+				si.listed_price,
+				trim(si.currency_code) as currency_code,
+				si.category,
+				si.category_confidence,
+				si.category_locked_by_user,
+				si.status,
+				si.created_at,
+				si.updated_at
+			from saved_items si
+			""";
+	}
+
 	private WishlistItemResponse mapRow(ResultSet resultSet, int rowNumber) throws SQLException {
 		return new WishlistItemResponse(
 			resultSet.getObject("id", UUID.class),
@@ -347,6 +392,26 @@ public class WishlistService {
 			resultSet.getString("raw_price_text"),
 			resultSet.getString("raw_payload_json"),
 			getInstant(resultSet, "extracted_at")
+		);
+	}
+
+	private WishlistItemSummaryResponse mapSummaryRow(ResultSet resultSet, int rowNumber) throws SQLException {
+		return new WishlistItemSummaryResponse(
+			resultSet.getObject("id", UUID.class),
+			resultSet.getObject("user_id", UUID.class),
+			resultSet.getString("input_source"),
+			resultSet.getString("original_url"),
+			resultSet.getString("normalized_url"),
+			resultSet.getString("title"),
+			resultSet.getString("image_url"),
+			getInteger(resultSet, "listed_price"),
+			resultSet.getString("currency_code"),
+			resultSet.getString("category"),
+			resultSet.getBigDecimal("category_confidence"),
+			resultSet.getBoolean("category_locked_by_user"),
+			resultSet.getString("status"),
+			getInstant(resultSet, "created_at"),
+			getInstant(resultSet, "updated_at")
 		);
 	}
 
@@ -416,8 +481,11 @@ public class WishlistService {
 		return cleaned;
 	}
 
-	private String normalizeSavedUrl(String originalUrl, String normalizedUrl) {
+	private String normalizeSavedUrl(ItemInputSource inputSource, String originalUrl, String normalizedUrl) {
 		if (!StringUtils.hasText(originalUrl) && !StringUtils.hasText(normalizedUrl)) {
+			if (inputSource == ItemInputSource.DIRECT_INPUT) {
+				return null;
+			}
 			throw new BadRequestException("originalUrl or normalizedUrl is required.");
 		}
 		if (StringUtils.hasText(originalUrl)) {
@@ -436,10 +504,23 @@ public class WishlistService {
 			if (!StringUtils.hasText(uri.getHost())) {
 				throw new BadRequestException(fieldName + " host is required.");
 			}
+			if (StringUtils.hasText(uri.getUserInfo())) {
+				throw new BadRequestException(fieldName + " must not include user info.");
+			}
 			return uri;
 		} catch (IllegalArgumentException exception) {
 			throw new BadRequestException(fieldName + " must be a valid URL.");
 		}
+	}
+
+	private int normalizeLimit(Integer requestedLimit) {
+		if (requestedLimit == null) {
+			return DEFAULT_LIST_LIMIT;
+		}
+		if (requestedLimit < 1 || requestedLimit > MAX_LIST_LIMIT) {
+			throw new BadRequestException("limit must be between 1 and " + MAX_LIST_LIMIT + ".");
+		}
+		return requestedLimit;
 	}
 
 	private String canonicalizeHttpUrl(String rawUrl, String fieldName) {
