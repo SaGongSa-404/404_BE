@@ -153,10 +153,10 @@ public class AppRedirectUriSupport {
 
 		String allowedPath = Optional.ofNullable(allowedUri.getPath()).orElse("");
 		String requestedPath = Optional.ofNullable(requestedUri.getPath()).orElse("");
-		return allowedPath.isBlank()
-			|| "/".equals(allowedPath)
-			|| requestedPath.equals(allowedPath)
-			|| requestedPath.startsWith(allowedPath.endsWith("/") ? allowedPath : allowedPath + "/");
+		if (allowedPath.isBlank() || "/".equals(allowedPath)) {
+			return requestedPath.isBlank() || "/".equals(requestedPath);
+		}
+		return requestedPath.equals(allowedPath);
 	}
 
 	private boolean sameText(String first, String second) {
