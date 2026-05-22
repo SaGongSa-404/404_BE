@@ -2,7 +2,6 @@ package com.sagongsa.backend.wishlist;
 
 import com.sagongsa.backend.auth.CurrentUserId;
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,11 +34,13 @@ public class WishlistController {
 	}
 
 	@GetMapping
-	public List<WishlistItemResponse> list(
+	public WishlistItemPageResponse list(
 		@CurrentUserId UUID userId,
-		@RequestParam(required = false) String category
+		@RequestParam(required = false) String category,
+		@RequestParam(required = false) Integer limit,
+		@RequestParam(required = false) String cursor
 	) {
-		return wishlistService.list(userId, category);
+		return wishlistService.list(userId, category, limit, parseCursor(cursor));
 	}
 
 	@GetMapping("/{itemId}")
@@ -66,5 +67,12 @@ public class WishlistController {
 	) {
 		wishlistService.drop(userId, itemId);
 		return ResponseEntity.noContent().build();
+	}
+
+	private WishlistCursor parseCursor(String cursor) {
+		if (cursor == null || cursor.isBlank()) {
+			return null;
+		}
+		return WishlistCursor.parse(cursor);
 	}
 }

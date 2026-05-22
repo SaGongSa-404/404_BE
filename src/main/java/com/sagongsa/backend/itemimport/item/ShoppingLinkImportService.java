@@ -127,6 +127,9 @@ public class ShoppingLinkImportService {
 		if (isBlank(request.title())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title is required for DIRECT_INPUT");
 		}
+		if (request.price() != null && request.price() < 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "price must be zero or greater for DIRECT_INPUT");
+		}
 
 		URI normalizedUri = null;
 		List<String> warnings = new ArrayList<>();
@@ -494,6 +497,9 @@ public class ShoppingLinkImportService {
 			}
 			if (isBlank(uri.getHost())) {
 				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
+			}
+			if (!isBlank(uri.getUserInfo())) {
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "url must not include user info");
 			}
 			return uri;
 		} catch (IllegalArgumentException exception) {

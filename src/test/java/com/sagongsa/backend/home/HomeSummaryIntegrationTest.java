@@ -9,7 +9,6 @@ import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -28,7 +27,11 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 	private static final YearMonth TEST_MONTH = YearMonth.now(SEOUL_ZONE);
-	private static final Instant BASE_TIME = Instant.parse("2026-04-20T10:00:00Z");
+	private static final Instant BASE_TIME = TEST_MONTH
+		.atDay(15)
+		.atTime(LocalTime.NOON)
+		.atZone(SEOUL_ZONE)
+		.toInstant();
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -54,10 +57,9 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		insertBudgetCycle(userId, yearMonth, 500_000, 125_000, new BigDecimal("80.00"));
 		insertNotification(firstNotificationId, userId, "BUDGET_WARNING", "Budget", "Close to limit", "/budget", false, null, BASE_TIME.plusSeconds(30));
 		insertNotification(secondNotificationId, userId, "WISHLIST_REMINDER", "Wishlist", "Check saved item", "/items", true, BASE_TIME.plusSeconds(40), BASE_TIME.plusSeconds(20));
-		Instant currentMonthDecisionTime = currentMonthInstant();
-		insertDecision(userId, "GO", "RATIONAL", 1, currentMonthDecisionTime.plusSeconds(50));
-		insertDecision(userId, "STOP", "IRRATIONAL", 3, currentMonthDecisionTime.plusSeconds(60));
-		insertDecision(userId, "GO", "IRRATIONAL", 2, currentMonthDecisionTime.plusSeconds(70));
+		insertDecision(userId, "GO", "RATIONAL", 1, BASE_TIME.plusSeconds(50));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, BASE_TIME.plusSeconds(60));
+		insertDecision(userId, "GO", "IRRATIONAL", 2, BASE_TIME.plusSeconds(70));
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
@@ -102,6 +104,24 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void calculatesRationalChoiceRateByUserTimezoneMonthBoundary() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000105");
+		Instant monthStart = TEST_MONTH.atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+		Instant nextMonthStart = TEST_MONTH.plusMonths(1).atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+
+		insertUser(userId);
+		insertUserProfile(userId, "Jae", "Neogul", "Asia/Seoul");
+		insertDecision(userId, "GO", "IRRATIONAL", 2, monthStart.minusSeconds(1));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, monthStart);
+		insertDecision(userId, "GO", "IRRATIONAL", 2, nextMonthStart.minusSeconds(1));
+		insertDecision(userId, "GO", "RATIONAL", 1, nextMonthStart);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.rationalChoiceRate").value(50.00));
+	}
+
+	@Test
 	void returnsUnreadCountAndLatestNotifications() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000103");
 		UUID newestUnreadId = UUID.fromString("00000000-0000-0000-0000-000000000301");
@@ -131,7 +151,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000104");
 
 		insertUser(userId);
-		insertMascotProfile(userId, "SAD", "Old reaction", BASE_TIME, BASE_TIME.plusSeconds(1));
+		Instant expiredAt = Instant.now().minusSeconds(60);
+		insertMascotProfile(userId, "SAD", "Old reaction", expiredAt.minusSeconds(60), expiredAt);
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
@@ -352,8 +373,4 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		return instant == null ? null : Timestamp.from(instant);
 	}
 
-	private Instant currentMonthInstant() {
-		LocalDate dayInCurrentMonth = TEST_MONTH.atDay(10);
-		return dayInCurrentMonth.atTime(LocalTime.NOON).atZone(SEOUL_ZONE).toInstant();
-	}
 }
