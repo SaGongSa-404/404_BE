@@ -6,8 +6,10 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -15,6 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class ReminderNotificationWorker {
 
 	private static final int BATCH_SIZE = 50;
+	private static final Logger log = LoggerFactory.getLogger(ReminderNotificationWorker.class);
 
 	private final JdbcTemplate jdbcTemplate;
 	private final TransactionTemplate transactionTemplate;
@@ -22,11 +25,6 @@ public class ReminderNotificationWorker {
 	public ReminderNotificationWorker(JdbcTemplate jdbcTemplate, TransactionTemplate transactionTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.transactionTemplate = transactionTemplate;
-	}
-
-	@Scheduled(fixedDelayString = "${app.notification.reminder-worker.fixed-delay-ms:60000}")
-	public void runScheduled() {
-		processDueReminders();
 	}
 
 	public int processDueReminders() {
@@ -43,13 +41,18 @@ public class ReminderNotificationWorker {
 	private List<UUID> findDueReminderIds() {
 		return jdbcTemplate.query(
 			"""
-			select id
-			from reminder_schedules
-			where reminder_type = 'REGRET_CHECK_7_DAYS'
-			  and status = 'SCHEDULED'
-			  and scheduled_for <= ?
-			order by scheduled_for asc, id asc
+			select rs.id
+			from reminder_schedules rs
+			join users u on u.id = rs.user_id
+			left join user_notification_settings uns on uns.user_id = rs.user_id
+			where rs.reminder_type = 'REGRET_CHECK_7_DAYS'
+			  and rs.status = 'SCHEDULED'
+			  and rs.scheduled_for <= ?
+			  and u.status = 'ACTIVE'
+			  and coalesce(uns.regret_reminder_enabled, true) = true
+			order by rs.scheduled_for asc, rs.id asc
 			limit ?
+			for update of rs skip locked
 			""",
 			(rs, rowNumber) -> rs.getObject("id", UUID.class),
 			OffsetDateTime.now(ZoneOffset.UTC),
@@ -63,7 +66,7 @@ public class ReminderNotificationWorker {
 			return Boolean.TRUE.equals(processed);
 		}
 		catch (RuntimeException exception) {
-			markFailed(reminderId);
+			log.warn("Failed to process reminder {}", reminderId, exception);
 			return false;
 		}
 	}
@@ -93,8 +96,12 @@ public class ReminderNotificationWorker {
 				from reminder_schedules rs
 				join purchase_decisions pd on pd.id = rs.decision_id
 				join saved_items si on si.id = rs.item_id
+				join users u on u.id = rs.user_id
+				left join user_notification_settings uns on uns.user_id = rs.user_id
 				where rs.id = ?
 				  and rs.reminder_type = 'REGRET_CHECK_7_DAYS'
+				  and u.status = 'ACTIVE'
+				  and coalesce(uns.regret_reminder_enabled, true) = true
 				for update of rs
 				""",
 				this::mapReminderTarget,
@@ -123,26 +130,31 @@ public class ReminderNotificationWorker {
 
 	private void insertNotification(ReminderTarget target) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		jdbcTemplate.update(
-			"""
-			insert into notifications (
-				id, user_id, notification_type, title, body,
-				item_id, decision_id, reminder_id, target_path,
-				is_read, created_at, updated_at
-			)
-			values (?, ?, 'REGRET_CHECK_READY', ?, ?, ?, ?, ?, ?, false, ?, ?)
-			""",
-			UUID.randomUUID(),
-			target.userId(),
-			"구매 후 7일이 지났어요",
-			"[%s] 지금도 잘 샀다고 생각하나요?".formatted(target.itemTitle()),
-			target.itemId(),
-			target.decisionId(),
-			target.reminderId(),
-			"/reflections?decisionId=" + target.decisionId(),
-			now,
-			now
-		);
+		try {
+			jdbcTemplate.update(
+				"""
+				insert into notifications (
+					id, user_id, notification_type, title, body,
+					item_id, decision_id, reminder_id, target_path,
+					is_read, created_at, updated_at
+				)
+				values (?, ?, 'REGRET_CHECK_READY', ?, ?, ?, ?, ?, ?, false, ?, ?)
+				""",
+				UUID.randomUUID(),
+				target.userId(),
+				"구매 후 7일이 지났어요",
+				"[%s] 지금도 잘 샀다고 생각하나요?".formatted(target.itemTitle()),
+				target.itemId(),
+				target.decisionId(),
+				target.reminderId(),
+				"/reflections?decisionId=" + target.decisionId(),
+				now,
+				now
+			);
+		}
+		catch (DuplicateKeyException ignored) {
+			// Another worker inserted the reminder notification first.
+		}
 	}
 
 	private void markSent(UUID reminderId) {
@@ -160,20 +172,6 @@ public class ReminderNotificationWorker {
 			now,
 			reminderId
 		);
-	}
-
-	private void markFailed(UUID reminderId) {
-		transactionTemplate.executeWithoutResult(status -> jdbcTemplate.update(
-			"""
-			update reminder_schedules
-			set status = 'FAILED',
-				updated_at = ?
-			where id = ?
-			  and status = 'SCHEDULED'
-			""",
-			OffsetDateTime.now(ZoneOffset.UTC),
-			reminderId
-		));
 	}
 
 	private ReminderTarget mapReminderTarget(ResultSet rs, int rowNumber) throws SQLException {

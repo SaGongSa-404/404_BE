@@ -3,6 +3,7 @@ package com.sagongsa.backend.decision;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -99,6 +100,7 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.itemStatus").value("STOP"))
 			.andExpect(jsonPath("$.result").value("STOP"))
+			.andExpect(jsonPath("$.finalPrice").value(nullValue()))
 			.andExpect(jsonPath("$.budgetAfterAmount").value(90_000))
 			.andExpect(jsonPath("$.selfCheckYesCount").value(2))
 			.andExpect(jsonPath("$.rationalityResult").value("IRRATIONAL"))
@@ -151,6 +153,63 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void doesNotReactivateSentReminderWhenDecisionChangesBackToGo() throws Exception {
+		UUID userId = createReadyUser();
+		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 0);
+		UUID itemId = insertSavedItem(userId, "Already reminded target", "FOOD", "SAVED", 12_000);
+
+		String body = mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", 12_000, false, false, false, false)))
+			.andExpect(status().isCreated())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		String decisionId = objectMapper.readTree(body).get("decisionId").asText();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			update reminder_schedules
+			   set status = 'SENT',
+			       sent_at = ?,
+			       updated_at = ?
+			 where decision_id = ?
+			""",
+			now,
+			now,
+			UUID.fromString(decisionId)
+		);
+
+		mockMvc.perform(patch(DECISIONS_PATH + "/{decisionId}/result", decisionId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"result": "STOP",
+					"changeReason": "마음이 바뀜"
+				}
+				"""))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(patch(DECISIONS_PATH + "/{decisionId}/result", decisionId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"result": "GO",
+					"finalPrice": 12000,
+					"changeReason": "다시 구매로 변경"
+				}
+				"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.reminder.status").value("SENT"));
+
+		assertThat(queryString("select status from reminder_schedules where decision_id = ?", UUID.fromString(decisionId))).isEqualTo("SENT");
+		assertThat(queryInteger("select count(*) from reminder_schedules where decision_id = ?", UUID.fromString(decisionId))).isEqualTo(1);
+	}
+
+	@Test
 	void rejectsDuplicatedSelfCheckQuestion() throws Exception {
 		UUID userId = createReadyUser();
 		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 0);
@@ -167,6 +226,31 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 						{"questionCode": "NEED", "answerBoolean": true},
 						{"questionCode": "NEED", "answerBoolean": false},
 						{"questionCode": "BUDGET", "answerBoolean": false},
+						{"questionCode": "DELAY", "answerBoolean": false}
+					]
+				}
+				""".formatted(itemId)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
+	void rejectsUnknownSelfCheckQuestionCode() throws Exception {
+		UUID userId = createReadyUser();
+		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 0);
+		UUID itemId = insertSavedItem(userId, "Bad question target", "LIVING", "SAVED", 50_000);
+
+		mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"itemId": "%s",
+					"result": "GO",
+					"selfCheckAnswers": [
+						{"questionCode": "NEED", "answerBoolean": true},
+						{"questionCode": "BUDGET", "answerBoolean": false},
+						{"questionCode": "UNKNOWN", "answerBoolean": false},
 						{"questionCode": "DELAY", "answerBoolean": false}
 					]
 				}
