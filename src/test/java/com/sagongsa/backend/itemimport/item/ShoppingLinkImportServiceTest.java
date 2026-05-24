@@ -167,6 +167,25 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void rejectsShareUrlWithUnsupportedScheme() {
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"javascript:alert(1)",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+			});
+	}
+
+	@Test
 	void rejectsShareUrlWithUserInfo() {
 		assertThatThrownBy(() -> service.importLink(
 			new ShoppingLinkImportRequest(
@@ -175,6 +194,25 @@ class ShoppingLinkImportServiceTest {
 				null,
 				null,
 				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+			});
+	}
+
+	@Test
+	void rejectsDirectInputUrlWithUserInfo() {
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.DIRECT_INPUT,
+				"https://user:password@shopping.example.com/products/100",
+				"수동 입력 상품",
+				null,
+				1000,
 				null
 			)
 		))

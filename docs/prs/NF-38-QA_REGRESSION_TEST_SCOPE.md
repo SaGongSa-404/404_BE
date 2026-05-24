@@ -7,8 +7,8 @@
 - GitHub Issue: #65
 - Branch: `test/NF-38-qa-regression`
 
-This draft test PR is prepared before the related feature and bugfix PRs are merged.
-The actual test implementation should be rebased onto `develop` after the prerequisite PRs land.
+This PR is narrowed to unit tests that can land independently on top of `develop`.
+Integration and MVP-flow regression tests should be added in later stacked PRs after their prerequisite feature PRs land.
 
 ## Checked Conventions
 
@@ -42,98 +42,67 @@ Nearby PRs checked:
 
 ## Target Scope
 
-The follow-up QA regression PR should remain test-only:
+This PR should remain unit-test-only:
 
 - No runtime behavior changes
 - No DB migration changes
 - No CI pipeline changes unless test execution time requires a later split
 - No live external shopping-site calls in automated tests
+- No API/integration/MVP flow tests in this PR
 
 ## Expected File Scope
 
 New test files:
 
 - `src/test/java/com/sagongsa/backend/auth/CurrentUserIdArgumentResolverTest.java`
-- `src/test/java/com/sagongsa/backend/itemimport/item/ShoppingUrlSafetyTest.java`
 
-Existing test files likely to change:
+Existing unit test files likely to change:
 
-- `src/test/java/com/sagongsa/backend/auth/AuthApiControllerTest.java`
 - `src/test/java/com/sagongsa/backend/itemimport/item/ShoppingLinkImportServiceTest.java`
-- `src/test/java/com/sagongsa/backend/wishlist/WishlistApiIntegrationTest.java`
-- `src/test/java/com/sagongsa/backend/decision/DecisionApiIntegrationTest.java`
-- `src/test/java/com/sagongsa/backend/notification/ReminderNotificationWorkerIntegrationTest.java`
-- `src/test/java/com/sagongsa/backend/home/HomeSummaryIntegrationTest.java`
-- `src/test/java/com/sagongsa/backend/domain/DomainSchemaSmokeTest.java`
-- `src/test/java/com/sagongsa/backend/mvp/MvpBackendGapIntegrationTest.java`
 
 Expected size:
 
-- 8 to 10 files
-- 18 to 28 test cases
-- Around 600 to 900 added lines
+- 2 files
+- 7 to 10 unit test cases
+- Around 150 to 250 added lines
 
 ## Test Case Groups
 
-### TC1. Auth Contract
+### TC1. Auth Contract Unit Tests
 
 Purpose: lock down the security boundary between authenticated principals and trusted test headers.
 
-Candidate cases:
+Cases:
 
 - JWT principal is used before `X-User-Id` when both are present.
 - malformed trusted header is rejected when no principal exists.
-- `/api/auth/me` keeps provider raw attributes out of the response.
-- refresh token rotation rejects an already-consumed token.
+- JWT subject is used when the explicit `userId` claim is missing.
+- non-prod trusted-header fallback is allowed when no principal exists.
+- prod without principal/header fails with the expected auth status.
 
-### TC2. Import Preview and Wishlist Contract
+### TC2. URL Safety Unit Tests
 
-Purpose: verify that preview output can be saved and list pagination has predictable API boundaries.
+Purpose: keep shopping import URL validation explicit without adding external network calls.
 
-Candidate cases:
+Cases:
 
-- DIRECT_INPUT preview without URL can be saved through wishlist API.
-- URL userinfo is rejected consistently.
-- wishlist list rejects `limit=0`, `limit=51`, and malformed cursor.
-- list response remains summary-only and does not expose raw metadata.
+- non-http schemes are rejected.
+- URL userinfo is rejected for SHARE and DIRECT_INPUT paths.
 
-### TC3. Decision and Reminder Contract
+## Deferred Stacked PR Scope
 
-Purpose: make QA-visible decision input rules and reminder behavior explicit.
+The following groups should move to stacked PRs after their target production PRs land:
 
-Candidate cases:
-
-- invalid or duplicated self-check question code is rejected on create/update.
-- `rationaleText` and `changeReason` enforce max length.
-- GO to STOP cancels scheduled reminder.
-- disabled or inactive users do not receive due reminder notifications.
-
-### TC4. Home, Budget, and Domain Integrity
-
-Purpose: verify home summary and DB-trigger behavior around month and budget boundaries.
-
-Candidate cases:
-
-- current-month rational choice uses user timezone boundaries.
-- zero budget is not treated as exhausted.
-- overspent budget clamps remaining amount at zero.
-- self-check response set deletion is blocked after decision summary exists.
-- post vote update/delete keeps feed post vote counts in sync.
-
-### TC5. MVP QA Flow
-
-Purpose: provide one or two high-signal flows that answer QA questions about the integrated app path.
-
-Candidate cases:
-
-- import preview -> wishlist save -> deliberation -> decision GO -> budget exhausted -> home summary.
-- due reminder -> notification list/read -> reflection creation.
-- decision update -> budget/home state recalculation.
+- wishlist API pagination and response contract tests
+- decision input validation and reminder worker integration tests
+- home summary, budget, and DB-trigger integration tests
+- MVP flow tests such as import preview -> wishlist -> decision -> home summary
+- social vote count and mypage integration tests
 
 ## Merge Plan
 
-1. Keep this PR as draft while #46, #47, #48, #49, #54, #55, #56, #57, and #64 are still open.
-2. After the prerequisite PRs merge, rebase this branch onto the latest `origin/develop`.
-3. Implement the scoped tests.
-4. Run targeted suites first, then `./gradlew.bat test`.
-5. Move the PR out of draft only after local test results are recorded in the PR body.
+1. Rebase this branch onto the latest `origin/develop`.
+2. Implement only the scoped unit tests.
+3. Run targeted unit tests first, then `./gradlew.bat test`.
+4. Move the PR out of draft only after local test results are recorded in the PR body.
+5. Open stacked follow-up PRs for integration/MVP regression groups.
