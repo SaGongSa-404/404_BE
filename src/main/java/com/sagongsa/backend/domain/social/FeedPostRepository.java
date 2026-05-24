@@ -11,16 +11,16 @@ import org.springframework.data.repository.query.Param;
 
 public interface FeedPostRepository extends JpaRepository<FeedPost, UUID> {
 
-	@Query("SELECT p FROM FeedPost p WHERE p.deletedAt IS NULL ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL ORDER BY p.createdAt DESC")
 	List<FeedPost> findAllVisible(Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p WHERE p.deletedAt IS NULL AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
 	List<FeedPost> findAllVisibleBefore(@Param("cursor") Instant cursor, Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p WHERE p.user.id = :userId AND p.deletedAt IS NULL ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.user.id = :userId AND p.deletedAt IS NULL ORDER BY p.createdAt DESC")
 	List<FeedPost> findByUserIdVisible(@Param("userId") UUID userId, Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p WHERE p.user.id = :userId AND p.deletedAt IS NULL AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.user.id = :userId AND p.deletedAt IS NULL AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
 	List<FeedPost> findByUserIdVisibleBefore(@Param("userId") UUID userId, @Param("cursor") Instant cursor, Pageable pageable);
 
 	long countByUserIdAndDeletedAtIsNull(UUID userId);

@@ -97,13 +97,11 @@
 </head>
 <body>
 
-<!-- 로그인 화면 -->
+<!-- 로그인 화면 (개발용: 자동 생성) -->
 <div id="loginScreen" class="login-screen">
     <h1>구매 숙려 테스트</h1>
-    <p>테스트를 위해 소셜 로그인이 필요합니다</p>
-    <button class="login-btn kakao" onclick="login('kakao')">카카오로 시작</button>
-    <button class="login-btn google" onclick="login('google')">Google로 시작</button>
-    <button class="login-btn naver" onclick="login('naver')">네이버로 시작</button>
+    <p>개발용 테스트 유저를 생성합니다</p>
+    <button class="login-btn kakao" onclick="createDevUser()">테스트 유저로 시작</button>
 </div>
 
 <!-- 셋업 화면 -->
@@ -154,11 +152,11 @@
             <span class="stat-value red" id="statSpent">-</span>
         </div>
         <div class="stat-row">
-            <span class="stat-label">비합리적 선택</span>
+            <span class="stat-label">같은 카테고리 소비</span>
             <span class="stat-value yellow" id="statIrrational">-</span>
         </div>
         <div class="stat-row">
-            <span class="stat-label">기회비용 (절제한 금액)</span>
+            <span class="stat-label">기회비용 메시지</span>
             <span class="stat-value blue" id="statOpportunity">-</span>
         </div>
     </div>
@@ -184,15 +182,15 @@
             <span style="font-weight:700" id="resYesCount"></span>
         </div>
         <div class="result-row">
-            <span style="color:#aaa;font-size:14px">이번 달 소비</span>
+            <span style="color:#aaa;font-size:14px">결정 후 이달 소비</span>
             <span style="font-weight:700;color:#e74c3c" id="resSpent"></span>
         </div>
         <div class="result-row">
-            <span style="color:#aaa;font-size:14px">비합리적 선택</span>
+            <span style="color:#aaa;font-size:14px">합리성 판정</span>
             <span style="font-weight:700;color:#ffd700" id="resIrrational"></span>
         </div>
         <div class="result-row">
-            <span style="color:#aaa;font-size:14px">기회비용</span>
+            <span style="color:#aaa;font-size:14px">같은 카테고리 소비</span>
             <span style="font-weight:700;color:#4a90d9" id="resOpportunity"></span>
         </div>
     </div>
@@ -201,32 +199,38 @@
 
 <script>
     let wishId = null;
+    let devUserId = null;
     let questions = [];
-    let answers = {};   // {1: true/false, 2: ..., 3: ..., 4: ...}
+    let answers = {};
 
     const fmt = n => n == null ? '미설정' : n.toLocaleString() + '원';
 
-    // ─── 로그인 ──────────────────────────────────────────
-    function login(provider) {
-        // 로그인 후 이 페이지로 돌아오도록 세션스토리지에 저장
-        sessionStorage.setItem('returnTo', '/deliberation.html');
-        location.href = `/oauth2/authorization/${provider}`;
+    function authHeaders() {
+        const h = { 'Content-Type': 'application/json' };
+        if (devUserId) h['X-User-Id'] = devUserId;
+        return h;
+    }
+
+    // ─── 개발용 유저 생성 ─────────────────────────────────
+    async function createDevUser() {
+        const btn = document.querySelector('#loginScreen .login-btn');
+        btn.disabled = true;
+        btn.textContent = '생성 중...';
+        try {
+            const res = await fetch('/api/dev/users/test', { method: 'POST' });
+            if (!res.ok) { btn.disabled = false; btn.textContent = '테스트 유저로 시작'; return; }
+            const data = await res.json();
+            devUserId = data.userId;
+            show('setupScreen');
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = '테스트 유저로 시작';
+        }
     }
 
     // ─── 초기화 ──────────────────────────────────────────
     async function init() {
-        // 로그인 여부 확인 — 200 외에는 모두 미로그인으로 처리
-        try {
-            const res = await fetch('/api/v1/users/me');
-            if (!res.ok) {
-                show('loginScreen');
-                return;
-            }
-        } catch (e) {
-            show('loginScreen');
-            return;
-        }
-        show('setupScreen');
+        show('loginScreen');
     }
 
     // ─── 테스트 위시 생성 ─────────────────────────────────
@@ -236,7 +240,10 @@
         btn.disabled = true;
         btn.textContent = '생성 중...';
 
-        const res = await fetch('/api/dev/wishes/test', { method: 'POST' });
+        const res = await fetch('/api/dev/wishes/test', {
+            method: 'POST',
+            headers: authHeaders()
+        });
         if (!res.ok) {
             msg.textContent = '오류: ' + (await res.text());
             btn.disabled = false;
@@ -252,9 +259,12 @@
 
     // ─── 숙려 화면 로드 ───────────────────────────────────
     async function loadDeliberation() {
-        const res = await fetch(`/api/v1/deliberations/items/${wishId}`);
+        const res = await fetch(`/api/v1/deliberations/items/${wishId}`, {
+            headers: authHeaders()
+        });
         if (!res.ok) {
-            alert('숙려 화면 로드 실패: ' + res.status);
+            const body = await res.text().catch(() => '');
+            alert(`숙려 화면 로드 실패: ${res.status}\nX-User-Id: ${devUserId}\n${body}`);
             return;
         }
         const data = await res.json();
@@ -270,18 +280,20 @@
         }
 
         // 예산 정보
-        document.getElementById('budgetMonthly').textContent = fmt(data.budget.monthlyBudget);
-        document.getElementById('budgetSpent').textContent = fmt(data.budget.spentAmount);
-        document.getElementById('budgetRemaining').textContent = fmt(data.budget.remainingBudget);
-        if (data.budget.monthlyBudget) {
-            const pct = Math.min(100, (data.budget.spentAmount / data.budget.monthlyBudget) * 100);
+        const monthly = data.budget.monthlyBudgetAmount;
+        const spent = data.budget.spentAmount;
+        document.getElementById('budgetMonthly').textContent = fmt(monthly);
+        document.getElementById('budgetSpent').textContent = fmt(spent);
+        document.getElementById('budgetRemaining').textContent = monthly ? fmt(monthly - spent) : '미설정';
+        if (monthly) {
+            const pct = Math.min(100, (spent / monthly) * 100);
             document.getElementById('budgetBarFill').style.width = pct + '%';
         }
 
-        // 통계
-        document.getElementById('statSpent').textContent = fmt(data.monthStats.spentAmount);
-        document.getElementById('statIrrational').textContent = data.monthStats.irrationalCount + '회';
-        document.getElementById('statOpportunity').textContent = fmt(data.monthStats.opportunityCost);
+        // 통계 (deliberation 응답 기준)
+        document.getElementById('statSpent').textContent = fmt(spent);
+        document.getElementById('statIrrational').textContent = fmt(data.similarCategorySpendAmount);
+        document.getElementById('statOpportunity').textContent = data.opportunityCostMessage ?? '-';
 
         // 질문 렌더링
         questions = data.questions;
@@ -350,7 +362,7 @@
         try {
             const res = await fetch('/api/v1/decisions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders(),
                 body: JSON.stringify({ itemId: wishId, result: decision, selfCheckAnswers })
             });
 
@@ -384,14 +396,15 @@
         const isBought = data.result === 'GO';
         document.getElementById('resultEmoji').textContent = isBought ? '🛍️' : '💪';
         document.getElementById('resultTitle').textContent = isBought ? '구매했어요' : '참았어요!';
-        document.getElementById('resultDesc').textContent = data.warningTriggered
-            ? `⚠️ Yes ${data.yesCount}개 — 충동구매 경고가 있었어요`
-            : `✅ Yes ${data.yesCount}개 — 신중한 선택이었어요`;
+        const isIrrational = data.rationalityResult === 'IRRATIONAL';
+        document.getElementById('resultDesc').textContent = isIrrational
+            ? `⚠️ Yes ${data.selfCheckYesCount}개 — 충동구매 경고가 있었어요`
+            : `✅ Yes ${data.selfCheckYesCount}개 — 신중한 선택이었어요`;
 
-        document.getElementById('resYesCount').textContent = `${data.yesCount}개`;
-        document.getElementById('resSpent').textContent = fmt(data.monthStats.spentAmount);
-        document.getElementById('resIrrational').textContent = `${data.monthStats.irrationalCount}회`;
-        document.getElementById('resOpportunity').textContent = fmt(data.monthStats.opportunityCost);
+        document.getElementById('resYesCount').textContent = `${data.selfCheckYesCount}개`;
+        document.getElementById('resSpent').textContent = fmt(data.budgetAfterAmount);
+        document.getElementById('resIrrational').textContent = isIrrational ? '비합리적' : '합리적';
+        document.getElementById('resOpportunity').textContent = fmt(data.similarCategorySpendAmount);
 
         document.getElementById('decisionArea').style.display = 'none';
         show('resultScreen');

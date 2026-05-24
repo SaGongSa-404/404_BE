@@ -56,7 +56,12 @@ public class FeedPost extends UserScopedEntity {
 	}
 
 	public FeedPost(UserAccount user, String title, String body, String imageUrl, Integer price) {
+		this(user, null, title, body, imageUrl, price);
+	}
+
+	public FeedPost(UserAccount user, SavedItem item, String title, String body, String imageUrl, Integer price) {
 		super(user);
+		this.item = item;
 		this.title = title;
 		this.body = body;
 		this.imageUrl = imageUrl;
@@ -65,6 +70,7 @@ public class FeedPost extends UserScopedEntity {
 		this.stopCount = 0;
 	}
 
+	public SavedItem getItem() { return item; }
 	public String getTitle() { return title; }
 	public String getBody() { return body; }
 	public String getImageUrl() { return imageUrl; }

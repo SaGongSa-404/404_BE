@@ -3,6 +3,8 @@ package com.sagongsa.backend.social;
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.enums.PostVoteType;
+import com.sagongsa.backend.domain.item.SavedItem;
+import com.sagongsa.backend.domain.item.SavedItemRepository;
 import com.sagongsa.backend.domain.social.FeedPost;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
@@ -29,23 +31,27 @@ class SocialPostService {
 	private final PostCommentRepository postCommentRepository;
 	private final UserAccountRepository userAccountRepository;
 	private final UserProfileRepository userProfileRepository;
+	private final SavedItemRepository savedItemRepository;
 
 	SocialPostService(FeedPostRepository feedPostRepository,
 		PostVoteRepository postVoteRepository,
 		PostCommentRepository postCommentRepository,
 		UserAccountRepository userAccountRepository,
-		UserProfileRepository userProfileRepository) {
+		UserProfileRepository userProfileRepository,
+		SavedItemRepository savedItemRepository) {
 		this.feedPostRepository = feedPostRepository;
 		this.postVoteRepository = postVoteRepository;
 		this.postCommentRepository = postCommentRepository;
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
+		this.savedItemRepository = savedItemRepository;
 	}
 
 	@Transactional
 	PostResponse createPost(UUID userId, CreatePostRequest request) {
 		UserAccount user = findUserOrThrow(userId);
-		FeedPost post = new FeedPost(user, request.title(), request.body(), request.imageUrl(), request.price());
+		SavedItem item = resolveItem(userId, request.itemId());
+		FeedPost post = new FeedPost(user, item, request.title(), request.body(), request.imageUrl(), request.price());
 		feedPostRepository.save(post);
 		String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
@@ -143,6 +149,13 @@ class SocialPostService {
 		return postVoteRepository.findByPostIdAndUserId(postId, userId)
 			.filter(PostVote::isActive)
 			.map(PostVote::getVoteType)
+			.orElse(null);
+	}
+
+	private SavedItem resolveItem(UUID userId, UUID itemId) {
+		if (itemId == null) return null;
+		return savedItemRepository.findById(itemId)
+			.filter(item -> item.getUser().getId().equals(userId))
 			.orElse(null);
 	}
 
