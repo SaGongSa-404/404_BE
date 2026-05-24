@@ -63,4 +63,33 @@ public class SavedItem extends UserScopedEntity {
 
 	protected SavedItem() {
 	}
+
+	public static SavedItem create(com.sagongsa.backend.domain.auth.UserAccount user,
+		String title, Integer listedPrice, String imageUrl, String originalUrl,
+		ItemCategory category, ItemInputSource inputSource) {
+		SavedItem item = new SavedItem(user);
+		item.title = title;
+		item.listedPrice = listedPrice;
+		item.imageUrl = imageUrl;
+		item.originalUrl = originalUrl;
+		item.normalizedUrl = originalUrl;
+		item.category = category;
+		item.inputSource = inputSource != null ? inputSource : ItemInputSource.DIRECT_INPUT;
+		item.status = ItemStatus.SAVED;
+		item.categoryLockedByUser = false;
+		return item;
+	}
+
+	private SavedItem(com.sagongsa.backend.domain.auth.UserAccount user) {
+		super(user);
+	}
+
+
+	public String getTitle() { return title; }
+	public String getImageUrl() { return imageUrl; }
+	public Integer getListedPrice() { return listedPrice; }
+	public ItemCategory getCategory() { return category; }
+	public ItemStatus getStatus() { return status; }
+
+	public void decide(ItemStatus decision) { this.status = decision; }
 }

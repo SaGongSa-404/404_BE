@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wigul - 로그인</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #111; color: #fff;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh; gap: 0;
+        }
+        .logo { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+        .tagline { font-size: 14px; color: #888; margin-bottom: 48px; }
+        .login-buttons { display: flex; flex-direction: column; gap: 12px; width: 280px; }
+        .login-btn {
+            padding: 14px 24px; border-radius: 12px; border: none;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: opacity 0.15s;
+        }
+        .login-btn:active { opacity: 0.8; }
+        .kakao { background: #FEE500; color: #191919; }
+        .google { background: #fff; color: #333; border: 1px solid #ddd; }
+        .naver { background: #03C75A; color: #fff; }
+        .error-msg { color: #e74c3c; font-size: 13px; margin-top: 16px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="logo">Wigul</div>
+    <div class="tagline">충동구매를 줄이는 가장 현명한 방법</div>
+    <div class="login-buttons">
+        <button class="login-btn kakao" onclick="login('kakao')">카카오로 시작하기</button>
+        <button class="login-btn google" onclick="login('google')">Google로 시작하기</button>
+        <button class="login-btn naver" onclick="login('naver')">네이버로 시작하기</button>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <script>
+        // 이미 로그인된 경우 app.html로 이동
+        fetch('/api/users/me').then(res => {
+            if (res.ok) location.replace('/app.html');
+        });
+
+        function login(provider) {
+            location.href = `/oauth2/authorization/${provider}`;
+        }
+
+        // 로그인 실패 메시지 처리
+        const params = new URLSearchParams(location.search);
+        if (params.get('error')) {
+            const msg = document.getElementById('errorMsg');
+            msg.textContent = '로그인에 실패했습니다. 다시 시도해주세요.';
+            msg.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

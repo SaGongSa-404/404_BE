@@ -1,5 +1,6 @@
 package com.sagongsa.backend.domain.budget;
 
+import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.common.UserScopedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,4 +37,23 @@ public class BudgetCycle extends UserScopedEntity {
 
 	protected BudgetCycle() {
 	}
+
+	private BudgetCycle(UserAccount user) {
+		super(user);
+	}
+
+	public static BudgetCycle create(UserAccount user, String yearMonth, int monthlyBudgetAmount) {
+		BudgetCycle b = new BudgetCycle(user);
+		b.yearMonth = yearMonth;
+		b.monthlyBudgetAmount = monthlyBudgetAmount;
+		b.spentAmount = 0;
+		b.warningThresholdRate = new BigDecimal("80.00");
+		return b;
+	}
+
+	public String getYearMonth() { return yearMonth; }
+	public int getMonthlyBudgetAmount() { return monthlyBudgetAmount; }
+	public int getSpentAmount() { return spentAmount; }
+
+	public void updateBudgetAmount(int amount) { this.monthlyBudgetAmount = amount; }
 }

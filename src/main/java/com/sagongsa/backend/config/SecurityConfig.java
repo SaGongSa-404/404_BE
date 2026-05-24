@@ -19,6 +19,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
@@ -54,24 +56,34 @@ public class SecurityConfig {
 		OAuth2AppAuthenticationSuccessHandler authenticationSuccessHandler,
 		OAuth2AppAuthenticationFailureHandler authenticationFailureHandler,
 		Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter,
-		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedUserIdHeaderEnabled
+		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedUserIdHeaderEnabled,
+		Environment environment
 	) throws Exception {
+		boolean nonProd = !environment.acceptsProfiles(Profiles.of("prod"));
+		boolean trustedHeaderEnabled = trustedUserIdHeaderEnabled || nonProd;
+
 		http
 			.csrf(csrf -> csrf.disable())
 			.authorizeHttpRequests(auth -> {
 				auth
-					.requestMatchers("/", "/index.html", "/test-budget.html", "/favicon.ico", "/error").permitAll()
+					.requestMatchers("/", "/index.html", "/login.html", "/app.html",
+						"/deliberation.html", "/test-mypage.html", "/test-nickname.html", "/test-consumption.html", "/favicon.ico", "/error").permitAll()
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
 					.requestMatchers("/api/auth/me").authenticated();
 
-				if (trustedUserIdHeaderEnabled) {
+				if (nonProd) {
+					auth.requestMatchers("/api/dev/**").permitAll();
+				}
+
+				if (trustedHeaderEnabled) {
 					auth.requestMatchers("/api/v1/**").permitAll();
 				}
 
 				auth.anyRequest().authenticated();
 			})
 			.oauth2Login(oauth2 -> oauth2
+				.loginPage("/login.html")
 				.authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(authorizationRequestResolver))
 				.userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
 				.successHandler(authenticationSuccessHandler)
