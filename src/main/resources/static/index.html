@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wigul</title>
     <script>
-        // localhost:8080 진입 시 로그인 여부 체크 후 라우팅
-        fetch('/api/users/me').then(res => {
-            if (res.ok) location.replace('/app.html');
-            else location.replace('/login.html');
-        }).catch(() => location.replace('/login.html'));
+        location.replace('/app.html');
     </script>
 </head>
 <body></body>

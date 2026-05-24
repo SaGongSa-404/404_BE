@@ -40,12 +40,33 @@ public class UserProfile {
 	private String profileImageUrl;
 
 	@Column(nullable = false)
+	private boolean notificationEnabled = true;
+
+	@Column(nullable = false)
 	private Instant createdAt;
 
 	@Column(nullable = false)
 	private Instant updatedAt;
 
+	public static final String UNKNOWN_NICKNAME = "(알 수 없음)";
+	public static final String POST_AUTHOR_NICKNAME = "너굴이";
+	public static final String COMMENT_NICKNAME_PREFIX = "너굴";
+
 	protected UserProfile() {
+	}
+
+	public static String displayNickname(UserProfile profile) {
+		return profile != null ? profile.getNickname() : UNKNOWN_NICKNAME;
+	}
+
+	public static UserProfile create(UserAccount user, String nickname, String mascotName) {
+		UserProfile p = new UserProfile();
+		p.user = user;
+		p.nickname = nickname;
+		p.mascotName = mascotName != null ? mascotName : "너구리";
+		p.timezone = "Asia/Seoul";
+		p.notificationEnabled = true;
+		return p;
 	}
 
 	@PrePersist
@@ -61,5 +82,23 @@ public class UserProfile {
 	@PreUpdate
 	void onUpdate() {
 		updatedAt = Instant.now();
+	}
+
+	public UUID getId() { return id; }
+	public UserAccount getUser() { return user; }
+	public String getNickname() { return nickname; }
+	public String getMascotName() { return mascotName; }
+	public String getTimezone() { return timezone; }
+	public String getProfileImageUrl() { return profileImageUrl; }
+	public boolean isNotificationEnabled() { return notificationEnabled; }
+	public Instant getCreatedAt() { return createdAt; }
+
+	public void updateProfile(String nickname, String mascotName) {
+		if (nickname != null) this.nickname = nickname;
+		if (mascotName != null) this.mascotName = mascotName;
+	}
+
+	public void updateNotificationEnabled(boolean enabled) {
+		this.notificationEnabled = enabled;
 	}
 }

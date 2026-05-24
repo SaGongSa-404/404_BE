@@ -2,6 +2,7 @@ package com.sagongsa.backend.deliberation;
 
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.BudgetProjection;
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.ItemSummary;
+import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.SelfCheckQuestion;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
@@ -9,6 +10,7 @@ import java.sql.SQLException;
 import java.time.DateTimeException;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -21,6 +23,13 @@ import org.springframework.web.server.ResponseStatusException;
 public class DeliberationService {
 
 	private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Seoul");
+
+	static final List<SelfCheckQuestion> SELF_CHECK_QUESTIONS = List.of(
+		new SelfCheckQuestion("NEED", "오늘 갑자기 갖고 싶어진 건가요?"),
+		new SelfCheckQuestion("BUDGET", "비슷한 물건을 이미 갖고 있나요?"),
+		new SelfCheckQuestion("ALTERNATIVE", "구매하지 않아도 일상생활에 불편함이 없나요?"),
+		new SelfCheckQuestion("DELAY", "한 달 뒤에는 필요하지 않을 것 같나요?")
+	);
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -48,7 +57,8 @@ public class DeliberationService {
 				projectedUsageRate
 			),
 			similarCategorySpendAmount(userId, item.category(), yearMonth, zoneId),
-			opportunityCostMessage(item)
+			opportunityCostMessage(item),
+			SELF_CHECK_QUESTIONS
 		);
 	}
 

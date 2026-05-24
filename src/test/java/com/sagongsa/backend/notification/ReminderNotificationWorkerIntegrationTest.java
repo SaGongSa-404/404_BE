@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.notification.reminder-worker.enabled=false")
 class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest {
 
 	@Autowired
@@ -74,6 +74,64 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 		assertThat(queryString("select status from reminder_schedules where id = ?", futureReminderId)).isEqualTo("SCHEDULED");
 		assertThat(queryString("select status from reminder_schedules where id = ?", canceledReminderId)).isEqualTo("CANCELED");
 		assertThat(queryInteger("select count(*) from notifications where user_id = ?", userId)).isZero();
+	}
+
+	@Test
+	void skipsReminderWhenRegretReminderSettingWasDisabledAfterScheduling() {
+		UUID userId = createReadyUser();
+		disableRegretReminder(userId);
+		UUID itemId = insertSavedItem(userId, "설정 해제 상품", "GO");
+		UUID decisionId = insertDecision(userId, itemId, "GO");
+		UUID reminderId = insertReminder(userId, itemId, decisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
+
+		int processedCount = reminderNotificationWorker.processDueReminders();
+
+		assertThat(processedCount).isZero();
+		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SCHEDULED");
+		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isZero();
+	}
+
+	@Test
+	void processesEligibleReminderEvenWhenOlderDisabledRemindersFillBatch() {
+		UUID disabledUserId = createReadyUser();
+		disableRegretReminder(disabledUserId);
+		OffsetDateTime oldDue = OffsetDateTime.now(ZoneOffset.UTC).minusHours(2);
+		for (int index = 0; index < 50; index++) {
+			UUID disabledItemId = insertSavedItem(disabledUserId, "설정 해제 상품 " + index, "GO");
+			UUID disabledDecisionId = insertDecision(disabledUserId, disabledItemId, "GO");
+			insertReminder(disabledUserId, disabledItemId, disabledDecisionId, "SCHEDULED", oldDue.plusSeconds(index));
+		}
+		UUID userId = createReadyUser();
+		UUID itemId = insertSavedItem(userId, "정상 처리 상품", "GO");
+		UUID decisionId = insertDecision(userId, itemId, "GO");
+		UUID reminderId = insertReminder(userId, itemId, decisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
+
+		int processedCount = reminderNotificationWorker.processDueReminders();
+
+		assertThat(processedCount).isEqualTo(1);
+		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SENT");
+		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isEqualTo(1);
+		assertThat(queryInteger("select count(*) from notifications where user_id = ?", disabledUserId)).isZero();
+	}
+
+	@Test
+	void skipsReminderForInactiveUser() {
+		UUID userId = createReadyUser();
+		jdbcTemplate.update(
+			"update users set status = 'WITHDRAWN', withdrawn_at = ?, updated_at = ? where id = ?",
+			OffsetDateTime.now(ZoneOffset.UTC),
+			OffsetDateTime.now(ZoneOffset.UTC),
+			userId
+		);
+		UUID itemId = insertSavedItem(userId, "비활성 사용자 상품", "GO");
+		UUID decisionId = insertDecision(userId, itemId, "GO");
+		UUID reminderId = insertReminder(userId, itemId, decisionId, "SCHEDULED", OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1));
+
+		int processedCount = reminderNotificationWorker.processDueReminders();
+
+		assertThat(processedCount).isZero();
+		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SCHEDULED");
+		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isZero();
 	}
 
 	private UUID createReadyUser() {
@@ -178,6 +236,20 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 			decisionId,
 			reminderId,
 			now,
+			now
+		);
+	}
+
+	private void disableRegretReminder(UUID userId) {
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			insert into user_notification_settings (
+				user_id, regret_reminder_enabled, wishlist_reminder_enabled, updated_at
+			)
+			values (?, false, false, ?)
+			""",
+			userId,
 			now
 		);
 	}

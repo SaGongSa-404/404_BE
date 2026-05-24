@@ -42,8 +42,7 @@ public class AuthApiController {
 			profile.email(),
 			profile.profileImageUrl(),
 			authentication.getName(),
-			authorities,
-			profile.rawAttributes()
+			authorities
 		);
 	}
 
@@ -86,8 +85,7 @@ public class AuthApiController {
 		String email,
 		String profileImageUrl,
 		String principalName,
-		List<String> authorities,
-		Object rawAttributes
+		List<String> authorities
 	) {
 	}
 

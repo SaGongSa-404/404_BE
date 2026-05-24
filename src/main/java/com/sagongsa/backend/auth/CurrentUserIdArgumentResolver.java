@@ -4,7 +4,11 @@ import java.security.Principal;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.MethodParameter;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.support.WebDataBinderFactory;
@@ -21,9 +25,10 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 
 	CurrentUserIdArgumentResolver(
 		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedHeaderEnabled,
-		@Value("${app.auth.trusted-user-id-header.name:X-User-Id}") String trustedHeaderName
+		@Value("${app.auth.trusted-user-id-header.name:X-User-Id}") String trustedHeaderName,
+		Environment environment
 	) {
-		this.trustedHeaderEnabled = trustedHeaderEnabled;
+		this.trustedHeaderEnabled = trustedHeaderEnabled || !environment.acceptsProfiles(Profiles.of("prod"));
 		this.trustedHeaderName = trustedHeaderName;
 	}
 
@@ -40,14 +45,15 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 		NativeWebRequest webRequest,
 		WebDataBinderFactory binderFactory
 	) {
+		Principal principal = webRequest.getUserPrincipal();
+		UUID principalUserId = resolvePrincipalUserId(principal);
+		if (principalUserId != null) {
+			return principalUserId;
+		}
+
 		String rawUserId = webRequest.getHeader(trustedHeaderName);
 		if (trustedHeaderEnabled && StringUtils.hasText(rawUserId)) {
 			return parseUserId(rawUserId, trustedHeaderName + " header");
-		}
-
-		Principal principal = webRequest.getUserPrincipal();
-		if (principal != null && StringUtils.hasText(principal.getName())) {
-			return parseUserId(principal.getName(), "authenticated principal");
 		}
 
 		if (trustedHeaderEnabled) {
@@ -63,5 +69,24 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 		} catch (IllegalArgumentException exception) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, source + " must be a UUID.");
 		}
+	}
+
+	private UUID resolvePrincipalUserId(Principal principal) {
+		if (principal == null) {
+			return null;
+		}
+		if (principal instanceof Authentication authentication && authentication.getPrincipal() instanceof Jwt jwt) {
+			String claimUserId = jwt.getClaimAsString("userId");
+			if (StringUtils.hasText(claimUserId)) {
+				return parseUserId(claimUserId, "authenticated JWT userId claim");
+			}
+			if (StringUtils.hasText(jwt.getSubject())) {
+				return parseUserId(jwt.getSubject(), "authenticated JWT subject");
+			}
+		}
+		if (StringUtils.hasText(principal.getName())) {
+			return parseUserId(principal.getName(), "authenticated principal");
+		}
+		return null;
 	}
 }

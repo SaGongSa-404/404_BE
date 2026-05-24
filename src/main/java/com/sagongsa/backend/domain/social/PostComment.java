@@ -36,4 +36,19 @@ public class PostComment extends BaseEntity {
 
 	protected PostComment() {
 	}
+
+	public PostComment(FeedPost post, UserAccount user, String body) {
+		this.post = post;
+		this.user = user;
+		this.body = body;
+	}
+
+	public FeedPost getPost() { return post; }
+	public UserAccount getUser() { return user; }
+	public String getBody() { return body; }
+	public Instant getDeletedAt() { return deletedAt; }
+
+	public boolean isDeleted() { return deletedAt != null; }
+
+	public void softDelete() { this.deletedAt = Instant.now(); }
 }
