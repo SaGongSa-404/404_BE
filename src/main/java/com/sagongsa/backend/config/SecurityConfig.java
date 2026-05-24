@@ -67,7 +67,7 @@ public class SecurityConfig {
 			.authorizeHttpRequests(auth -> {
 				auth
 					.requestMatchers("/", "/index.html", "/login.html", "/app.html",
-						"/deliberation.html", "/test-mypage.html", "/test-nickname.html", "/test-feed-product.html", "/favicon.ico", "/error").permitAll()
+						"/deliberation.html", "/test-mypage.html", "/test-nickname.html", "/test-consumption.html", "/favicon.ico", "/error").permitAll()
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
 					.requestMatchers("/api/auth/me").authenticated();

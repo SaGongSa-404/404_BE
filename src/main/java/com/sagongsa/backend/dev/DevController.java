@@ -64,11 +64,6 @@ public class DevController {
 			"INSERT INTO user_profiles (user_id, nickname, mascot_name, timezone, notification_enabled, created_at, updated_at) VALUES (?, ?, '너구리', 'Asia/Seoul', true, ?, ?)",
 			userId, nickname, now, now);
 
-		String yearMonth = YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
-		jdbcTemplate.update(
-			"INSERT INTO budget_cycles (id, user_id, year_month, monthly_budget_amount, spent_amount, warning_threshold_rate, created_at, updated_at) VALUES (?, ?, ?, 500000, 0, 80.00, ?, ?)",
-			UUID.randomUUID(), userId, yearMonth, now, now);
-
 		return ResponseEntity.ok(Map.of("userId", userId.toString(), "nickname", nickname));
 	}
 
@@ -79,19 +74,63 @@ public class DevController {
 		return ResponseEntity.noContent().build();
 	}
 
-	record TestItemRequest(String name, Integer price, String link) {}
+	record TestDecisionRequest(String title, Integer price, String result) {}
 
-	@PostMapping("/items/test")
+	@PostMapping("/decisions/test")
 	@Transactional
-	public ResponseEntity<Map<String, String>> createTestItem(
-		@CurrentUserId UUID userId, @RequestBody TestItemRequest request) {
-		UserAccount user = userAccountRepository.findById(userId)
-			.orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없음"));
-		String name = (request.name() != null && !request.name().isBlank()) ? request.name() : "테스트 상품";
-		SavedItem item = SavedItem.create(user, name, request.price(), null, request.link(),
-			ItemCategory.DIGITAL, ItemInputSource.DIRECT_INPUT);
-		savedItemRepository.save(item);
-		return ResponseEntity.ok(Map.of("itemId", item.getId().toString()));
+	public ResponseEntity<Map<String, String>> createTestDecision(
+		@CurrentUserId UUID userId,
+		@RequestBody TestDecisionRequest request) {
+
+		String title = request.title() != null ? request.title() : "테스트 상품";
+		int price = request.price() != null ? request.price() : 0;
+		String result = request.result() != null ? request.result().toUpperCase() : "GO";
+
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		String yearMonth = YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
+
+		// 예산 사이클 없으면 생성
+		UUID budgetCycleId = jdbcTemplate.query(
+			"SELECT id FROM budget_cycles WHERE user_id = ? AND year_month = ?",
+			(rs, i) -> rs.getObject("id", UUID.class),
+			userId, yearMonth
+		).stream().findFirst().orElseGet(() -> {
+			UUID id = UUID.randomUUID();
+			jdbcTemplate.update(
+				"INSERT INTO budget_cycles (id, user_id, year_month, monthly_budget_amount, spent_amount, warning_threshold_rate, created_at, updated_at) VALUES (?, ?, ?, 500000, 0, 80.00, ?, ?)",
+				id, userId, yearMonth, now, now
+			);
+			return id;
+		});
+
+		// 상품 삽입
+		UUID itemId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"INSERT INTO saved_items (id, user_id, input_source, title, listed_price, currency_code, category, category_locked_by_user, status, created_at, updated_at) VALUES (?, ?, 'DIRECT_INPUT', ?, ?, 'KRW', 'DIGITAL', false, ?, ?, ?)",
+			itemId, userId, title, price, result, now, now
+		);
+
+		// 결정 삽입
+		UUID decisionId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"INSERT INTO purchase_decisions (id, user_id, item_id, budget_cycle_id, result, final_price, rationality_result, self_check_yes_count, is_changed, change_count, decided_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'RATIONAL', 0, false, 0, ?, ?, ?)",
+			decisionId, userId, itemId, budgetCycleId, result, price, now, now, now
+		);
+
+		// GO면 예산 소비 반영
+		if ("GO".equals(result)) {
+			jdbcTemplate.update(
+				"UPDATE budget_cycles SET spent_amount = spent_amount + ?, updated_at = ? WHERE id = ?",
+				price, now, budgetCycleId
+			);
+		}
+
+		return ResponseEntity.ok(Map.of(
+			"decisionId", decisionId.toString(),
+			"itemId", itemId.toString(),
+			"result", result,
+			"month", yearMonth
+		));
 	}
 
 	@PostMapping("/wishes/test")
@@ -107,7 +146,7 @@ public class DevController {
 
 		em.createNativeQuery("UPDATE saved_items SET created_at = :ts WHERE id = :id")
 			.setParameter("ts", Instant.now().minus(25, ChronoUnit.HOURS))
-			.setParameter("id", item.getId())
+			.setParameter("id", item.getId().toString())
 			.executeUpdate();
 
 		return ResponseEntity.ok(Map.of(

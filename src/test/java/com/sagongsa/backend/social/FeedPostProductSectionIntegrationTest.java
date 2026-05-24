@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -131,21 +134,26 @@ class FeedPostProductSectionIntegrationTest extends PostgreSqlContainerTest {
 		return objectMapper.readTree(body).get("userId").asText();
 	}
 
-	private String createTestItem(String userId, String name, Integer price, String link) throws Exception {
-		String requestBody = link != null
-			? """
-			  {"name":"%s","price":%d,"link":"%s"}
-			  """.formatted(name, price, link)
-			: """
-			  {"name":"%s","price":%d}
-			  """.formatted(name, price);
-
-		String body = mockMvc.perform(post("/api/dev/items/test")
-				.header("X-User-Id", userId)
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(requestBody))
-			.andExpect(status().isOk())
-			.andReturn().getResponse().getContentAsString();
-		return objectMapper.readTree(body).get("itemId").asText();
+	private String createTestItem(String userId, String name, Integer price, String link) {
+		UUID itemId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO saved_items (
+				id, user_id, input_source, original_url, normalized_url, title, listed_price,
+				currency_code, category, category_locked_by_user, status, created_at, updated_at
+			)
+			VALUES (?, ?, 'DIRECT_INPUT', ?, ?, ?, ?, 'KRW', 'DIGITAL', false, 'SAVED', ?, ?)
+			""",
+			itemId,
+			UUID.fromString(userId),
+			link,
+			link,
+			name,
+			price,
+			now,
+			now
+		);
+		return itemId.toString();
 	}
 }
