@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>예산 소진 플래그 테스트</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 32px 24px; }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; color: #f8fafc; }
+    .subtitle { font-size: 13px; color: #64748b; margin-bottom: 28px; }
+    .notice { background: #1e293b; border: 1px solid #334155; border-left: 3px solid #f59e0b; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #94a3b8; line-height: 1.6; }
+    .notice code { background: #0f172a; color: #fbbf24; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .card h2 { font-size: 13px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+    input[type="text"] { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 13px; padding: 8px 12px; outline: none; transition: border-color 0.15s; }
+    input[type="text"]:focus { border-color: #6366f1; }
+    .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    button { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+    button:hover { opacity: 0.85; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-success { background: #10b981; color: #fff; }
+    .btn-warning { background: #f59e0b; color: #000; }
+    .btn-danger  { background: #ef4444; color: #fff; }
+    .btn-ghost   { background: #334155; color: #e2e8f0; }
+    .sql-box { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 12px 14px; font-family: 'Menlo', 'Courier New', monospace; font-size: 11.5px; color: #7dd3fc; line-height: 1.7; white-space: pre-wrap; word-break: break-all; position: relative; }
+    .copy-btn { position: absolute; top: 8px; right: 8px; padding: 3px 8px; font-size: 11px; background: #334155; color: #94a3b8; border: none; border-radius: 4px; cursor: pointer; }
+    .copy-btn:hover { background: #475569; color: #e2e8f0; }
+    .state-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .state-exhausted { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+    .state-ok        { background: #052e16; color: #86efac; border: 1px solid #14532d; }
+    .state-bubble-on { background: #431407; color: #fdba74; border: 1px solid #7c2d12; }
+    .state-bubble-off{ background: #1e293b; color: #64748b; border: 1px solid #334155; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .metric { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 16px; }
+    .metric-label { font-size: 11px; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .metric-value { font-size: 20px; font-weight: 700; color: #f1f5f9; }
+    .metric-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .json-out { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 14px; font-family: 'Menlo', monospace; font-size: 11.5px; color: #94a3b8; line-height: 1.7; white-space: pre-wrap; word-break: break-all; max-height: 320px; overflow-y: auto; }
+    .status-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; margin-bottom: 12px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green { background: #10b981; }
+    .dot-red   { background: #ef4444; }
+    .dot-gray  { background: #475569; }
+    .progress-bar { height: 8px; background: #1e293b; border-radius: 4px; margin: 8px 0; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #e2e8f0; display: none; z-index: 999; }
+    .section-gap { margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<h1>예산 소진 플래그 테스트</h1>
+<p class="subtitle">Issue #63 — budget.exhausted / showBudgetExhaustionBubble</p>
+
+<div class="notice">
+  <strong>사전 준비</strong><br>
+  <code>app.auth.trusted-user-id-header.enabled=true</code> 환경변수/프로퍼티 활성화 필요.<br>
+  활성화되면 <code>X-User-Id</code> 헤더로 인증 없이 API 호출 가능합니다.
+</div>
+
+<!-- 사용자 설정 -->
+<div class="card">
+  <h2>사용자 설정</h2>
+  <label>User ID (UUID)</label>
+  <input id="userId" type="text" placeholder="00000000-0000-0000-0000-000000000001" value="">
+  <div class="row">
+    <button class="btn-ghost" onclick="randomUserId()">랜덤 UUID 생성</button>
+  </div>
+</div>
+
+<!-- 테스트 데이터 SQL -->
+<div class="card">
+  <h2>테스트 데이터 삽입 SQL</h2>
+  <p style="font-size:12px;color:#64748b;margin-bottom:12px;">아래 SQL을 DB에 실행하면 User ID에 맞는 테스트 유저와 예산 사이클이 생성됩니다.</p>
+  <div style="position:relative">
+    <div class="sql-box" id="sqlBox">-- User ID를 입력하면 SQL이 자동 생성됩니다.</div>
+    <button class="copy-btn" onclick="copySql()">복사</button>
+  </div>
+</div>
+
+<!-- 액션 -->
+<div class="card">
+  <h2>API 호출</h2>
+  <div class="row">
+    <button class="btn-primary" onclick="getSummary()">GET /home/summary</button>
+    <button class="btn-success" onclick="markBubbleSeen()">POST /budget-exhaustion-bubble/seen</button>
+  </div>
+</div>
+
+<!-- 결과: 예산 소진 상태 요약 -->
+<div class="card" id="budgetCard" style="display:none">
+  <h2>예산 소진 상태</h2>
+  <div class="status-line" id="statusLine"></div>
+  <div class="grid2" id="metricsGrid"></div>
+  <div class="section-gap">
+    <div style="display:flex;gap:10px;flex-wrap:wrap" id="flagBadges"></div>
+  </div>
+</div>
+
+<!-- 전체 응답 -->
+<div class="card" id="rawCard" style="display:none">
+  <h2>전체 응답</h2>
+  <div class="json-out" id="jsonOut"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const BASE = '/api/v1';
+
+  document.getElementById('userId').addEventListener('input', updateSql);
+
+  function randomUserId() {
+    const u = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+    document.getElementById('userId').value = u;
+    updateSql();
+  }
+
+  function updateSql() {
+    const uid = document.getElementById('userId').value.trim();
+    const ym = new Date().toISOString().slice(0, 7);
+    if (!uid) {
+      document.getElementById('sqlBox').textContent = '-- User ID를 입력하면 SQL이 자동 생성됩니다.';
+      return;
+    }
+    document.getElementById('sqlBox').textContent =
+`-- 1. 유저 생성
+INSERT INTO users (id, status, onboarding_status, created_at, updated_at)
+VALUES ('${uid}', 'ACTIVE', 'COMPLETED', now(), now())
+ON CONFLICT (id) DO NOTHING;
+
+-- 2. 유저 프로필 생성 (없으면)
+INSERT INTO user_profiles (user_id, nickname, mascot_name, timezone, created_at, updated_at)
+VALUES ('${uid}', '테스터', 'Neogul', 'Asia/Seoul', now(), now())
+ON CONFLICT (user_id) DO NOTHING;
+
+-- 3. 예산 사이클 생성 (소진 상태: spent = monthly)
+INSERT INTO budget_cycles (id, user_id, year_month, monthly_budget_amount, spent_amount, warning_threshold_rate, budget_exhaustion_bubble_seen, created_at, updated_at)
+VALUES (gen_random_uuid(), '${uid}', '${ym}', 300000, 300000, 80.00, false, now(), now())
+ON CONFLICT (user_id, year_month) DO UPDATE
+  SET spent_amount = 300000,
+      budget_exhaustion_bubble_seen = false,
+      updated_at = now();`;
+  }
+
+  function copySql() {
+    const text = document.getElementById('sqlBox').textContent;
+    navigator.clipboard.writeText(text).then(() => showToast('SQL 복사됨'));
+  }
+
+  function userId() {
+    const v = document.getElementById('userId').value.trim();
+    if (!v) { showToast('User ID를 입력하세요', true); return null; }
+    return v;
+  }
+
+  async function getSummary() {
+    const uid = userId();
+    if (!uid) return;
+    try {
+      const res = await fetch(`${BASE}/home/summary`, { headers: { 'X-User-Id': uid } });
+      const data = await res.json();
+      renderSummary(res.status, data);
+      renderRaw(data);
+    } catch (e) {
+      showToast('요청 실패: ' + e.message, true);
+    }
+  }
+
+  async function markBubbleSeen() {
+    const uid = userId();
+    if (!uid) return;
+    try {
+      const res = await fetch(`${BASE}/home/budget-exhaustion-bubble/seen`, {
+        method: 'POST',
+        headers: { 'X-User-Id': uid }
+      });
+      if (res.status === 204) {
+        showToast('말풍선 노출 완료 처리됨 (204 No Content)');
+        await getSummary();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(`오류 ${res.status}: ${data.detail || ''}`, true);
+      }
+    } catch (e) {
+      showToast('요청 실패: ' + e.message, true);
+    }
+  }
+
+  function renderSummary(status, data) {
+    const card = document.getElementById('budgetCard');
+    card.style.display = '';
+
+    const b = data.budget || {};
+    const monthly = b.monthlyBudgetAmount ?? 0;
+    const spent = b.spentAmount ?? 0;
+    const remaining = monthly - spent;
+    const pct = monthly > 0 ? Math.min(100, Math.round(spent / monthly * 100)) : 0;
+
+    // 상태 라인
+    const sl = document.getElementById('statusLine');
+    const ok = status >= 200 && status < 300;
+    sl.innerHTML = `<span class="dot ${ok ? 'dot-green' : 'dot-red'}"></span><span>${status} ${ok ? 'OK' : 'Error'}</span>`;
+
+    // 메트릭 그리드
+    const mg = document.getElementById('metricsGrid');
+    mg.innerHTML = `
+      <div class="metric">
+        <div class="metric-label">월 예산</div>
+        <div class="metric-value">${monthly.toLocaleString()}원</div>
+        <div class="metric-sub">${b.yearMonth ?? '-'}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">사용 금액</div>
+        <div class="metric-value">${spent.toLocaleString()}원</div>
+        <div class="metric-sub">잔여 ${remaining.toLocaleString()}원</div>
+      </div>
+    `;
+
+    // 진행 바
+    const barColor = b.exhausted ? '#ef4444' : pct >= (b.warningThresholdRate ?? 80) ? '#f59e0b' : '#10b981';
+    mg.innerHTML += `
+      <div class="metric" style="grid-column:1/-1">
+        <div class="metric-label">사용률 ${pct}%</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>
+      </div>
+    `;
+
+    // 플래그 배지
+    const fb = document.getElementById('flagBadges');
+    const exhaustedClass = b.exhausted ? 'state-exhausted' : 'state-ok';
+    const exhaustedText = b.exhausted ? '⚡ 예산 소진됨' : '✓ 예산 여유';
+    const bubbleClass = b.showBudgetExhaustionBubble ? 'state-bubble-on' : 'state-bubble-off';
+    const bubbleText = b.showBudgetExhaustionBubble ? '💬 말풍선 노출 필요' : '✓ 말풍선 이미 노출됨';
+    fb.innerHTML = `
+      <span class="state-badge ${exhaustedClass}">${exhaustedText}</span>
+      <span class="state-badge ${bubbleClass}">${bubbleText}</span>
+    `;
+  }
+
+  function renderRaw(data) {
+    document.getElementById('rawCard').style.display = '';
+    document.getElementById('jsonOut').textContent = JSON.stringify(data, null, 2);
+  }
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    t.style.borderColor = isError ? '#ef4444' : '#334155';
+    t.style.color = isError ? '#fca5a5' : '#e2e8f0';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.display = 'none'; }, 2800);
+  }
+
+  // 페이지 로드 시 SQL 초기화
+  updateSql();
+</script>
+</body>
+</html>

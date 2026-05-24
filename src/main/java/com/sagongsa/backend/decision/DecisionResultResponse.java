@@ -18,7 +18,8 @@ public record DecisionResultResponse(
 	String resultMessage,
 	MascotReactionResponse mascot,
 	ReminderResponse reminder,
-	Instant decidedAt
+	Instant decidedAt,
+	boolean budgetExhausted
 ) {
 
 	public record MascotReactionResponse(

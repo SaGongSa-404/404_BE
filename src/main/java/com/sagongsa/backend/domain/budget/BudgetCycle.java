@@ -32,6 +32,9 @@ public class BudgetCycle extends UserScopedEntity {
 	@Column(name = "warning_threshold_rate", nullable = false, precision = 5, scale = 2)
 	private BigDecimal warningThresholdRate;
 
+	@Column(name = "budget_exhaustion_bubble_seen", nullable = false)
+	private boolean budgetExhaustionBubbleSeen;
+
 	protected BudgetCycle() {
 	}
 

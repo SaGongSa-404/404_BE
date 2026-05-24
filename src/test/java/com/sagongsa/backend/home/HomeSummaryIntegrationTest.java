@@ -2,6 +2,7 @@ package com.sagongsa.backend.home;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,6 +33,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		.atTime(LocalTime.NOON)
 		.atZone(SEOUL_ZONE)
 		.toInstant();
+	private static final Instant THIS_MONTH_BASE =
+		TEST_MONTH.atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -57,9 +60,9 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		insertBudgetCycle(userId, yearMonth, 500_000, 125_000, new BigDecimal("80.00"));
 		insertNotification(firstNotificationId, userId, "BUDGET_WARNING", "Budget", "Close to limit", "/budget", false, null, BASE_TIME.plusSeconds(30));
 		insertNotification(secondNotificationId, userId, "WISHLIST_REMINDER", "Wishlist", "Check saved item", "/items", true, BASE_TIME.plusSeconds(40), BASE_TIME.plusSeconds(20));
-		insertDecision(userId, "GO", "RATIONAL", 1, BASE_TIME.plusSeconds(50));
-		insertDecision(userId, "STOP", "IRRATIONAL", 3, BASE_TIME.plusSeconds(60));
-		insertDecision(userId, "GO", "IRRATIONAL", 2, BASE_TIME.plusSeconds(70));
+		insertDecision(userId, "GO", "RATIONAL", 1, THIS_MONTH_BASE.plusSeconds(50));
+		insertDecision(userId, "STOP", "IRRATIONAL", 3, THIS_MONTH_BASE.plusSeconds(60));
+		insertDecision(userId, "GO", "IRRATIONAL", 2, THIS_MONTH_BASE.plusSeconds(70));
 
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
@@ -72,6 +75,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(500_000))
 			.andExpect(jsonPath("$.budget.spentAmount").value(125_000))
 			.andExpect(jsonPath("$.budget.warningThresholdRate").value(80.00))
+			.andExpect(jsonPath("$.budget.exhausted").value(false))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(false))
 			.andExpect(jsonPath("$.notifications.unreadCount").value(1))
 			.andExpect(jsonPath("$.notifications.latestNotifications[0].id").value(firstNotificationId.toString()))
 			.andExpect(jsonPath("$.notifications.latestNotifications[0].type").value("BUDGET_WARNING"))
@@ -98,6 +103,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(0))
 			.andExpect(jsonPath("$.budget.spentAmount").value(0))
 			.andExpect(jsonPath("$.budget.warningThresholdRate").value(0))
+			.andExpect(jsonPath("$.budget.exhausted").value(false))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(false))
 			.andExpect(jsonPath("$.notifications.unreadCount").value(0))
 			.andExpect(jsonPath("$.notifications.latestNotifications").isEmpty())
 			.andExpect(jsonPath("$.rationalChoiceRate").value(nullValue()));
@@ -158,6 +165,74 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.mascot.state").value("DEFAULT"))
 			.andExpect(jsonPath("$.mascot.lastReactionMessage").value(nullValue()));
+	}
+
+	@Test
+	void budgetExhaustedTrueAndShowBubbleTrueWhenSpentReachesLimit() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000109");
+		String yearMonth = TEST_MONTH.toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 300_000, 300_000, new BigDecimal("80.00"));
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.exhausted").value(true))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true));
+	}
+
+	@Test
+	void showBubbleFalseAfterBubbleMarkedSeen() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000106");
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 300_000, 300_000, new BigDecimal("80.00"));
+
+		mockMvc.perform(post("/api/v1/home/budget-exhaustion-bubble/seen").header("X-User-Id", userId))
+			.andExpect(status().isNoContent());
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.exhausted").value(true))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(false));
+	}
+
+	@Test
+	void markBubbleSeenDoesNothingWhenBudgetNotYetExhausted() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000108");
+		String yearMonth = TEST_MONTH.toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 300_000, 100_000, new BigDecimal("80.00"));
+
+		mockMvc.perform(post("/api/v1/home/budget-exhaustion-bubble/seen").header("X-User-Id", userId))
+			.andExpect(status().isNoContent());
+
+		// 이후 예산이 소진되면 말풍선이 여전히 노출되어야 함
+		jdbcTemplate.update(
+			"update budget_cycles set spent_amount = 300000 where user_id = ? and year_month = ?",
+			userId, yearMonth
+		);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.exhausted").value(true))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true));
+	}
+
+	@Test
+	void budgetExhaustedFalseWhenSpentBelowLimit() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000107");
+		String yearMonth = TEST_MONTH.toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 300_000, 299_999, new BigDecimal("80.00"));
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.exhausted").value(false))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(false));
 	}
 
 	@Test

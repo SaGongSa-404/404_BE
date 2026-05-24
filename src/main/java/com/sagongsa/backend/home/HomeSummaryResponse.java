@@ -32,7 +32,9 @@ public record HomeSummaryResponse(
 		String yearMonth,
 		int monthlyBudgetAmount,
 		int spentAmount,
-		BigDecimal warningThresholdRate
+		BigDecimal warningThresholdRate,
+		boolean exhausted,
+		boolean showBudgetExhaustionBubble
 	) {
 	}
 
