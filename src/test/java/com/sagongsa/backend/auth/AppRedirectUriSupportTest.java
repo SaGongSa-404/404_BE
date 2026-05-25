@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 class AppRedirectUriSupportTest {
 
@@ -43,6 +44,20 @@ class AppRedirectUriSupportTest {
 	@Test
 	void rejectsLocalhostRedirectBelowAllowedCallbackPath() {
 		assertThat(support.parseAllowedRedirectUri("http://localhost/auth/callback/extra")).isEmpty();
+	}
+
+	@Test
+	void keepsCapturedRedirectUriWhenLaterRequestOmitsParameter() {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addParameter(AppRedirectUriSupport.REDIRECT_URI_PARAMETER, "sagongsa404://auth/callback");
+		support.captureRedirectUri(request);
+
+		MockHttpServletRequest callbackRequest = new MockHttpServletRequest();
+		callbackRequest.setSession(request.getSession());
+		support.captureRedirectUri(callbackRequest);
+
+		assertThat(support.consumeRedirectUri(callbackRequest))
+			.contains(URI.create("sagongsa404://auth/callback"));
 	}
 
 	@Test
