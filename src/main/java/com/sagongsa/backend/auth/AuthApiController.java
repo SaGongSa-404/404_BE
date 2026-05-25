@@ -1,5 +1,8 @@
 package com.sagongsa.backend.auth;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -17,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "Auth", description = "OAuth login session and JWT refresh APIs")
 public class AuthApiController {
 
 	private final JwtTokenService jwtTokenService;
@@ -26,6 +30,14 @@ public class AuthApiController {
 	}
 
 	@GetMapping("/me")
+	@Operation(
+		summary = "Get authenticated user",
+		description = "Returns the current OAuth or JWT user profile used by the app after login.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Authenticated user profile"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication")
+		}
+	)
 	public AuthenticatedUserResponse me(Authentication authentication) {
 		SocialUserProfile profile = extractProfile(authentication);
 		List<String> authorities = authentication.getAuthorities().stream()
@@ -47,6 +59,14 @@ public class AuthApiController {
 	}
 
 	@PostMapping("/token/refresh")
+	@Operation(
+		summary = "Refresh access token",
+		description = "Issues a new access token and refresh token pair from a valid refresh token.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Token pair refreshed"),
+			@ApiResponse(responseCode = "401", description = "Refresh token is invalid")
+		}
+	)
 	public TokenRefreshResponse refresh(@RequestBody TokenRefreshRequest request) {
 		try {
 			JwtTokenService.TokenPair tokenPair = jwtTokenService.refresh(request.refreshToken());

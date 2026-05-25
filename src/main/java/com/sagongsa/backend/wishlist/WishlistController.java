@@ -1,6 +1,10 @@
 package com.sagongsa.backend.wishlist;
 
 import com.sagongsa.backend.auth.CurrentUserId;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URI;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/wishlist/items")
+@Tag(name = "Wishlist", description = "Saved wishlist item create, list, detail, category update, and delete APIs")
 public class WishlistController {
 
 	private final WishlistService wishlistService;
@@ -25,8 +30,18 @@ public class WishlistController {
 	}
 
 	@PostMapping
+	@Operation(
+		summary = "Create wishlist item",
+		description = "Saves an imported or directly entered item into the authenticated user's wishlist.",
+		responses = {
+			@ApiResponse(responseCode = "201", description = "Wishlist item created"),
+			@ApiResponse(responseCode = "400", description = "Invalid wishlist payload"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+			@ApiResponse(responseCode = "409", description = "Same normalized URL is already saved")
+		}
+	)
 	public ResponseEntity<WishlistItemResponse> create(
-		@CurrentUserId UUID userId,
+		@Parameter(hidden = true) @CurrentUserId UUID userId,
 		@RequestBody WishlistItemCreateRequest request
 	) {
 		WishlistItemResponse response = wishlistService.create(userId, request);
@@ -34,8 +49,17 @@ public class WishlistController {
 	}
 
 	@GetMapping
+	@Operation(
+		summary = "List wishlist items",
+		description = "Returns the authenticated user's saved wishlist items with optional category filtering and cursor pagination.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Wishlist items returned"),
+			@ApiResponse(responseCode = "400", description = "Invalid pagination cursor or limit"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication")
+		}
+	)
 	public WishlistItemPageResponse list(
-		@CurrentUserId UUID userId,
+		@Parameter(hidden = true) @CurrentUserId UUID userId,
 		@RequestParam(required = false) String category,
 		@RequestParam(required = false) Integer limit,
 		@RequestParam(required = false) String cursor
@@ -44,16 +68,37 @@ public class WishlistController {
 	}
 
 	@GetMapping("/{itemId}")
+	@Operation(
+		summary = "Get wishlist item",
+		description = "Returns one saved wishlist item owned by the authenticated user.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Wishlist item returned"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+			@ApiResponse(responseCode = "403", description = "Item belongs to another user"),
+			@ApiResponse(responseCode = "404", description = "Wishlist item does not exist")
+		}
+	)
 	public WishlistItemResponse get(
-		@CurrentUserId UUID userId,
+		@Parameter(hidden = true) @CurrentUserId UUID userId,
 		@PathVariable UUID itemId
 	) {
 		return wishlistService.get(userId, itemId);
 	}
 
 	@PatchMapping("/{itemId}/category")
+	@Operation(
+		summary = "Update wishlist category",
+		description = "Changes an item category and marks the category as user locked.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Category updated"),
+			@ApiResponse(responseCode = "400", description = "Invalid category"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+			@ApiResponse(responseCode = "403", description = "Item belongs to another user"),
+			@ApiResponse(responseCode = "404", description = "Wishlist item does not exist")
+		}
+	)
 	public WishlistItemResponse updateCategory(
-		@CurrentUserId UUID userId,
+		@Parameter(hidden = true) @CurrentUserId UUID userId,
 		@PathVariable UUID itemId,
 		@RequestBody WishlistCategoryUpdateRequest request
 	) {
@@ -61,8 +106,18 @@ public class WishlistController {
 	}
 
 	@DeleteMapping("/{itemId}")
+	@Operation(
+		summary = "Delete wishlist item",
+		description = "Drops a saved wishlist item from the user's active wishlist.",
+		responses = {
+			@ApiResponse(responseCode = "204", description = "Wishlist item deleted"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+			@ApiResponse(responseCode = "403", description = "Item belongs to another user"),
+			@ApiResponse(responseCode = "404", description = "Wishlist item does not exist")
+		}
+	)
 	public ResponseEntity<Void> delete(
-		@CurrentUserId UUID userId,
+		@Parameter(hidden = true) @CurrentUserId UUID userId,
 		@PathVariable UUID itemId
 	) {
 		wishlistService.drop(userId, itemId);
