@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>브라우저 표시 기반 카테고리 재측정</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f7f8fa;color:#1f2933;font-family:Arial,"Malgun Gothic",sans-serif;line-height:1.6}
+main{max-width:980px;margin:0 auto;padding:28px 20px 56px}section,.hero{background:#fff;border:1px solid #d9dee7;border-radius:8px;padding:18px 20px;margin-bottom:16px}
+h1{margin:0 0 8px;font-size:25px}h2{margin:0 0 12px;font-size:18px}table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{border-bottom:1px solid #e5e9f0;padding:9px 8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#f1f4f8;color:#374151}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.metric{border:1px solid #d9dee7;border-radius:8px;padding:12px;background:#fbfcfe}
+.label{color:#667085;font-size:12px}.value{font-size:21px;font-weight:700;margin-top:4px}.callout{border-left:4px solid #2563eb;background:#f5f9ff;padding:12px 14px;border-radius:0 6px 6px 0}
+@media(max-width:760px){.metrics{grid-template-columns:1fr}table{font-size:12px}}
+</style></head><body><main>
+<div class="hero"><h1>브라우저 표시 기반 카테고리 재측정</h1>
+<p class="callout">무신사 404 두 개를 제외하고, 페이지를 하나씩 실제 브라우저 컨텍스트로 열어 title/meta/body/image/price 후보를 추출한 뒤 카테고리를 재산출했다.</p>
+<div class="metrics">
+<div class="metric"><div class="label">추출 성공</div><div class="value">70/70</div></div>
+<div class="metric"><div class="label">성공률</div><div class="value">100.0%</div></div>
+<div class="metric"><div class="label">content-only</div><div class="value">87.1%</div></div>
+<div class="metric"><div class="label">url-assisted</div><div class="value">92.9%</div></div>
+</div></div>
+<section><h2>사이트별</h2><table><thead><tr><th>사이트</th><th>샘플</th><th>추출 성공</th><th>content-only</th><th>url-assisted</th><th>실패/차단</th></tr></thead><tbody><tr><td>무신사</td><td>10</td><td>10/10</td><td>10/10</td><td>10/10</td><td>0</td></tr>
+<tr><td>29CM</td><td>10</td><td>10/10</td><td>5/10</td><td>8/10</td><td>0</td></tr>
+<tr><td>올리브영</td><td>10</td><td>10/10</td><td>9/10</td><td>9/10</td><td>0</td></tr>
+<tr><td>지그재그</td><td>10</td><td>10/10</td><td>8/10</td><td>9/10</td><td>0</td></tr>
+<tr><td>에이블리</td><td>10</td><td>10/10</td><td>9/10</td><td>9/10</td><td>0</td></tr>
+<tr><td>당근</td><td>10</td><td>10/10</td><td>10/10</td><td>10/10</td><td>0</td></tr>
+<tr><td>번개장터</td><td>10</td><td>10/10</td><td>10/10</td><td>10/10</td><td>0</td></tr></tbody></table></section>
+<section><h2>문제 샘플</h2><table><thead><tr><th>구분</th><th>사이트</th><th>유형</th><th>기대</th><th>HTTP</th><th>content-only</th><th>url-assisted</th><th>제목</th><th>비고</th></tr></thead><tbody><tr><td>분류 오답</td><td>29CM</td><td>상품상세</td><td>FASHION</td><td>200</td><td>BEAUTY</td><td>BEAUTY</td><td>감도 깊은 취향 셀렉트샵 29CM</td><td>백팩</td></tr>
+<tr><td>분류 오답</td><td>29CM</td><td>검색</td><td>ETC</td><td>200</td><td>BEAUTY</td><td>SUBSCRIPTION</td><td>감도 깊은 취향 셀렉트샵 29CM</td><td>검색: 선물카드</td></tr>
+<tr><td>분류 오답</td><td>올리브영</td><td>검색</td><td>DIGITAL</td><td>200</td><td>BEAUTY</td><td>BEAUTY</td><td>/ 올리브영</td><td>뷰티 디바이스</td></tr>
+<tr><td>분류 오답</td><td>지그재그</td><td>검색</td><td>ETC</td><td>200</td><td>FASHION</td><td>FASHION</td><td>지그재그 스토어</td><td>검색: 잡화</td></tr>
+<tr><td>분류 오답</td><td>에이블리</td><td>검색</td><td>ETC</td><td>200</td><td>BEAUTY</td><td>BEAUTY</td><td>문구 - 에이블리</td><td>검색: 문구</td></tr></tbody></table></section>
+<section><h2>실제 상품 상세 기준 비교</h2>
+<p class="callout">첫 질문의 의사결정에는 검색/카테고리 URL 포함 결과도 참고할 수 있지만, 실제 상품 자동분류 정확도라고 말할 때는 상품 상세 URL만 기준으로 보는 편이 더 보수적이다.</p>
+<table><thead><tr><th>기준</th><th>샘플</th><th>크롤링 성공</th><th>content-only</th><th>url-assisted</th><th>해석</th></tr></thead><tbody>
+<tr><td>검색/카테고리 URL 포함</td><td>70</td><td>70/70 (100.0%)</td><td>61/70 (87.1%)</td><td>65/70 (92.9%)</td><td>사용자가 붙여넣을 수 있는 쇼핑 URL 전반에서 카테고리 힌트를 얼마나 잘 잡는지 보는 용도</td></tr>
+<tr><td>실제 상품 상세 URL만</td><td>58</td><td>58/58 (100.0%)</td><td>47/58 (81.0%)</td><td>47/58 (81.0%)</td><td>실제 상품 저장 시 자동분류 품질에 더 가까운 보수적 기준</td></tr>
+</tbody></table>
+<p>따라서 현재 근거로 답하면 “자동선택 + 유저 수정 가능”은 가능하고, 정확도는 검색 URL 포함 기준으로는 90%대까지 보이지만 실제 상품 상세 기준으로는 81.0%를 기준선으로 잡는 것이 더 안전하다. 현재 5개 카테고리(패션, 뷰티, 라이프, 디지털, 기타)로 합치면 FOOD/HOBBY/SUBSCRIPTION/LIVING이 단순화되므로 실제 운영 정확도는 이 상품 상세 8분류 테스트보다 올라갈 여지가 있다.</p>
+</section>
+<section><h2>재현 자료</h2>
+<ul>
+<li>샘플 입력: <code>docs/category-experiment/NF-35_SAMPLE_INPUTS_2026_05_14.csv</code></li>
+<li>실행 커맨드: <code>docs/category-experiment/NF-35_CATEGORY_EXPERIMENT_REPRODUCIBILITY_2026_05_14.md</code></li>
+<li>분류 규칙 버전: <code>docs/category-experiment/NF-35_CLASSIFIER_RULESET_2026_05_14.md</code></li>
+<li>RAW 결과: <code>docs/category-experiment/nf35-category-experiment/results/visible-browser-category-analysis-2026-05-14.json</code>, <code>docs/category-experiment/nf35-category-experiment/results/product-only-category-analysis-2026-05-14.json</code></li>
+</ul>
+</section></main></body></html>

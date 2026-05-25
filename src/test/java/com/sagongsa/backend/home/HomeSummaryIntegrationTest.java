@@ -447,4 +447,5 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	private Timestamp timestamp(Instant instant) {
 		return instant == null ? null : Timestamp.from(instant);
 	}
+
 }
