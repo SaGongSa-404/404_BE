@@ -12,6 +12,7 @@
   - 샘플 입력 목록: `docs/category-experiment/NF-35_SAMPLE_INPUTS_2026_05_14.csv`
   - 재측정 커맨드/RAW 결과 위치: `docs/category-experiment/NF-35_CATEGORY_EXPERIMENT_REPRODUCIBILITY_2026_05_14.md`
   - 분류 규칙 버전: `docs/category-experiment/NF-35_CLASSIFIER_RULESET_2026_05_14.md`
+  - 브라우저 수집 운영 메모: `docs/SHOPPING_BROWSER_FETCHER_OPERATIONS.md`
   - 기획팀 공유 문안: `docs/CATEGORY_AUTO_CLASSIFICATION_PLANNING_REPLY_2026_05_14.txt`
 
 ## 목적 (Why)
@@ -110,6 +111,8 @@ Metadata Extraction + Category Recommendation
 ### 머지 기준
 - 상품 상세 URL 기준 수집 성공률과 분류 정확도 수치가 PR 본문에 포함되어야 합니다.
 - 기존 URL 정규화, private host 차단, redirect 제한 등 보안/검증 흐름이 유지되어야 합니다.
+- 브라우저 렌더링 중 발생하는 하위 요청도 private network 차단을 통과해야 합니다.
+- 브라우저 런타임은 요청마다 생성하지 않고 재사용하며, 요청 격리는 `BrowserContext` 단위로 처리합니다.
 - 자동분류 결과는 확정값이 아니라 유저 수정 가능한 추천값이라는 전제가 유지되어야 합니다.
 - 브라우저 기반 수집은 설정값으로 켜고 끌 수 있어야 합니다.
 

@@ -52,3 +52,10 @@ app:
     access-token-ttl: ${APP_ACCESS_TOKEN_TTL:PT2H}
     refresh-token-ttl: ${APP_REFRESH_TOKEN_TTL:P30D}
     allowed-redirect-uri-prefixes: ${APP_ALLOWED_REDIRECT_URI_PREFIXES:sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://localhost/auth/callback,https://127.0.0.1/auth/callback}
+  shopping:
+    import:
+      browser-fetch:
+        enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:false}
+        timeout: ${SHOPPING_IMPORT_BROWSER_FETCH_TIMEOUT:PT30S}
+        render-wait: ${SHOPPING_IMPORT_BROWSER_RENDER_WAIT:PT5S}
+        network-idle-timeout: ${SHOPPING_IMPORT_BROWSER_NETWORK_IDLE_TIMEOUT:PT2S}
