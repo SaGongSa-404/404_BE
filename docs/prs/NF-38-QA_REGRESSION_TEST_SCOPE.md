@@ -55,6 +55,8 @@ This PR should remain unit-test-only:
 New test files:
 
 - `src/test/java/com/sagongsa/backend/auth/CurrentUserIdArgumentResolverTest.java`
+- `src/test/java/com/sagongsa/backend/decision/DecisionServiceUnitTest.java`
+- `src/test/java/com/sagongsa/backend/wishlist/WishlistCursorTest.java`
 
 Existing unit test files likely to change:
 
@@ -62,9 +64,9 @@ Existing unit test files likely to change:
 
 Expected size:
 
-- 2 files
-- 7 to 10 unit test cases
-- Around 150 to 250 added lines
+- 4 files
+- 18 to 22 unit test cases
+- Around 350 to 500 added lines
 
 ## Test Case Groups
 
@@ -88,6 +90,27 @@ Cases:
 
 - non-http schemes are rejected.
 - URL userinfo is rejected for SHARE and DIRECT_INPUT paths.
+
+### TC3. Wishlist Cursor Unit Tests
+
+Purpose: keep list pagination cursor behavior explicit without a database.
+
+Cases:
+
+- encoded cursors include `createdAt` and `id` tie-breaker.
+- current cursor format parses with tie-breaker.
+- legacy `createdAt`-only cursor remains readable.
+- malformed cursor input fails with a bad request exception.
+
+### TC4. Decision Request Validation Unit Tests
+
+Purpose: catch decision input mistakes before database access.
+
+Cases:
+
+- duplicated self-check question code is rejected.
+- unknown self-check question code is rejected.
+- `rationaleText` and `changeReason` enforce the 1000 character limit.
 
 ## Deferred Stacked PR Scope
 
