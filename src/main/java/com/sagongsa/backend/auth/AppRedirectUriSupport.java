@@ -29,13 +29,12 @@ public class AppRedirectUriSupport {
 
 	public void captureRedirectUri(HttpServletRequest request) {
 		String redirectUri = request.getParameter(REDIRECT_URI_PARAMETER);
-		HttpSession session = request.getSession(true);
 
 		if (!StringUtils.hasText(redirectUri)) {
-			session.removeAttribute(SESSION_KEY);
 			return;
 		}
 
+		HttpSession session = request.getSession(true);
 		parseAllowedRedirectUri(redirectUri).ifPresentOrElse(
 			uri -> session.setAttribute(SESSION_KEY, uri.toString()),
 			() -> session.removeAttribute(SESSION_KEY)
