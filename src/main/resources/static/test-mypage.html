@@ -1,138 +1,619 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>마이페이지 API 테스트</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마이페이지 테스트</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #111; color: #fff; min-height: 100vh; }
+
+        /* ── 공통 ── */
+        .hidden { display: none !important; }
+        .flex-center { display: flex; align-items: center; justify-content: center; }
+
+        /* ── 진입 화면 ── */
+        .entry-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 14px; padding: 32px; text-align: center; }
+        .entry-emoji { font-size: 52px; }
+        .entry-screen h1 { font-size: 22px; font-weight: 700; }
+        .entry-screen p  { color: #888; font-size: 14px; }
+        .primary-btn { margin-top: 12px; padding: 14px 40px; border-radius: 28px; border: none; background: #4a90d9; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+        .primary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .entry-msg { font-size: 12px; color: #666; min-height: 18px; }
+
+        /* ── 메인 화면 ── */
+        #mainScreen { display: flex; flex-direction: column; min-height: 100vh; max-width: 420px; margin: 0 auto; }
+
+        /* ── 헤더 ── */
+        .main-header { padding: 20px 20px 0; display: flex; justify-content: space-between; align-items: flex-start; }
+        .greeting { font-size: 20px; font-weight: 700; line-height: 1.3; }
+        .greeting small { display: block; font-size: 13px; color: #666; font-weight: 400; margin-top: 2px; }
+        .edit-profile-btn { background: none; border: 1px solid #333; color: #aaa; font-size: 13px; padding: 6px 14px; border-radius: 20px; cursor: pointer; white-space: nowrap; }
+
+        /* ── 알림 토글 ── */
+        .alarm-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #1e1e1e; }
+        .alarm-label { font-size: 15px; font-weight: 600; }
+        .toggle-wrap { display: flex; align-items: center; gap: 8px; }
+        .toggle-status { font-size: 12px; color: #666; }
+        .toggle { position: relative; width: 44px; height: 26px; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; inset: 0; background: #333; border-radius: 26px; cursor: pointer; transition: .3s; }
+        .slider:before { content: ''; position: absolute; width: 20px; height: 20px; left: 3px; bottom: 3px; background: #666; border-radius: 50%; transition: .3s; }
+        .toggle input:checked + .slider { background: #4a90d9; }
+        .toggle input:checked + .slider:before { transform: translateX(18px); background: #fff; }
+
+        /* ── 탭 ── */
+        .tabs { display: flex; border-bottom: 1px solid #1e1e1e; }
+        .tab-btn { flex: 1; padding: 14px 0; background: none; border: none; color: #666; font-size: 14px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .tab-btn.active { color: #fff; border-bottom-color: #4a90d9; }
+
+        /* ── 탭 콘텐츠 ── */
+        .tab-content { padding: 20px 20px 40px; }
+
+        /* ── 카드 ── */
+        .card { background: #1a1a1a; border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+        .card-label { font-size: 12px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; }
+
+        /* ── 예산 카드 ── */
+        .budget-overview { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
+        .budget-used { font-size: 22px; font-weight: 700; color: #e74c3c; }
+        .budget-total { font-size: 14px; color: #666; }
+        .budget-bar { height: 8px; background: #2a2a2a; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+        .budget-bar-fill { height: 100%; background: #4a90d9; border-radius: 4px; transition: width 0.6s; }
+        .budget-bar-fill.warn { background: #f39c12; }
+        .budget-bar-fill.over { background: #e74c3c; }
+        .budget-detail-row { display: flex; justify-content: space-between; font-size: 13px; color: #777; margin-bottom: 6px; }
+
+        /* ── 예산 수정 영역 ── */
+        .budget-edit-bar { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+        .budget-edit-bar input { flex: 1; background: #252525; border: 1px solid #333; color: #fff; padding: 8px 12px; border-radius: 10px; font-size: 14px; }
+        .budget-edit-bar input:focus { outline: none; border-color: #4a90d9; }
+        .sm-btn { padding: 8px 14px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .sm-btn.blue { background: #4a90d9; color: #fff; }
+        .sm-btn.ghost { background: #2a2a2a; color: #aaa; }
+
+        /* ── 월별 기록 ── */
+        .month-item { background: #1a1a1a; border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; cursor: pointer; transition: background 0.15s; }
+        .month-item:hover { background: #202020; }
+        .month-header { display: flex; justify-content: space-between; align-items: center; }
+        .month-title { font-size: 15px; font-weight: 600; }
+        .month-badge { font-size: 11px; background: #252525; color: #888; padding: 3px 8px; border-radius: 10px; }
+        .month-chevron { color: #555; transition: transform 0.2s; }
+        .month-item.open .month-chevron { transform: rotate(90deg); }
+        .month-items { margin-top: 12px; border-top: 1px solid #222; padding-top: 10px; display: none; }
+        .month-item.open .month-items { display: block; }
+
+        /* ── 소비 기록 아이템 ── */
+        .consumption-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #222; cursor: pointer; }
+        .consumption-row:last-child { border-bottom: none; }
+        .consumption-info { flex: 1; }
+        .consumption-title { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+        .consumption-price { font-size: 13px; color: #888; }
+        .consumption-right { display: flex; align-items: center; gap: 8px; }
+        .result-badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; }
+        .result-badge.go { background: rgba(231,76,60,.15); color: #e74c3c; }
+        .result-badge.stop { background: rgba(74,144,217,.15); color: #4a90d9; }
+        .change-btn { font-size: 11px; color: #666; border: 1px solid #333; background: none; padding: 3px 8px; border-radius: 6px; cursor: pointer; }
+        .change-btn:hover { border-color: #555; color: #aaa; }
+
+        /* ── 게시글 카드 ── */
+        .post-card { background: #1a1a1a; border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; }
+        .post-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+        .post-meta { font-size: 12px; color: #666; display: flex; gap: 12px; }
+        .empty-msg { text-align: center; color: #555; font-size: 14px; padding: 40px 0; }
+
+        /* ── 약관 ── */
+        .terms-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid #1e1e1e; cursor: pointer; }
+        .terms-item:last-child { border-bottom: none; }
+        .terms-name { font-size: 15px; font-weight: 600; }
+        .terms-required { font-size: 11px; color: #e74c3c; margin-left: 6px; }
+        .terms-chevron { color: #555; }
+        .terms-detail { background: #1a1a1a; border-radius: 14px; padding: 18px; margin-top: 14px; display: none; }
+        .terms-detail.open { display: block; }
+        .terms-content { font-size: 13px; color: #aaa; line-height: 1.7; white-space: pre-wrap; }
+
+        /* ── 프로필 편집 화면 ── */
+        #profileEditScreen { display: flex; flex-direction: column; min-height: 100vh; max-width: 420px; margin: 0 auto; }
+        .edit-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #1e1e1e; }
+        .back-btn { background: none; border: none; color: #aaa; font-size: 20px; cursor: pointer; line-height: 1; }
+        .edit-header-title { font-size: 17px; font-weight: 700; }
+        .edit-body { padding: 20px; flex: 1; }
+
+        .edit-section { margin-bottom: 28px; }
+        .edit-section-label { font-size: 12px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px; }
+
+        .account-row { display: flex; align-items: center; gap: 10px; background: #1a1a1a; border-radius: 12px; padding: 14px 16px; }
+        .provider-badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; background: #252525; color: #aaa; }
+        .provider-badge.kakao { background: rgba(254,229,0,.15); color: #b8a500; }
+        .provider-badge.google { background: rgba(255,255,255,.1); color: #ccc; }
+        .provider-badge.naver { background: rgba(3,199,90,.15); color: #03C75A; }
+        .account-email { font-size: 13px; color: #888; }
+
+        .edit-field-row { display: flex; justify-content: space-between; align-items: center; background: #1a1a1a; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; }
+        .edit-field-value { font-size: 15px; font-weight: 600; }
+        .edit-toggle-btn { font-size: 13px; color: #4a90d9; background: none; border: none; cursor: pointer; font-weight: 600; }
+        .edit-input-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .edit-input { flex: 1; background: #1a1a1a; border: 1px solid #333; color: #fff; padding: 12px 14px; border-radius: 12px; font-size: 15px; }
+        .edit-input:focus { outline: none; border-color: #4a90d9; }
+
+        .danger-section { margin-top: 40px; }
+        .danger-btn { width: 100%; padding: 14px; border-radius: 14px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 10px; }
+        .danger-btn.logout { background: #252525; color: #aaa; }
+        .danger-btn.withdraw { background: rgba(231,76,60,.12); color: #e74c3c; border: 1px solid rgba(231,76,60,.3); }
+    </style>
 </head>
 <body>
 
-<h1>마이페이지 API 테스트</h1>
-<p>서버: <code>http://localhost:8080</code> | 로그인 먼저 해야 인증이 필요한 API가 동작합니다.</p>
-<hr>
+<!-- ① 로그인 화면 -->
+<div id="loginScreen" class="entry-screen">
+    <div class="entry-emoji">🦝</div>
+    <h1>마이페이지 테스트</h1>
+    <p>개발용 테스트 유저를 생성합니다</p>
+    <button id="loginBtn" class="primary-btn" onclick="createDevUser()">테스트 유저로 시작</button>
+    <p id="loginMsg" class="entry-msg"></p>
+</div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>0. 소셜 로그인</h2>
-<button onclick="location.href='/oauth2/authorization/google'">Google 로그인</button>
-<button onclick="location.href='/oauth2/authorization/kakao'">Kakao 로그인</button>
-<button onclick="location.href='/oauth2/authorization/naver'">Naver 로그인</button>
-<button onclick="call('POST','/api/logout')">로그아웃</button>
-<hr>
+<!-- ② 메인 화면 -->
+<div id="mainScreen" class="hidden">
+    <!-- 헤더 -->
+    <div class="main-header">
+        <div>
+            <div class="greeting" id="greetingNickname"></div>
+            <small id="greetingPostCount"></small>
+        </div>
+        <button class="edit-profile-btn" onclick="openProfileEdit()">프로필 편집 →</button>
+    </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>1. 내 정보 조회 GET /api/v1/users/me</h2>
-<button onclick="call('GET','/api/v1/users/me')">조회</button>
-<hr>
+    <!-- 알림 토글 -->
+    <div class="alarm-row">
+        <span class="alarm-label">🔔 알림</span>
+        <div class="toggle-wrap">
+            <span class="toggle-status" id="alarmStatus"></span>
+            <label class="toggle">
+                <input type="checkbox" id="alarmToggle" onchange="toggleAlarm(this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>2. 프로필 수정 PATCH /api/v1/users/me/profile</h2>
-<label>닉네임: <input id="profile-nickname" value="테스트닉네임"></label>
-<label>너구리 이름: <input id="profile-raccoon" value="너굴이"></label>
-<button onclick="call('PATCH','/api/v1/users/me/profile',{
-  nickname: v('profile-nickname'),
-  raccoonName: v('profile-raccoon')
-})">수정</button>
-<hr>
+    <!-- 탭 -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('consumption', this)">소비관리</button>
+        <button class="tab-btn" onclick="switchTab('posts', this)">나의 게시글</button>
+        <button class="tab-btn" onclick="switchTab('terms', this)">약관 및 정책</button>
+    </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>3. 월 예산 설정 PATCH /api/v1/users/me/budget</h2>
-<label>월 예산(원): <input id="budget" type="number" value="300000"></label>
-<button onclick="call('PATCH','/api/v1/users/me/budget',{
-  monthlyBudget: Number(v('budget'))
-})">설정</button>
-<hr>
+    <!-- ── 소비관리 탭 ── -->
+    <div id="tabConsumption" class="tab-content">
+        <!-- 이번 달 예산 카드 -->
+        <div class="card" id="budgetCard">
+            <div class="card-label">이번 달 예산</div>
+            <div class="budget-overview">
+                <div>
+                    <div style="font-size:13px;color:#888;margin-bottom:4px">사용 금액</div>
+                    <div class="budget-used" id="budgetUsed">-</div>
+                </div>
+                <div style="text-align:right">
+                    <div style="font-size:13px;color:#888;margin-bottom:4px">월 예산</div>
+                    <div class="budget-total" id="budgetTotal">-</div>
+                </div>
+            </div>
+            <div class="budget-bar">
+                <div class="budget-bar-fill" id="budgetBarFill" style="width:0%"></div>
+            </div>
+            <div class="budget-detail-row">
+                <span id="budgetPct">-</span>
+                <span id="budgetStats">-</span>
+            </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>4. 알림 설정 PATCH /api/v1/users/me/notification-settings</h2>
-<label>알림 수신:
-  <select id="noti">
-    <option value="true">ON</option>
-    <option value="false">OFF</option>
-  </select>
-</label>
-<button onclick="call('PATCH','/api/v1/users/me/notification-settings',{
-  notificationEnabled: document.getElementById('noti').value === 'true'
-})">변경</button>
-<hr>
+            <!-- 예산 수정 (보기 모드) -->
+            <div id="budgetViewRow" class="budget-edit-bar" style="margin-top:10px;justify-content:flex-end;">
+                <button class="sm-btn ghost" onclick="openBudgetEdit()">예산 수정</button>
+            </div>
+            <!-- 예산 수정 (편집 모드) -->
+            <div id="budgetEditRow" class="budget-edit-bar hidden">
+                <input type="number" id="budgetInput" placeholder="예산 입력 (원)" min="1">
+                <button class="sm-btn ghost" onclick="closeBudgetEdit()">취소</button>
+                <button class="sm-btn blue" onclick="saveBudget()">완료</button>
+            </div>
+        </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>5. 소비 통계 GET /api/v1/users/me/stats</h2>
-<label>년월(YYYY-MM): <input id="stats-ym" value="2026-04"></label>
-<button onclick="call('GET','/api/v1/users/me/stats?yearMonth='+v('stats-ym'))">조회</button>
-<hr>
+        <!-- 테스트 데이터 생성 버튼 -->
+        <div style="margin-bottom:16px;text-align:right">
+            <button class="sm-btn ghost" id="seedBtn" onclick="seedTestDecisions()">🧪 테스트 소비 데이터 생성</button>
+        </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>6. 소비 기록 GET /api/v1/users/me/wishes/history</h2>
-<label>상태:
-  <select id="history-status">
-    <option value="">전체</option>
-    <option value="GO">GO</option>
-    <option value="STOP">STOP</option>
-  </select>
-</label>
-<label>년월: <input id="history-ym" value="2026-04"></label>
-<label>page: <input id="history-page" type="number" value="0" style="width:40px"></label>
-<label>size: <input id="history-size" type="number" value="20" style="width:40px"></label>
-<button onclick="(function(){
-  let q='yearMonth='+v('history-ym')+'&page='+v('history-page')+'&size='+v('history-size');
-  let s=v('history-status'); if(s) q+='&status='+s;
-  call('GET','/api/v1/users/me/wishes/history?'+q);
-})()">조회</button>
-<hr>
+        <!-- 월별 기록 -->
+        <div class="card-label" style="margin-bottom:10px">월별 기록</div>
+        <div id="monthList"></div>
+    </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>7. 나의 게시글 GET /api/v1/users/me/posts</h2>
-<label>size: <input id="posts-size" type="number" value="20" style="width:40px"></label>
-<button onclick="call('GET','/api/v1/users/me/posts?size='+v('posts-size'))">조회</button>
-<hr>
+    <!-- ── 나의 게시글 탭 ── -->
+    <div id="tabPosts" class="tab-content hidden">
+        <div id="postList"></div>
+    </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>8. 내가 투표한 게시글 GET /api/v1/users/me/votes</h2>
-<button onclick="call('GET','/api/v1/users/me/votes')">조회</button>
-<hr>
+    <!-- ── 약관 및 정책 탭 ── -->
+    <div id="tabTerms" class="tab-content hidden">
+        <div id="termsList"></div>
+    </div>
+</div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>9. 약관 목록 GET /api/v1/terms</h2>
-<button onclick="call('GET','/api/v1/terms')">조회</button>
-<hr>
+<!-- ③ 프로필 편집 화면 -->
+<div id="profileEditScreen" class="hidden">
+    <div class="edit-header">
+        <button class="back-btn" onclick="closeProfileEdit()">←</button>
+        <span class="edit-header-title">프로필 편집</span>
+    </div>
+    <div class="edit-body">
+        <!-- 로그인 계정 -->
+        <div class="edit-section">
+            <div class="edit-section-label">로그인 계정</div>
+            <div class="account-row">
+                <span class="provider-badge" id="providerBadge">개발용</span>
+                <span class="account-email" id="accountEmail">이메일 정보 없음</span>
+            </div>
+        </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>10. 약관 단건 GET /api/v1/terms/{type}</h2>
-<label>타입:
-  <select id="terms-type">
-    <option value="SERVICE">SERVICE (서비스 이용약관)</option>
-    <option value="PRIVACY">PRIVACY (개인정보처리방침)</option>
-    <option value="MARKETING">MARKETING (마케팅 수신 동의)</option>
-  </select>
-</label>
-<button onclick="call('GET','/api/v1/terms/'+document.getElementById('terms-type').value)">조회</button>
-<hr>
+        <!-- 너구리 이름 -->
+        <div class="edit-section">
+            <div class="edit-section-label">너구리 이름</div>
+            <!-- 보기 모드 -->
+            <div class="edit-field-row" id="mascotViewRow">
+                <span class="edit-field-value" id="mascotNameDisplay"></span>
+                <button class="edit-toggle-btn" onclick="openFieldEdit('mascot')">수정</button>
+            </div>
+            <!-- 편집 모드 -->
+            <div class="edit-input-row hidden" id="mascotEditRow">
+                <input class="edit-input" id="mascotInput" placeholder="너구리 이름 (1~10자)" maxlength="10">
+                <button class="sm-btn ghost" onclick="closeFieldEdit('mascot')">취소</button>
+                <button class="sm-btn blue" onclick="saveField('mascot')">완료</button>
+            </div>
+        </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>11. 계정 탈퇴 DELETE /api/v1/users/me</h2>
-<p style="color:red">⚠ 모든 데이터가 삭제됩니다. 신중하게 누르세요.</p>
-<button onclick="if(confirm('정말 탈퇴하시겠습니까?')) call('DELETE','/api/v1/users/me')">탈퇴</button>
-<hr>
+        <!-- 닉네임 -->
+        <div class="edit-section">
+            <div class="edit-section-label">닉네임</div>
+            <div class="edit-field-row" id="nicknameViewRow">
+                <span class="edit-field-value" id="nicknameDisplay"></span>
+                <button class="edit-toggle-btn" onclick="openFieldEdit('nickname')">수정</button>
+            </div>
+            <div class="edit-input-row hidden" id="nicknameEditRow">
+                <input class="edit-input" id="nicknameInput" placeholder="닉네임 (1~10자, 한/영/숫자)" maxlength="10">
+                <button class="sm-btn ghost" onclick="closeFieldEdit('nickname')">취소</button>
+                <button class="sm-btn blue" onclick="saveField('nickname')">완료</button>
+            </div>
+        </div>
 
-<!-- ───────────────────────────────────────────────── -->
-<h2>결과</h2>
-<pre id="result" style="background:#f4f4f4;padding:12px;min-height:60px;white-space:pre-wrap;word-break:break-all"></pre>
+        <!-- 로그아웃 / 탈퇴 -->
+        <div class="danger-section">
+            <button class="danger-btn logout" onclick="doLogout()">로그아웃</button>
+            <button class="danger-btn withdraw" onclick="doWithdraw()">회원 탈퇴</button>
+        </div>
+    </div>
+</div>
 
 <script>
-  function v(id) { return document.getElementById(id).value; }
+    let devUserId  = null;
+    let profileData = null;
+    let statsData   = null;
+    let monthsData  = null;
+    const fmt = n => n == null ? '-' : Number(n).toLocaleString() + '원';
 
-  async function call(method, url, body) {
-    const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(url, opts);
-    const text = await res.text();
-    let parsed;
-    try { parsed = JSON.parse(text); } catch(e) { parsed = text; }
-    document.getElementById('result').textContent =
-      method + ' ' + url + '\n' +
-      'HTTP ' + res.status + '\n\n' +
-      (typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2));
-  }
+    function authH() {
+        const h = { 'Content-Type': 'application/json' };
+        if (devUserId) h['X-User-Id'] = devUserId;
+        return h;
+    }
+
+    function show(id) {
+        ['loginScreen','mainScreen','profileEditScreen'].forEach(s =>
+            document.getElementById(s).classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+        window.scrollTo(0, 0);
+    }
+
+    // ── 유저 생성 ──────────────────────────────────────
+    async function createDevUser() {
+        const btn = document.getElementById('loginBtn');
+        const msg = document.getElementById('loginMsg');
+        btn.disabled = true; btn.textContent = '생성 중...';
+        try {
+            const res = await fetch('/api/dev/users/test', { method: 'POST' });
+            if (!res.ok) { msg.textContent = '실패: ' + res.status; btn.disabled = false; btn.textContent = '테스트 유저로 시작'; return; }
+            const data = await res.json();
+            devUserId = data.userId;
+            await loadMainScreen();
+            show('mainScreen');
+        } catch (e) {
+            msg.textContent = '오류: ' + e.message; btn.disabled = false; btn.textContent = '테스트 유저로 시작';
+        }
+    }
+
+    // ── 메인 화면 데이터 로드 ───────────────────────────
+    async function loadMainScreen() {
+        await Promise.all([loadProfile(), loadNotification(), loadStats(), loadMonths()]);
+    }
+
+    async function loadProfile() {
+        const res = await fetch('/api/v1/users/me', { headers: authH() });
+        if (!res.ok) return;
+        profileData = await res.json();
+        const nick = profileData.nickname ?? '사용자';
+        document.getElementById('greetingNickname').textContent = nick + '님 안녕하세요 👋';
+        document.getElementById('greetingPostCount').textContent = `게시글 ${profileData.postCount ?? 0}개`;
+        document.getElementById('mascotNameDisplay').textContent = profileData.mascotName ?? '너구리';
+        document.getElementById('nicknameDisplay').textContent   = nick;
+        const providerRaw = profileData.provider ?? '';
+        const badge = document.getElementById('providerBadge');
+        badge.textContent = providerRaw ? providerRaw.charAt(0).toUpperCase() + providerRaw.slice(1) : '개발용';
+        badge.className = 'provider-badge ' + (providerRaw || '');
+        document.getElementById('accountEmail').textContent = profileData.email ?? '이메일 정보 없음';
+    }
+
+    async function loadNotification() {
+        const res = await fetch('/api/v1/users/me/notification-settings', { headers: authH() });
+        if (!res.ok) return;
+        const data = await res.json();
+        const chk = document.getElementById('alarmToggle');
+        chk.checked = data.notificationEnabled;
+        document.getElementById('alarmStatus').textContent = data.notificationEnabled ? 'ON' : 'OFF';
+    }
+
+    async function loadStats() {
+        const res = await fetch('/api/v1/users/me/stats', { headers: authH() });
+        if (!res.ok) return;
+        statsData = await res.json();
+        renderBudgetCard();
+    }
+
+    async function loadMonths() {
+        const res = await fetch('/api/v1/users/me/stats/months', { headers: authH() });
+        if (!res.ok) return;
+        monthsData = await res.json();
+        renderMonthList();
+    }
+
+    // ── 예산 카드 렌더링 ────────────────────────────────
+    function renderBudgetCard() {
+        if (!statsData) return;
+        const { budgetAmount, spentAmount, usageRate, boughtCount, restrainedCount } = statsData;
+        document.getElementById('budgetUsed').textContent  = fmt(spentAmount);
+        document.getElementById('budgetTotal').textContent = budgetAmount ? fmt(budgetAmount) : '미설정';
+        const pct = usageRate != null ? usageRate : 0;
+        const bar = document.getElementById('budgetBarFill');
+        bar.style.width = Math.min(100, pct) + '%';
+        bar.className = 'budget-bar-fill' + (pct >= 100 ? ' over' : pct >= 80 ? ' warn' : '');
+        document.getElementById('budgetPct').textContent = budgetAmount ? pct.toFixed(1) + '% 사용' : '-';
+        document.getElementById('budgetStats').textContent = `구매 ${boughtCount}건 / 절제 ${restrainedCount}건`;
+        if (budgetAmount) document.getElementById('budgetInput').value = budgetAmount;
+    }
+
+    // ── 예산 수정 ────────────────────────────────────────
+    function openBudgetEdit() {
+        document.getElementById('budgetViewRow').classList.add('hidden');
+        document.getElementById('budgetEditRow').classList.remove('hidden');
+        document.getElementById('budgetInput').focus();
+    }
+    function closeBudgetEdit() {
+        document.getElementById('budgetViewRow').classList.remove('hidden');
+        document.getElementById('budgetEditRow').classList.add('hidden');
+    }
+    async function saveBudget() {
+        const val = parseInt(document.getElementById('budgetInput').value);
+        if (!val || val < 1) { alert('올바른 예산을 입력해주세요.'); return; }
+        const res = await fetch('/api/v1/users/me/budget', {
+            method: 'PATCH', headers: authH(), body: JSON.stringify({ monthlyBudget: val })
+        });
+        if (!res.ok) { alert('저장 실패: ' + res.status); return; }
+        closeBudgetEdit();
+        await loadStats();
+    }
+
+    // ── 월별 기록 ────────────────────────────────────────
+    function renderMonthList() {
+        if (!monthsData) return;
+        const list = document.getElementById('monthList');
+        list.innerHTML = monthsData.months.map(m => `
+            <div class="month-item" id="month-${m}" onclick="toggleMonth('${m}', this)">
+                <div class="month-header">
+                    <span class="month-title">${m} ${m === monthsData.currentMonth ? '<span style="font-size:11px;color:#4a90d9">이번 달</span>' : ''}</span>
+                    <span class="month-chevron">›</span>
+                </div>
+                <div class="month-items" id="items-${m}">
+                    <div style="color:#555;font-size:13px;text-align:center;padding:10px">불러오는 중...</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function toggleMonth(month, el) {
+        const isOpen = el.classList.contains('open');
+        if (isOpen) { el.classList.remove('open'); return; }
+        el.classList.add('open');
+        const container = document.getElementById('items-' + month);
+        const res = await fetch(`/api/v1/my/consumption?month=${month}`, { headers: authH() });
+        if (!res.ok) { container.innerHTML = `<div style="color:#e74c3c;font-size:13px">로드 실패: ${res.status}</div>`; return; }
+        const data = await res.json();
+        if (!data.items || data.items.length === 0) {
+            container.innerHTML = '<div class="empty-msg" style="padding:12px 0">이번 달 소비 기록이 없습니다</div>';
+            return;
+        }
+        container.innerHTML = data.items.map(item => `
+            <div class="consumption-row">
+                <div class="consumption-info">
+                    <div class="consumption-title">${item.itemTitle}</div>
+                    <div class="consumption-price">${fmt(item.price)} · ${formatDate(item.decidedAt)}${item.isChanged ? ' <span style="color:#f39c12;font-size:11px">수정됨</span>' : ''}</div>
+                </div>
+                <div class="consumption-right">
+                    <span class="result-badge ${item.result === 'GO' ? 'go' : 'stop'}">${item.result === 'GO' ? '구매' : '절제'}</span>
+                    <button class="change-btn" onclick="changeDecision('${item.id}', '${item.result}', '${month}', event)">변경</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function changeDecision(decisionId, currentResult, month, event) {
+        event.stopPropagation();
+        const newResult = currentResult === 'GO' ? 'STOP' : 'GO';
+        if (!confirm(`"${currentResult === 'GO' ? '구매 → 절제' : '절제 → 구매'}"로 변경하시겠습니까?\n예산에도 반영됩니다.`)) return;
+        const res = await fetch(`/api/v1/my/consumption/${decisionId}`, {
+            method: 'PATCH', headers: authH(), body: JSON.stringify({ result: newResult })
+        });
+        if (!res.ok) { alert('변경 실패: ' + res.status); return; }
+        const monthEl = document.getElementById('month-' + month);
+        monthEl.classList.remove('open');
+        await Promise.all([loadStats(), toggleMonth(month, monthEl)]);
+    }
+
+    // ── 테스트 소비 데이터 생성 ───────────────────────────
+    async function seedTestDecisions() {
+        const btn = document.getElementById('seedBtn');
+        btn.disabled = true; btn.textContent = '생성 중...';
+        const res = await fetch('/api/dev/decisions/test', { method: 'POST', headers: authH() });
+        if (!res.ok) { alert('생성 실패: ' + res.status); btn.disabled = false; btn.textContent = '🧪 테스트 소비 데이터 생성'; return; }
+        const data = await res.json();
+        btn.textContent = `✅ ${data.created}건 생성됨`;
+        await Promise.all([loadStats(), loadMonths()]);
+    }
+
+    // ── 알림 토글 ───────────────────────────────────────
+    async function toggleAlarm(enabled) {
+        document.getElementById('alarmStatus').textContent = enabled ? 'ON' : 'OFF';
+        const res = await fetch('/api/v1/users/me/notification-settings', {
+            method: 'PATCH', headers: authH(), body: JSON.stringify({ notificationEnabled: enabled })
+        });
+        if (!res.ok) { alert('저장 실패'); document.getElementById('alarmToggle').checked = !enabled; }
+    }
+
+    // ── 탭 전환 ─────────────────────────────────────────
+    async function switchTab(tab, btn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        ['tabConsumption','tabPosts','tabTerms'].forEach(id => document.getElementById(id).classList.add('hidden'));
+        document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('hidden');
+
+        if (tab === 'posts') await loadPosts();
+        if (tab === 'terms') await loadTerms();
+    }
+
+    // ── 나의 게시글 ──────────────────────────────────────
+    async function loadPosts() {
+        const res = await fetch('/api/v1/users/me/posts?size=20', { headers: authH() });
+        const container = document.getElementById('postList');
+        if (!res.ok) { container.innerHTML = `<div class="empty-msg">로드 실패: ${res.status}</div>`; return; }
+        const data = await res.json();
+        if (!data.posts || data.posts.length === 0) {
+            container.innerHTML = '<div class="empty-msg">작성한 게시글이 없습니다</div>'; return;
+        }
+        container.innerHTML = data.posts.map(p => `
+            <div class="post-card">
+                <div class="post-title">${p.title}</div>
+                <div class="post-meta">
+                    <span>GO ${p.goCount ?? 0}</span>
+                    <span>STOP ${p.stopCount ?? 0}</span>
+                    <span>${formatDate(p.createdAt)}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ── 약관 및 정책 ─────────────────────────────────────
+    async function loadTerms() {
+        const res = await fetch('/api/v1/terms');
+        const container = document.getElementById('termsList');
+        if (!res.ok) { container.innerHTML = '<div class="empty-msg">로드 실패</div>'; return; }
+        const terms = await res.json();
+        container.innerHTML = terms.map(t => `
+            <div class="terms-item" onclick="toggleTermsDetail('${t.type}', this)">
+                <span class="terms-name">${t.title}${t.required ? '<span class="terms-required">(필수)</span>' : ''}</span>
+                <span class="terms-chevron">›</span>
+            </div>
+            <div class="terms-detail" id="terms-${t.type}">
+                <div class="terms-content" id="terms-content-${t.type}">불러오는 중...</div>
+            </div>
+        `).join('');
+    }
+
+    async function toggleTermsDetail(type, headerEl) {
+        const detail = document.getElementById('terms-' + type);
+        const isOpen = detail.classList.contains('open');
+        document.querySelectorAll('.terms-detail').forEach(d => d.classList.remove('open'));
+        if (!isOpen) {
+            detail.classList.add('open');
+            const res = await fetch('/api/v1/terms/' + type);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('terms-content-' + type).textContent = data.content ?? '';
+            }
+        }
+    }
+
+    // ── 프로필 편집 화면 ─────────────────────────────────
+    function openProfileEdit() { show('profileEditScreen'); }
+    function closeProfileEdit() { show('mainScreen'); }
+
+    function openFieldEdit(field) {
+        const viewRow  = document.getElementById(field === 'mascot' ? 'mascotViewRow'  : 'nicknameViewRow');
+        const editRow  = document.getElementById(field === 'mascot' ? 'mascotEditRow'  : 'nicknameEditRow');
+        const input    = document.getElementById(field === 'mascot' ? 'mascotInput'    : 'nicknameInput');
+        const display  = document.getElementById(field === 'mascot' ? 'mascotNameDisplay' : 'nicknameDisplay');
+        input.value = display.textContent;
+        viewRow.classList.add('hidden');
+        editRow.classList.remove('hidden');
+        input.focus();
+    }
+
+    function closeFieldEdit(field) {
+        document.getElementById(field === 'mascot' ? 'mascotViewRow'  : 'nicknameViewRow').classList.remove('hidden');
+        document.getElementById(field === 'mascot' ? 'mascotEditRow'  : 'nicknameEditRow').classList.add('hidden');
+    }
+
+    async function saveField(field) {
+        const input = document.getElementById(field === 'mascot' ? 'mascotInput' : 'nicknameInput');
+        const val = input.value.trim();
+        if (!val) { alert('값을 입력해주세요.'); return; }
+        const body = field === 'mascot'
+            ? { raccoonName: val, nickname: document.getElementById('nicknameDisplay').textContent }
+            : { nickname: val, raccoonName: document.getElementById('mascotNameDisplay').textContent };
+        const res = await fetch('/api/v1/users/me/profile', {
+            method: 'PATCH', headers: authH(), body: JSON.stringify(body)
+        });
+        if (!res.ok) { const t = await res.text(); alert('저장 실패: ' + t); return; }
+        const data = await res.json();
+        document.getElementById('mascotNameDisplay').textContent  = data.mascotName ?? '';
+        document.getElementById('nicknameDisplay').textContent    = data.nickname ?? '';
+        document.getElementById('greetingNickname').textContent   = (data.nickname ?? '사용자') + '님 안녕하세요 👋';
+        closeFieldEdit(field);
+    }
+
+    // ── 로그아웃 / 탈퇴 ─────────────────────────────────
+    async function doLogout() {
+        if (!confirm('로그아웃하시겠습니까?')) return;
+        await fetch('/api/logout', { method: 'POST', headers: authH() });
+        devUserId = null;
+        show('loginScreen');
+        document.getElementById('loginBtn').disabled = false;
+        document.getElementById('loginBtn').textContent = '테스트 유저로 시작';
+    }
+
+    async function doWithdraw() {
+        if (!confirm('정말 탈퇴하시겠습니까?\n모든 데이터가 삭제됩니다.')) return;
+        const res = await fetch('/api/v1/users/me', { method: 'DELETE', headers: authH() });
+        if (!res.ok) { alert('탈퇴 실패: ' + res.status); return; }
+        devUserId = null;
+        show('loginScreen');
+        document.getElementById('loginBtn').disabled = false;
+        document.getElementById('loginBtn').textContent = '테스트 유저로 시작';
+    }
+
+    // ── 유틸 ─────────────────────────────────────────────
+    function formatDate(iso) {
+        if (!iso) return '';
+        return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    }
+
+    show('loginScreen');
 </script>
-
 </body>
 </html>
