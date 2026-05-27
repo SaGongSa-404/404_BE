@@ -101,7 +101,7 @@ Cases:
 - encoded cursors include `createdAt` and `id` tie-breaker.
 - current cursor format parses with tie-breaker.
 - legacy `createdAt`-only cursor remains readable.
-- malformed cursor input fails with a bad request exception.
+- blank and malformed cursor input fail with a bad request exception when parsed directly.
 
 ### TC4. Decision Request Validation Unit Tests
 
