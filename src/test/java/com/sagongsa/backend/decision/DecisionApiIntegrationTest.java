@@ -260,6 +260,41 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void rejectsUnknownSelfCheckQuestionCodeOnUpdate() throws Exception {
+		UUID userId = createReadyUser();
+		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 0);
+		UUID itemId = insertSavedItem(userId, "Update bad question target", "LIVING", "SAVED", 50_000);
+
+		String body = mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", 50_000, true, false, false, false)))
+			.andExpect(status().isCreated())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		String decisionId = objectMapper.readTree(body).get("decisionId").asText();
+
+		mockMvc.perform(patch(DECISIONS_PATH + "/{decisionId}/result", decisionId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"result": "GO",
+					"finalPrice": 50000,
+					"selfCheckAnswers": [
+						{"questionCode": "NEED", "answerBoolean": true},
+						{"questionCode": "BUDGET", "answerBoolean": false},
+						{"questionCode": "UNKNOWN", "answerBoolean": false},
+						{"questionCode": "DELAY", "answerBoolean": false}
+					]
+				}
+				"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
 	void blocksNonSavedItemDecision() throws Exception {
 		UUID userId = createReadyUser();
 		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 0);
