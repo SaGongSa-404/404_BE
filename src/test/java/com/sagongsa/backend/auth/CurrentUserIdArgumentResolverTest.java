@@ -26,9 +26,9 @@ class CurrentUserIdArgumentResolverTest {
 	void supportsOnlyCurrentUserIdUuidParameters() throws Exception {
 		CurrentUserIdArgumentResolver resolver = resolver(false, "prod");
 
-		assertThat(resolver.supportsParameter(parameter("annotatedUuid"))).isTrue();
-		assertThat(resolver.supportsParameter(parameter("plainUuid"))).isFalse();
-		assertThat(resolver.supportsParameter(parameter("annotatedString"))).isFalse();
+		assertThat(resolver.supportsParameter(parameter("annotatedUuid", UUID.class))).isTrue();
+		assertThat(resolver.supportsParameter(parameter("plainUuid", UUID.class))).isFalse();
+		assertThat(resolver.supportsParameter(parameter("annotatedString", String.class))).isFalse();
 	}
 
 	@Test
@@ -117,8 +117,8 @@ class CurrentUserIdArgumentResolverTest {
 		return new JwtAuthenticationToken(builder.build());
 	}
 
-	private static MethodParameter parameter(String methodName) throws Exception {
-		Method method = TestController.class.getDeclaredMethod(methodName, methodName.equals("annotatedString") ? String.class : UUID.class);
+	private static MethodParameter parameter(String methodName, Class<?> parameterType) throws Exception {
+		Method method = TestController.class.getDeclaredMethod(methodName, parameterType);
 		return new MethodParameter(method, 0);
 	}
 
