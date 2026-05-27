@@ -54,7 +54,7 @@ public class DecisionService {
 			throw new DecisionConflictException("Only saved wishlist items can be decided.");
 		}
 		if (decisionExists(item.id())) {
-			throw new DecisionConflictException("Purchase decision already exists for this item.");
+			return getResult(userId, findDecisionIdByItemId(item.id()));
 		}
 
 		ZoneId zoneId = zoneId(user.timezone());
@@ -325,6 +325,14 @@ public class DecisionService {
 			itemId
 		);
 		return Boolean.TRUE.equals(exists);
+	}
+
+	private UUID findDecisionIdByItemId(UUID itemId) {
+		return jdbcTemplate.queryForObject(
+			"select id from purchase_decisions where item_id = ?",
+			UUID.class,
+			itemId
+		);
 	}
 
 	private BudgetCycle lockBudgetCycle(UUID userId, String yearMonth) {
