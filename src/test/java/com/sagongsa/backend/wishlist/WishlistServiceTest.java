@@ -7,7 +7,6 @@ import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,15 +70,18 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void rejectsDirectInputWithoutUrl() {
+	void acceptsDirectInputWithoutUrl() {
 		UUID userId = createActiveUser();
 
-		assertThatThrownBy(() -> wishlistService.create(userId, new WishlistItemCreateRequest(
+		WishlistItemResponse response = wishlistService.create(userId, new WishlistItemCreateRequest(
 			"DIRECT_INPUT", null, null, "직접 입력 상품", null,
 			29000, "KRW", "FASHION", null, false,
 			null, null, null, null, null
-		)))
-			.isInstanceOf(BadRequestException.class);
+		));
+
+		assertThat(response.originalUrl()).isNull();
+		assertThat(response.normalizedUrl()).isNull();
+		assertThat(response.status()).isEqualTo("SAVED");
 	}
 
 	@Test
@@ -186,9 +188,9 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 	void returnsEmptyListWhenNoItemsSaved() {
 		UUID userId = createActiveUser();
 
-		List<WishlistItemResponse> items = wishlistService.list(userId, null);
+		WishlistItemPageResponse response = wishlistService.list(userId, null, null, null);
 
-		assertThat(items).isEmpty();
+		assertThat(response.items()).isEmpty();
 	}
 
 	@Test
@@ -197,11 +199,11 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 		wishlistService.create(userId, shareRequest("https://shop.example.com/a", "상품 A"));
 		wishlistService.create(userId, shareRequest("https://shop.example.com/b", "상품 B"));
 
-		List<WishlistItemResponse> items = wishlistService.list(userId, null);
+		WishlistItemPageResponse response = wishlistService.list(userId, null, null, null);
 
-		assertThat(items).hasSize(2);
-		assertThat(items.get(0).title()).isEqualTo("상품 B");
-		assertThat(items.get(1).title()).isEqualTo("상품 A");
+		assertThat(response.items()).hasSize(2);
+		assertThat(response.items().get(0).title()).isEqualTo("상품 B");
+		assertThat(response.items().get(1).title()).isEqualTo("상품 A");
 	}
 
 	@Test
@@ -214,17 +216,17 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 			null, null, null, null, null
 		));
 
-		List<WishlistItemResponse> items = wishlistService.list(userId, "DIGITAL");
+		WishlistItemPageResponse response = wishlistService.list(userId, "DIGITAL", null, null);
 
-		assertThat(items).hasSize(1);
-		assertThat(items.getFirst().category()).isEqualTo("DIGITAL");
+		assertThat(response.items()).hasSize(1);
+		assertThat(response.items().getFirst().category()).isEqualTo("DIGITAL");
 	}
 
 	@Test
 	void rejectsInvalidCategoryOnList() {
 		UUID userId = createActiveUser();
 
-		assertThatThrownBy(() -> wishlistService.list(userId, "INVALID_CATEGORY"))
+		assertThatThrownBy(() -> wishlistService.list(userId, "INVALID_CATEGORY", null, null))
 			.isInstanceOf(BadRequestException.class);
 	}
 
@@ -235,9 +237,9 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 			shareRequest("https://shop.example.com/a", "상품"));
 		wishlistService.drop(userId, created.id());
 
-		List<WishlistItemResponse> items = wishlistService.list(userId, null);
+		WishlistItemPageResponse response = wishlistService.list(userId, null, null, null);
 
-		assertThat(items).isEmpty();
+		assertThat(response.items()).isEmpty();
 	}
 
 	// ── TC5: 단건 조회 / 삭제 ─────────────────────────────────────────────
