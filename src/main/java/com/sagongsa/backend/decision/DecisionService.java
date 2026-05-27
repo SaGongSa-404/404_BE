@@ -50,11 +50,11 @@ public class DecisionService {
 		NormalizedDecisionRequest normalized = normalize(request);
 		UserContext user = requireDecisionUser(userId);
 		SavedItem item = lockSavedItem(userId, normalized.itemId());
-		if (!Objects.equals(item.status(), "SAVED")) {
-			throw new DecisionConflictException("Only saved wishlist items can be decided.");
-		}
 		if (decisionExists(item.id())) {
 			return getResult(userId, findDecisionIdByItemId(item.id()));
+		}
+		if (!Objects.equals(item.status(), "SAVED")) {
+			throw new DecisionConflictException("Only saved wishlist items can be decided.");
 		}
 
 		ZoneId zoneId = zoneId(user.timezone());
