@@ -108,6 +108,26 @@ class DecisionServiceUnitTest {
 		verifyNoInteractions(jdbcTemplate);
 	}
 
+	@Test
+	void updateRejectsUnknownSelfCheckQuestionCodeBeforeDatabaseAccess() {
+		DecisionResultUpdateRequest request = new DecisionResultUpdateRequest(
+			"GO",
+			10000,
+			null,
+			List.of(
+				updateAnswer("NEED", true),
+				updateAnswer("BUDGET", false),
+				updateAnswer("UNKNOWN", true),
+				updateAnswer("DELAY", false)
+			)
+		);
+
+		assertThatThrownBy(() -> service.updateResult(USER_ID, DECISION_ID, request))
+			.isInstanceOf(DecisionBadRequestException.class)
+			.hasMessage("questionCode must be one of NEED, BUDGET, ALTERNATIVE, DELAY.");
+		verifyNoInteractions(jdbcTemplate);
+	}
+
 	private static DecisionCompleteRequest completeRequest(List<SelfCheckAnswerRequest> answers) {
 		return new DecisionCompleteRequest(ITEM_ID, "GO", 10000, null, answers);
 	}

@@ -109,8 +109,8 @@ Purpose: catch decision input mistakes before database access.
 
 Cases:
 
-- duplicated self-check question code is rejected.
-- unknown self-check question code is rejected.
+- duplicated self-check question code is rejected on complete and update paths.
+- unknown self-check question code is rejected on complete and update paths.
 - `rationaleText` and `changeReason` enforce the 1000 character limit.
 
 ## Deferred Stacked PR Scope
