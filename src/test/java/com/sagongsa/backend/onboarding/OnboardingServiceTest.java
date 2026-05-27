@@ -161,6 +161,7 @@ class OnboardingServiceTest extends PostgreSqlContainerTest {
 		assertThat(queryCount("select count(*) from user_profiles where user_id = ?", userId)).isEqualTo(1);
 		assertThat(queryCount("select count(*) from budget_cycles where user_id = ?", userId)).isEqualTo(1);
 		assertThat(queryCount("select count(*) from survey_response_sets where user_id = ?", userId)).isEqualTo(1);
+		assertThat(queryCount("select count(*) from survey_answers a join survey_response_sets s on s.id = a.response_set_id where s.user_id = ?", userId)).isEqualTo(1);
 		assertThat(queryCount("select count(*) from mascot_profiles where user_id = ?", userId)).isEqualTo(1);
 	}
 
