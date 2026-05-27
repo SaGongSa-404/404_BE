@@ -89,6 +89,36 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void returnsExistingDecisionResultWhenCompletingSameItemAgain() throws Exception {
+		UUID userId = createReadyUser();
+		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 90_000);
+		UUID itemId = insertSavedItem(userId, "Idempotent target", "FASHION", "SAVED", 15_000);
+
+		String firstBody = mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", null, true, false, false, false)))
+			.andExpect(status().isCreated())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		String firstDecisionId = objectMapper.readTree(firstBody).get("decisionId").asText();
+
+		String secondBody = mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", null, true, false, false, false)))
+			.andExpect(status().isCreated())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		String secondDecisionId = objectMapper.readTree(secondBody).get("decisionId").asText();
+
+		assertThat(secondDecisionId).isEqualTo(firstDecisionId);
+		assertThat(queryInteger("select count(*) from purchase_decisions where item_id = ?", itemId)).isEqualTo(1);
+	}
+
+	@Test
 	void completesStopIrrationalDecisionWithoutBudgetOrReminder() throws Exception {
 		UUID userId = createReadyUser();
 		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
