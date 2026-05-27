@@ -12,6 +12,8 @@ public record DecisionResultResponse(
 	Integer finalPrice,
 	String budgetYearMonth,
 	Integer budgetAfterAmount,
+	boolean budgetExhaustedAfter,
+	boolean budgetBecameExhausted,
 	Integer similarCategorySpendAmount,
 	int selfCheckYesCount,
 	String rationalityResult,

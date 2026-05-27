@@ -159,6 +159,8 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.itemStatus").value("STOP"))
 			.andExpect(jsonPath("$.result").value("STOP"))
 			.andExpect(jsonPath("$.budgetAfterAmount").value(60_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(false))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(false))
 			.andExpect(jsonPath("$.selfCheckYesCount").value(3))
 			.andExpect(jsonPath("$.rationalityResult").value("IRRATIONAL"))
 			.andExpect(jsonPath("$.reminder.status").value("CANCELED"))
@@ -170,6 +172,34 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 		assertThat(queryInteger("select count(*) from purchase_decision_change_logs where decision_id = ?", decisionId)).isEqualTo(1);
 		assertThat(queryString("select status from reminder_schedules where decision_id = ?", decisionId)).isEqualTo("CANCELED");
 		assertThat(queryInteger("select count(*) from mascot_state_events where decision_id = ?", decisionId)).isEqualTo(1);
+	}
+
+	@Test
+	void returnsBudgetExhaustionWhenConsumptionRecordUpdateCrossesBudgetLimit() throws Exception {
+		UUID userId = createReadyUser();
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+		UUID budgetCycleId = insertBudgetCycle(userId, yearMonth, 100_000, 90_000);
+		UUID itemId = insertSavedItem(userId, "예산 소진 상품", "FASHION", "STOP", 20_000);
+		UUID decisionId = insertDecision(userId, itemId, "STOP", 20_000, "RATIONAL", 1, budgetCycleId);
+		insertSelfCheck(decisionId, 1, "RATIONAL", true, false, false, false);
+
+		mockMvc.perform(patch("/api/v1/decisions/{decisionId}/result", decisionId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"result": "GO",
+					"finalPrice": 20000,
+					"changeReason": "결국 구매했어요"
+				}
+				"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.itemStatus").value("GO"))
+			.andExpect(jsonPath("$.budgetAfterAmount").value(110_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(true))
+			.andExpect(jsonPath("$.budgetBecameExhausted").value(true));
+
+		assertThat(queryInteger("select spent_amount from budget_cycles where id = ?", budgetCycleId)).isEqualTo(110_000);
 	}
 
 	private UUID createReadyUser() {

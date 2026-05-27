@@ -74,6 +74,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(500_000))
 			.andExpect(jsonPath("$.budget.spentAmount").value(125_000))
+			.andExpect(jsonPath("$.budget.remainingAmount").value(375_000))
 			.andExpect(jsonPath("$.budget.warningThresholdRate").value(80.00))
 			.andExpect(jsonPath("$.budget.exhausted").value(false))
 			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(false))
@@ -102,6 +103,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(0))
 			.andExpect(jsonPath("$.budget.spentAmount").value(0))
+			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
 			.andExpect(jsonPath("$.budget.warningThresholdRate").value(0))
 			.andExpect(jsonPath("$.budget.exhausted").value(false))
 			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(false))
@@ -126,6 +128,52 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.rationalChoiceRate").value(50.00));
+	}
+
+	@Test
+	void returnsBudgetExhaustedWhenSpentReachesCurrentMonthBudget() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000110");
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 100_000, 100_000, new BigDecimal("80.00"));
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
+			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(100_000))
+			.andExpect(jsonPath("$.budget.spentAmount").value(100_000))
+			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
+			.andExpect(jsonPath("$.budget.exhausted").value(true))
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true));
+	}
+
+	@Test
+	void clampsRemainingAmountWhenBudgetIsOverspent() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000106");
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 100_000, 120_000, new BigDecimal("80.00"));
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
+			.andExpect(jsonPath("$.budget.exhausted").value(true));
+	}
+
+	@Test
+	void doesNotTreatZeroBudgetAsExhausted() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000107");
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 0, 10_000, new BigDecimal("80.00"));
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
+			.andExpect(jsonPath("$.budget.exhausted").value(false));
 	}
 
 	@Test
