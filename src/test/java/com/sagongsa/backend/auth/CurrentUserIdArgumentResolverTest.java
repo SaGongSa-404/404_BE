@@ -62,7 +62,7 @@ class CurrentUserIdArgumentResolverTest {
 	}
 
 	@Test
-	void rejectsMalformedTrustedHeaderWhenPrincipalIsMissing() {
+	void rejectsMalformedTrustedHeaderWhenExplicitlyEnabledInProdAndPrincipalIsMissing() {
 		CurrentUserIdArgumentResolver resolver = resolver(true, "prod");
 		NativeWebRequest request = request(null, "not-a-uuid");
 
@@ -73,7 +73,7 @@ class CurrentUserIdArgumentResolverTest {
 	}
 
 	@Test
-	void requiresTrustedHeaderWhenEnabledAndPrincipalIsMissing() {
+	void requiresTrustedHeaderWhenExplicitlyEnabledInProdAndPrincipalIsMissing() {
 		CurrentUserIdArgumentResolver resolver = resolver(true, "prod");
 		NativeWebRequest request = request(null, null);
 

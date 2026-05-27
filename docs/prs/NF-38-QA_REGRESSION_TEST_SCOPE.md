@@ -78,6 +78,7 @@ Cases:
 
 - JWT principal is used before `X-User-Id` when both are present.
 - malformed trusted header is rejected when no principal exists.
+- explicitly enabled trusted header in prod keeps returning BAD_REQUEST for malformed or missing header input.
 - JWT subject is used when the explicit `userId` claim is missing.
 - non-prod trusted-header fallback is allowed when no principal exists.
 - prod without principal/header fails with the expected auth status.
