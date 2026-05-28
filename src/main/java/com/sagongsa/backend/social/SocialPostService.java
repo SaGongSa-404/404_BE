@@ -32,19 +32,22 @@ class SocialPostService {
 	private final UserAccountRepository userAccountRepository;
 	private final UserProfileRepository userProfileRepository;
 	private final SavedItemRepository savedItemRepository;
+	private final BlockService blockService;
 
 	SocialPostService(FeedPostRepository feedPostRepository,
 		PostVoteRepository postVoteRepository,
 		PostCommentRepository postCommentRepository,
 		UserAccountRepository userAccountRepository,
 		UserProfileRepository userProfileRepository,
-		SavedItemRepository savedItemRepository) {
+		SavedItemRepository savedItemRepository,
+		BlockService blockService) {
 		this.feedPostRepository = feedPostRepository;
 		this.postVoteRepository = postVoteRepository;
 		this.postCommentRepository = postCommentRepository;
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
 		this.savedItemRepository = savedItemRepository;
+		this.blockService = blockService;
 	}
 
 	@Transactional
@@ -55,14 +58,18 @@ class SocialPostService {
 		feedPostRepository.save(post);
 		String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-		return PostResponse.of(post, authorNickname, 0, null);
+		return PostResponse.of(post, authorNickname, 0, null, userId);
 	}
 
 	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
-		List<FeedPost> posts = cursor != null
-			? feedPostRepository.findAllVisibleBefore(cursor, pageable)
-			: feedPostRepository.findAllVisible(pageable);
+		List<UUID> blockedIds = userId != null ? blockService.getBlockedUserIds(userId) : java.util.Collections.emptyList();
+		List<FeedPost> posts;
+		if (blockedIds.isEmpty()) {
+			posts = cursor != null ? feedPostRepository.findAllVisibleBefore(cursor, pageable) : feedPostRepository.findAllVisible(pageable);
+		} else {
+			posts = cursor != null ? feedPostRepository.findAllVisibleBeforeExcluding(cursor, blockedIds, pageable) : feedPostRepository.findAllVisibleExcluding(blockedIds, pageable);
+		}
 
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
@@ -79,7 +86,21 @@ class SocialPostService {
 		PostVoteType myVote = resolveMyVote(userId, postId);
 		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-		return PostResponse.of(post, authorNickname, commentCount, myVote);
+		return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
+	}
+
+	@Transactional
+	PostResponse updatePost(UUID userId, UUID postId, UpdatePostRequest request) {
+		FeedPost post = findPostOrThrow(postId);
+		if (!post.getUser().getId().equals(userId)) {
+			throw new SocialFeedForbiddenException("본인의 게시글만 수정할 수 있습니다.");
+		}
+		post.updateBody(request.body());
+		long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(postId);
+		PostVoteType myVote = resolveMyVote(userId, postId);
+		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
+			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+		return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
 	}
 
 	@Transactional
@@ -139,7 +160,7 @@ class SocialPostService {
 				PostVoteType myVote = (vote != null && vote.isActive()) ? vote.getVoteType() : null;
 				String authorNickname = existingProfileIds.contains(post.getUser().getId())
 					? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-				return PostResponse.of(post, authorNickname, commentCount, myVote);
+				return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
 			})
 			.toList();
 	}

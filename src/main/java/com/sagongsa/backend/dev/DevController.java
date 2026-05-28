@@ -134,7 +134,7 @@ public class DevController {
 	}
 
 	// 마이페이지 소비관리 테스트용: GO 2건 + STOP 1건 결정 데이터 생성
-	@PostMapping("/decisions/test")
+	@PostMapping("/decisions/test-batch")
 	@Transactional
 	public ResponseEntity<Map<String, Object>> createTestDecisions(@CurrentUserId UUID userId) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);

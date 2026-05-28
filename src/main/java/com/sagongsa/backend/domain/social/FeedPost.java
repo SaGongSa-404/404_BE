@@ -31,7 +31,7 @@ public class FeedPost extends UserScopedEntity {
 	@JoinColumn(name = "decision_id")
 	private PurchaseDecision decision;
 
-	@Column(nullable = false, length = 140)
+	@Column(length = 140)
 	private String title;
 
 	@Column(columnDefinition = "text")
@@ -82,6 +82,8 @@ public class FeedPost extends UserScopedEntity {
 	public boolean isDeleted() { return deletedAt != null; }
 
 	public void softDelete() { this.deletedAt = Instant.now(); }
+
+	public void updateBody(String body) { this.body = body; }
 
 	public void incrementGoCount() { this.goCount++; }
 	public void decrementGoCount() { if (this.goCount > 0) this.goCount--; }

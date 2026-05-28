@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,15 +30,18 @@ public class SocialFeedController {
 	private final VoteService voteService;
 	private final CommentService commentService;
 	private final FileUploadService fileUploadService;
+	private final ReportService reportService;
 
 	public SocialFeedController(SocialPostService socialPostService,
 		VoteService voteService,
 		CommentService commentService,
-		FileUploadService fileUploadService) {
+		FileUploadService fileUploadService,
+		ReportService reportService) {
 		this.socialPostService = socialPostService;
 		this.voteService = voteService;
 		this.commentService = commentService;
 		this.fileUploadService = fileUploadService;
+		this.reportService = reportService;
 	}
 
 	@PostMapping
@@ -71,6 +75,14 @@ public class SocialFeedController {
 		@CurrentUserId UUID userId,
 		@PathVariable UUID postId) {
 		return ResponseEntity.ok(socialPostService.getPost(userId, postId));
+	}
+
+	@PatchMapping("/{postId}")
+	public ResponseEntity<PostResponse> updatePost(
+		@CurrentUserId UUID userId,
+		@PathVariable UUID postId,
+		@Valid @RequestBody UpdatePostRequest request) {
+		return ResponseEntity.ok(socialPostService.updatePost(userId, postId, request));
 	}
 
 	@DeleteMapping("/{postId}")
@@ -115,6 +127,25 @@ public class SocialFeedController {
 		@PathVariable UUID postId,
 		@PathVariable UUID commentId) {
 		commentService.deleteComment(userId, postId, commentId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{postId}/reports")
+	public ResponseEntity<Void> reportPost(
+		@CurrentUserId UUID userId,
+		@PathVariable UUID postId,
+		@Valid @RequestBody ReportRequest request) {
+		reportService.reportPost(userId, postId, request.reason());
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{postId}/comments/{commentId}/reports")
+	public ResponseEntity<Void> reportComment(
+		@CurrentUserId UUID userId,
+		@PathVariable UUID postId,
+		@PathVariable UUID commentId,
+		@Valid @RequestBody ReportRequest request) {
+		reportService.reportComment(userId, postId, commentId, request.reason());
 		return ResponseEntity.noContent().build();
 	}
 }
