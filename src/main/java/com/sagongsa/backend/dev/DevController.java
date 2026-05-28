@@ -17,6 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,7 +77,7 @@ public class DevController {
 
 	record TestDecisionRequest(String title, Integer price, String result) {}
 
-	@PostMapping("/decisions/test")
+	@PostMapping(value = "/decisions/test", consumes = MediaType.APPLICATION_JSON_VALUE)
 	@Transactional
 	public ResponseEntity<Map<String, String>> createTestDecision(
 		@CurrentUserId UUID userId,
