@@ -22,6 +22,18 @@
 ./gradlew test
 ```
 
+## Coverage
+
+JaCoCo 커버리지 리포트는 테스트 실행 후 생성됩니다.
+HTML 리포트는 브라우저로 확인하고, XML 리포트는 CI/외부 도구 연동에 사용할 수 있습니다.
+
+```bash
+./gradlew test jacocoTestReport
+```
+
+- HTML: `build/reports/jacoco/test/html/index.html`
+- XML: `build/reports/jacoco/test/jacocoTestReport.xml`
+
 ## Notes
 
 - 기준 문서: `docs/DOMAIN_SCHEMA_REVISED_FROM_PLANNING_2026_04_16.md`
