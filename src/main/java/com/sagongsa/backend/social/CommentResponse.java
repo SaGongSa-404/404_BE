@@ -8,6 +8,7 @@ record CommentResponse(
 	UUID id,
 	String body,
 	boolean mine,
+	UUID authorUserId,
 	String authorNickname,
 	Instant createdAt
 ) {
@@ -16,6 +17,7 @@ record CommentResponse(
 			comment.getId(),
 			comment.getBody(),
 			comment.getUser().getId().equals(currentUserId),
+			comment.getUser().getId(),
 			authorNickname,
 			comment.getCreatedAt()
 		);
