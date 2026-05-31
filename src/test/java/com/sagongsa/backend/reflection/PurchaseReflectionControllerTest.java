@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,14 +17,17 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.server.ResponseStatusException;
 
 class PurchaseReflectionControllerTest {
 
@@ -85,7 +89,26 @@ class PurchaseReflectionControllerTest {
 				&& "NONE".equals(request.regretLevel())
 				&& Boolean.TRUE.equals(request.stillUsing())
 				&& "잘 쓰고 있어요".equals(request.reflectionNote())
-		));
+			));
+	}
+
+	@Test
+	void rejectsMissingUserHeader() throws Exception {
+		UUID decisionId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+		mockMvc.perform(post("/api/v1/reflections")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"decisionId": "%s",
+					"satisfactionScore": 5,
+					"regretLevel": "NONE",
+					"stillUsing": true
+				}
+				""".formatted(decisionId)))
+			.andExpect(status().isBadRequest());
+
+		verifyNoInteractions(purchaseReflectionService);
 	}
 
 	private static final class HeaderUserIdArgumentResolver implements HandlerMethodArgumentResolver {
@@ -103,7 +126,16 @@ class PurchaseReflectionControllerTest {
 			NativeWebRequest webRequest,
 			WebDataBinderFactory binderFactory
 		) {
-			return UUID.fromString(webRequest.getHeader("X-User-Id"));
+			String rawUserId = webRequest.getHeader("X-User-Id");
+			if (!StringUtils.hasText(rawUserId)) {
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "X-User-Id header is required.");
+			}
+			try {
+				return UUID.fromString(rawUserId.trim());
+			}
+			catch (IllegalArgumentException exception) {
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "X-User-Id header must be a UUID.");
+			}
 		}
 	}
 }
