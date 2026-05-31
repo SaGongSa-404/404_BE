@@ -263,6 +263,32 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void treatsBlankCursorAsFirstPage() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertItem(userId, "Blank cursor target", "FASHION", "SAVED", OffsetDateTime.now(ZoneOffset.UTC));
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.queryParam("cursor", "   "))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.items[0].id").value(itemId.toString()))
+			.andExpect(jsonPath("$.hasMore").value(false))
+			.andExpect(jsonPath("$.nextCursor").value(nullValue()));
+	}
+
+	@Test
+	void rejectsMalformedCursorQueryParameter() throws Exception {
+		UUID userId = createUser();
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.queryParam("cursor", "not-a-cursor"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
 	void listsWithStableCursorWhenCreatedAtTies() throws Exception {
 		UUID userId = createUser();
 		OffsetDateTime sameCreatedAt = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
