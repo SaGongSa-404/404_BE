@@ -57,8 +57,13 @@ class PurchaseReflectionServiceTest extends PostgreSqlContainerTest {
 		UUID itemId = insertSavedItem(userId, "중복 상품", "GO");
 		UUID decisionId = insertDecision(userId, itemId, "GO");
 
-		purchaseReflectionService.create(userId, new PurchaseReflectionRequest(decisionId, 4, "NONE", true, null));
+		PurchaseReflectionResponse created = purchaseReflectionService.create(
+			userId,
+			new PurchaseReflectionRequest(decisionId, 4, "NONE", true, null)
+		);
 
+		assertThat(created.reminderId()).isNull();
+		assertThat(created.satisfactionScore()).isEqualTo(4);
 		assertThatThrownBy(() -> purchaseReflectionService.create(
 			userId,
 			new PurchaseReflectionRequest(decisionId, 3, "LOW", true, null)
@@ -66,6 +71,22 @@ class PurchaseReflectionServiceTest extends PostgreSqlContainerTest {
 			.isInstanceOf(ResponseStatusException.class)
 			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
 				.isEqualTo(HttpStatus.CONFLICT));
+	}
+
+	@Test
+	void keepsNullableSatisfactionScoreWhenReminderExists() {
+		UUID userId = createReadyUser();
+		UUID itemId = insertSavedItem(userId, "점수 없는 상품", "GO");
+		UUID decisionId = insertDecision(userId, itemId, "GO");
+		UUID reminderId = insertReminder(userId, itemId, decisionId);
+
+		PurchaseReflectionResponse response = purchaseReflectionService.create(
+			userId,
+			new PurchaseReflectionRequest(decisionId, null, "NONE", true, null)
+		);
+
+		assertThat(response.reminderId()).isEqualTo(reminderId);
+		assertThat(response.satisfactionScore()).isNull();
 	}
 
 	@Test

@@ -198,12 +198,13 @@ public class PurchaseReflectionService {
 
 	private PurchaseReflectionResponse mapReflection(ResultSet rs, int rowNumber) throws SQLException {
 		int score = rs.getInt("satisfaction_score");
+		boolean scoreWasNull = rs.wasNull();
 		return new PurchaseReflectionResponse(
 			rs.getObject("id", UUID.class),
 			rs.getObject("decision_id", UUID.class),
 			rs.getObject("item_id", UUID.class),
 			rs.getObject("reminder_id", UUID.class),
-			rs.wasNull() ? null : score,
+			scoreWasNull ? null : score,
 			rs.getString("regret_level"),
 			rs.getObject("still_using", Boolean.class),
 			rs.getString("reflection_note"),
