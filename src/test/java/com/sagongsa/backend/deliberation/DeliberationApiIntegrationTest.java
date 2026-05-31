@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class DeliberationApiIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final String BASE = "/api/v1/deliberations/items";
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -56,7 +59,7 @@ class DeliberationApiIntegrationTest extends PostgreSqlContainerTest {
 	void 예산_사이클_있으면_예산_정보_포함() throws Exception {
 		UUID userId = insertUser("ACTIVE", "COMPLETED");
 		UUID itemId = insertSavedItem(userId, "맥북", 1_500_000, "DIGITAL", "SAVED");
-		insertBudgetCycle(userId, "2026-05", 2_000_000, 300_000);
+		insertBudgetCycle(userId, YearMonth.now(KST).toString(), 2_000_000, 300_000);
 
 		mockMvc.perform(get(BASE + "/{itemId}", itemId)
 				.header("X-User-Id", userId))
