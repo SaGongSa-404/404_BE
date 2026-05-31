@@ -93,6 +93,7 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void 예산_수정_200() throws Exception {
 		UUID userId = insertUser("너굴이", "너구리");
+		String yearMonth = YearMonth.now(KST).toString();
 
 		mockMvc.perform(patch(BASE + "/budget")
 				.header("X-User-Id", userId)
@@ -102,6 +103,12 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 					"""))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.monthlyBudget").value(400_000));
+
+		mockMvc.perform(get(BASE + "/stats")
+				.header("X-User-Id", userId)
+				.param("yearMonth", yearMonth))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budgetAmount").value(400_000));
 	}
 
 	@Test
@@ -159,14 +166,14 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void 탈퇴_후_유저_상태_WITHDRAWN() throws Exception {
+	void 탈퇴_후_프로필_삭제_확인() throws Exception {
 		UUID userId = insertUser("너굴이", "너구리");
 		mockMvc.perform(delete(BASE).header("X-User-Id", userId))
 			.andExpect(status().isNoContent());
 
-		String status = jdbcTemplate.queryForObject(
-			"SELECT status FROM users WHERE id = ?", String.class, userId);
-		org.assertj.core.api.Assertions.assertThat(status).isEqualTo("WITHDRAWN");
+		Integer count = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM user_profiles WHERE user_id = ?", Integer.class, userId);
+		org.assertj.core.api.Assertions.assertThat(count).isZero();
 	}
 
 	// ── GET /api/v1/users/me/stats/months ────────────────────────────────────
@@ -188,14 +195,21 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 	void 통계_조회_200() throws Exception {
 		UUID userId = insertUser("너굴이", "너구리");
 		String yearMonth = YearMonth.now(KST).toString();
-		insertBudgetCycle(userId, yearMonth, 300_000, 50_000);
+		insertBudgetCycle(userId, yearMonth, 300_000, 0);
+		insertDecision(userId, "GO", 100_000, yearMonth);
+		insertDecision(userId, "STOP", 50_000, yearMonth);
 
 		mockMvc.perform(get(BASE + "/stats")
 				.header("X-User-Id", userId)
 				.param("yearMonth", yearMonth))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.yearMonth").value(yearMonth))
-			.andExpect(jsonPath("$.budgetAmount").value(300_000));
+			.andExpect(jsonPath("$.budgetAmount").value(300_000))
+			.andExpect(jsonPath("$.spentAmount").value(100_000))
+			.andExpect(jsonPath("$.restrainedAmount").value(50_000))
+			.andExpect(jsonPath("$.boughtCount").value(1))
+			.andExpect(jsonPath("$.restrainedCount").value(1))
+			.andExpect(jsonPath("$.usageRate").value(33.3));
 	}
 
 	// ── GET /api/v1/users/me/wishes/history ──────────────────────────────────
@@ -237,10 +251,14 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void 투표한_게시글_목록_조회_200() throws Exception {
 		UUID userId = insertUser("너굴이", "너구리");
+		UUID postId = insertPost(userId);
+		insertVote(userId, postId, "GO");
 
 		mockMvc.perform(get(BASE + "/votes").header("X-User-Id", userId))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.posts").isArray());
+			.andExpect(jsonPath("$.posts").isArray())
+			.andExpect(jsonPath("$.posts[0].id").value(postId.toString()))
+			.andExpect(jsonPath("$.posts[0].myVote").value("GO"));
 	}
 
 	// ── 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -264,10 +282,34 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 			UUID.randomUUID(), userId, yearMonth, monthlyBudget, spentAmount, now, now);
 	}
 
-	private void insertPost(UUID userId) {
+	private UUID insertPost(UUID userId) {
+		UUID postId = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		jdbcTemplate.update(
 			"INSERT INTO feed_posts (id, user_id, title, body, go_count, stop_count, created_at, updated_at) VALUES (?, ?, '테스트 게시글', '내용', 0, 0, ?, ?)",
-			UUID.randomUUID(), userId, now, now);
+			postId, userId, now, now);
+		return postId;
+	}
+
+	private void insertVote(UUID userId, UUID postId, String voteType) {
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"INSERT INTO post_votes (id, post_id, user_id, vote_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+			UUID.randomUUID(), postId, userId, voteType, now, now);
+	}
+
+	private void insertDecision(UUID userId, String result, int price, String yearMonth) {
+		UUID itemId = UUID.randomUUID();
+		ZoneId kst = ZoneId.of("Asia/Seoul");
+		java.time.YearMonth ym = java.time.YearMonth.parse(yearMonth);
+		OffsetDateTime monthMid = OffsetDateTime.ofInstant(
+			ym.atDay(15).atStartOfDay(kst).toInstant(), ZoneOffset.UTC);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"INSERT INTO saved_items (id, user_id, input_source, title, listed_price, currency_code, category, category_locked_by_user, status, created_at, updated_at) VALUES (?, ?, 'DIRECT_INPUT', '테스트 상품', ?, 'KRW', 'DIGITAL', false, ?, ?, ?)",
+			itemId, userId, price, result, monthMid, monthMid);
+		jdbcTemplate.update(
+			"INSERT INTO purchase_decisions (id, user_id, item_id, result, final_price, rationality_result, self_check_yes_count, is_changed, change_count, decided_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'RATIONAL', 0, false, 0, ?, ?, ?)",
+			UUID.randomUUID(), userId, itemId, result, price, monthMid, now, now);
 	}
 }
