@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -54,20 +53,18 @@ class CommentService {
 
 	CommentListResponse getComments(UUID userId, UUID postId, int page, int size) {
 		socialPostService.findPostOrThrow(postId);
-		Page<PostComment> commentPage = postCommentRepository.findVisibleByPostId(
-			postId, PageRequest.of(page - 1, size));
 
-		Set<UUID> blockedIds = userId != null
-			? new HashSet<>(blockService.getBlockedUserIds(userId))
-			: java.util.Collections.emptySet();
+		List<UUID> blockedIds = userId != null
+			? blockService.getBlockedUserIds(userId)
+			: java.util.Collections.emptyList();
 
-		List<PostComment> comments = commentPage.getContent().stream()
-			.filter(c -> !blockedIds.contains(c.getUser().getId()))
-			.toList();
+		Page<PostComment> commentPage = blockedIds.isEmpty()
+			? postCommentRepository.findVisibleByPostId(postId, PageRequest.of(page - 1, size))
+			: postCommentRepository.findVisibleByPostIdExcludingBlockers(postId, blockedIds, PageRequest.of(page - 1, size));
 
 		Map<UUID, String> nicknameMap = buildCommentNicknameMap(postId);
 
-		List<CommentResponse> items = comments.stream()
+		List<CommentResponse> items = commentPage.getContent().stream()
 			.map(c -> CommentResponse.of(c, userId,
 				nicknameMap.getOrDefault(c.getUser().getId(), UserProfile.UNKNOWN_NICKNAME)))
 			.toList();

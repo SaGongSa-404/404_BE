@@ -109,6 +109,7 @@ class CommentServiceTest extends PostgreSqlContainerTest {
 		CommentListResponse list = commentService.getComments(viewer, postId, 1, 20);
 
 		assertThat(list.comments()).isEmpty();
+		assertThat(list.total()).isZero();
 	}
 
 	@Test

@@ -14,6 +14,9 @@ public interface PostCommentRepository extends JpaRepository<PostComment, UUID> 
 	@Query("SELECT c FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL ORDER BY c.createdAt ASC")
 	Page<PostComment> findVisibleByPostId(@Param("postId") UUID postId, Pageable pageable);
 
+	@Query("SELECT c FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL AND c.user.id NOT IN :blockedIds ORDER BY c.createdAt ASC")
+	Page<PostComment> findVisibleByPostIdExcludingBlockers(@Param("postId") UUID postId, @Param("blockedIds") List<UUID> blockedIds, Pageable pageable);
+
 	long countByPostIdAndDeletedAtIsNull(UUID postId);
 
 	@Query("SELECT c.user.id FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL GROUP BY c.user.id ORDER BY MIN(c.createdAt) ASC")
