@@ -341,15 +341,15 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		ZoneId kst = ZoneId.of("Asia/Seoul");
 		java.time.YearMonth ym = java.time.YearMonth.parse(yearMonth);
-		java.time.Instant decidedAt = ym.atDay(15).atStartOfDay(kst).toInstant();
+		OffsetDateTime monthMid = OffsetDateTime.ofInstant(
+			ym.atDay(15).atStartOfDay(kst).toInstant(), ZoneOffset.UTC);
 
 		jdbcTemplate.update(
 			"INSERT INTO saved_items (id, user_id, input_source, title, listed_price, currency_code, category, category_locked_by_user, status, created_at, updated_at) VALUES (?, ?, 'DIRECT_INPUT', '테스트 상품', ?, 'KRW', 'DIGITAL', false, ?, ?, ?)",
-			itemId, userId, price, result, now, now);
+			itemId, userId, price, result, monthMid, monthMid);
 		jdbcTemplate.update(
 			"INSERT INTO purchase_decisions (id, user_id, item_id, result, final_price, rationality_result, self_check_yes_count, is_changed, change_count, decided_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'RATIONAL', 0, false, 0, ?, ?, ?)",
-			decisionId, userId, itemId, result, price,
-			OffsetDateTime.ofInstant(decidedAt, ZoneOffset.UTC), now, now);
+			decisionId, userId, itemId, result, price, monthMid, now, now);
 		return decisionId;
 	}
 }
