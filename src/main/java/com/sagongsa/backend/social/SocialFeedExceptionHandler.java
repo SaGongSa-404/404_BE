@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = SocialFeedController.class)
+@RestControllerAdvice(assignableTypes = {SocialFeedController.class, BlockController.class})
 class SocialFeedExceptionHandler {
 
 	record ErrorBody(String code, String message) {}
