@@ -63,7 +63,7 @@ class SocialPostService {
 
 	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
-		List<UUID> blockedIds = userId != null ? blockService.getBlockedUserIds(userId) : java.util.Collections.emptyList();
+		List<UUID> blockedIds = blockedIdsFor(userId);
 		List<FeedPost> posts;
 		if (blockedIds.isEmpty()) {
 			posts = cursor != null ? feedPostRepository.findAllVisibleBefore(cursor, pageable) : feedPostRepository.findAllVisible(pageable);
@@ -74,7 +74,7 @@ class SocialPostService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
-		List<PostResponse> items = toPostResponses(posts, userId);
+		List<PostResponse> items = toPostResponses(posts, userId, blockedIds);
 
 		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
@@ -121,7 +121,7 @@ class SocialPostService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
-		List<PostResponse> items = toPostResponses(posts, userId);
+		List<PostResponse> items = toPostResponses(posts, userId, Collections.emptyList());
 
 		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
@@ -136,13 +136,13 @@ class SocialPostService {
 		return post;
 	}
 
-	private List<PostResponse> toPostResponses(List<FeedPost> posts, UUID userId) {
+	private List<PostResponse> toPostResponses(List<FeedPost> posts, UUID userId, List<UUID> blockedIds) {
 		if (posts.isEmpty()) return Collections.emptyList();
 
 		List<UUID> postIds = posts.stream().map(FeedPost::getId).toList();
 		List<UUID> authorIds = posts.stream().map(p -> p.getUser().getId()).distinct().toList();
 
-		Map<UUID, Long> commentCounts = feedPostRepository.countCommentsByPostIds(postIds).stream()
+		Map<UUID, Long> commentCounts = countVisibleCommentsByPostIds(postIds, blockedIds).stream()
 			.collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
 
 		Map<UUID, PostVote> myVotes = userId == null
@@ -163,6 +163,16 @@ class SocialPostService {
 				return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
 			})
 			.toList();
+	}
+
+	private List<UUID> blockedIdsFor(UUID userId) {
+		return userId != null ? blockService.getBlockedUserIds(userId) : Collections.emptyList();
+	}
+
+	private List<Object[]> countVisibleCommentsByPostIds(List<UUID> postIds, List<UUID> blockedIds) {
+		return blockedIds.isEmpty()
+			? postCommentRepository.countVisibleByPostIds(postIds)
+			: postCommentRepository.countVisibleByPostIdsExcludingBlockers(postIds, blockedIds);
 	}
 
 	private PostVoteType resolveMyVote(UUID userId, UUID postId) {
