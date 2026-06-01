@@ -54,6 +54,18 @@ class ReportService {
         postReportRepository.save(new PostReport(reporter, ReportTargetType.COMMENT, commentId, category, reason));
     }
 
+    void reportUser(UUID reporterId, UUID targetUserId, ReportCategory category, String reason) {
+        if (reporterId.equals(targetUserId)) {
+            throw new SocialFeedForbiddenException("자기 자신은 신고할 수 없습니다.");
+        }
+        findUserOrThrow(targetUserId);
+        if (postReportRepository.existsByReporterIdAndTargetTypeAndTargetId(reporterId, ReportTargetType.USER, targetUserId)) {
+            throw new SocialFeedForbiddenException("이미 신고한 사용자입니다.");
+        }
+        UserAccount reporter = findUserOrThrow(reporterId);
+        postReportRepository.save(new PostReport(reporter, ReportTargetType.USER, targetUserId, category, reason));
+    }
+
     private UserAccount findUserOrThrow(UUID userId) {
         return userAccountRepository.findById(userId)
             .orElseThrow(() -> new SocialFeedNotFoundException("사용자를 찾을 수 없습니다."));

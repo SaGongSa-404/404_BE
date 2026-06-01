@@ -122,6 +122,44 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 			.isInstanceOf(SocialFeedNotFoundException.class);
 	}
 
+	// ── 유저 신고 ────────────────────────────────────────────────────────────
+
+	@Test
+	void 유저_신고_성공() {
+		UUID reporter = insertUser();
+		UUID target = insertUser();
+
+		assertThatNoException().isThrownBy(() ->
+			reportService.reportUser(reporter, target, ReportCategory.PROFANITY, null)
+		);
+	}
+
+	@Test
+	void 자기_자신_신고하면_예외() {
+		UUID reporter = insertUser();
+
+		assertThatThrownBy(() -> reportService.reportUser(reporter, reporter, ReportCategory.SPAM, null))
+			.isInstanceOf(SocialFeedForbiddenException.class);
+	}
+
+	@Test
+	void 같은_유저_두번_신고하면_예외() {
+		UUID reporter = insertUser();
+		UUID target = insertUser();
+		reportService.reportUser(reporter, target, ReportCategory.PROFANITY, null);
+
+		assertThatThrownBy(() -> reportService.reportUser(reporter, target, ReportCategory.SPAM, null))
+			.isInstanceOf(SocialFeedForbiddenException.class);
+	}
+
+	@Test
+	void 존재하지_않는_유저_신고하면_예외() {
+		UUID reporter = insertUser();
+
+		assertThatThrownBy(() -> reportService.reportUser(reporter, UUID.randomUUID(), ReportCategory.SPAM, null))
+			.isInstanceOf(SocialFeedNotFoundException.class);
+	}
+
 	// ── 헬퍼 ─────────────────────────────────────────────────────────────────
 
 	private UUID insertUser() {
