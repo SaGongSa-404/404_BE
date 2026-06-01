@@ -135,7 +135,7 @@ public class SocialFeedController {
 		@CurrentUserId UUID userId,
 		@PathVariable UUID postId,
 		@Valid @RequestBody ReportRequest request) {
-		reportService.reportPost(userId, postId, request.reason());
+		reportService.reportPost(userId, postId, request.category(), request.reason());
 		return ResponseEntity.noContent().build();
 	}
 
@@ -145,7 +145,7 @@ public class SocialFeedController {
 		@PathVariable UUID postId,
 		@PathVariable UUID commentId,
 		@Valid @RequestBody ReportRequest request) {
-		reportService.reportComment(userId, postId, commentId, request.reason());
+		reportService.reportComment(userId, postId, commentId, request.category(), request.reason());
 		return ResponseEntity.noContent().build();
 	}
 }

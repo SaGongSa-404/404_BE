@@ -2,6 +2,7 @@ package com.sagongsa.backend.social;
 
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
+import com.sagongsa.backend.domain.enums.ReportCategory;
 import com.sagongsa.backend.domain.enums.ReportTargetType;
 import com.sagongsa.backend.domain.social.PostComment;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
@@ -30,16 +31,16 @@ class ReportService {
         this.socialPostService = socialPostService;
     }
 
-    void reportPost(UUID reporterId, UUID postId, String reason) {
+    void reportPost(UUID reporterId, UUID postId, ReportCategory category, String reason) {
         socialPostService.findPostOrThrow(postId);
         if (postReportRepository.existsByReporterIdAndTargetTypeAndTargetId(reporterId, ReportTargetType.POST, postId)) {
             throw new SocialFeedForbiddenException("이미 신고한 게시글입니다.");
         }
         UserAccount reporter = findUserOrThrow(reporterId);
-        postReportRepository.save(new PostReport(reporter, ReportTargetType.POST, postId, reason));
+        postReportRepository.save(new PostReport(reporter, ReportTargetType.POST, postId, category, reason));
     }
 
-    void reportComment(UUID reporterId, UUID postId, UUID commentId, String reason) {
+    void reportComment(UUID reporterId, UUID postId, UUID commentId, ReportCategory category, String reason) {
         socialPostService.findPostOrThrow(postId);
         PostComment comment = postCommentRepository.findById(commentId)
             .orElseThrow(() -> new SocialFeedNotFoundException("댓글을 찾을 수 없습니다."));
@@ -50,7 +51,7 @@ class ReportService {
             throw new SocialFeedForbiddenException("이미 신고한 댓글입니다.");
         }
         UserAccount reporter = findUserOrThrow(reporterId);
-        postReportRepository.save(new PostReport(reporter, ReportTargetType.COMMENT, commentId, reason));
+        postReportRepository.save(new PostReport(reporter, ReportTargetType.COMMENT, commentId, category, reason));
     }
 
     private UserAccount findUserOrThrow(UUID userId) {

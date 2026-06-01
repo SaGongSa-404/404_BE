@@ -2,6 +2,7 @@ package com.sagongsa.backend.domain.social;
 
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.common.BaseEntity;
+import com.sagongsa.backend.domain.enums.ReportCategory;
 import com.sagongsa.backend.domain.enums.ReportTargetType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,15 +36,21 @@ public class PostReport extends BaseEntity {
     @Column(name = "target_id", nullable = false)
     private UUID targetId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "report_category", nullable = false, length = 20)
+    private ReportCategory reportCategory;
+
     @Column(length = 100)
     private String reason;
 
     protected PostReport() {}
 
-    public PostReport(UserAccount reporter, ReportTargetType targetType, UUID targetId, String reason) {
+    public PostReport(UserAccount reporter, ReportTargetType targetType, UUID targetId,
+        ReportCategory reportCategory, String reason) {
         this.reporter = reporter;
         this.targetType = targetType;
         this.targetId = targetId;
+        this.reportCategory = reportCategory;
         this.reason = reason;
     }
 }

@@ -3,6 +3,7 @@ package com.sagongsa.backend.social;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.sagongsa.backend.domain.enums.ReportCategory;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -38,7 +39,8 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		UUID author = insertUser();
 		UUID postId = insertPost(author);
 
-		assertThatNoException().isThrownBy(() -> reportService.reportPost(reporter, postId, "스팸입니다"));
+		assertThatNoException().isThrownBy(() ->
+			reportService.reportPost(reporter, postId, ReportCategory.SPAM, "스팸입니다"));
 	}
 
 	@Test
@@ -46,9 +48,9 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		UUID reporter = insertUser();
 		UUID author = insertUser();
 		UUID postId = insertPost(author);
-		reportService.reportPost(reporter, postId, "스팸");
+		reportService.reportPost(reporter, postId, ReportCategory.SPAM, null);
 
-		assertThatThrownBy(() -> reportService.reportPost(reporter, postId, "또 스팸"))
+		assertThatThrownBy(() -> reportService.reportPost(reporter, postId, ReportCategory.SPAM, null))
 			.isInstanceOf(SocialFeedForbiddenException.class);
 	}
 
@@ -56,7 +58,7 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 	void 존재하지_않는_게시글_신고하면_예외() {
 		UUID reporter = insertUser();
 
-		assertThatThrownBy(() -> reportService.reportPost(reporter, UUID.randomUUID(), "스팸"))
+		assertThatThrownBy(() -> reportService.reportPost(reporter, UUID.randomUUID(), ReportCategory.SPAM, null))
 			.isInstanceOf(SocialFeedNotFoundException.class);
 	}
 
@@ -67,7 +69,7 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		UUID postId = insertPost(author);
 		jdbcTemplate.update("UPDATE feed_posts SET deleted_at = NOW() WHERE id = ?", postId);
 
-		assertThatThrownBy(() -> reportService.reportPost(reporter, postId, "스팸"))
+		assertThatThrownBy(() -> reportService.reportPost(reporter, postId, ReportCategory.SPAM, null))
 			.isInstanceOf(SocialFeedNotFoundException.class);
 	}
 
@@ -81,7 +83,7 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		CommentResponse comment = commentService.createComment(author, postId, new CreateCommentRequest("댓글"));
 
 		assertThatNoException().isThrownBy(() ->
-			reportService.reportComment(reporter, postId, comment.id(), "부적절한 내용")
+			reportService.reportComment(reporter, postId, comment.id(), ReportCategory.OBSCENE, "부적절한 내용")
 		);
 	}
 
@@ -91,9 +93,9 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		UUID author = insertUser();
 		UUID postId = insertPost(author);
 		CommentResponse comment = commentService.createComment(author, postId, new CreateCommentRequest("댓글"));
-		reportService.reportComment(reporter, postId, comment.id(), "신고");
+		reportService.reportComment(reporter, postId, comment.id(), ReportCategory.PROFANITY, null);
 
-		assertThatThrownBy(() -> reportService.reportComment(reporter, postId, comment.id(), "또 신고"))
+		assertThatThrownBy(() -> reportService.reportComment(reporter, postId, comment.id(), ReportCategory.PROFANITY, null))
 			.isInstanceOf(SocialFeedForbiddenException.class);
 	}
 
@@ -103,7 +105,7 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		UUID author = insertUser();
 		UUID postId = insertPost(author);
 
-		assertThatThrownBy(() -> reportService.reportComment(reporter, postId, UUID.randomUUID(), "신고"))
+		assertThatThrownBy(() -> reportService.reportComment(reporter, postId, UUID.randomUUID(), ReportCategory.SPAM, null))
 			.isInstanceOf(SocialFeedNotFoundException.class);
 	}
 
@@ -116,7 +118,7 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		CommentResponse comment = commentService.createComment(author, postId1, new CreateCommentRequest("댓글"));
 
 		// postId2에 속하지 않는 commentId를 넘김
-		assertThatThrownBy(() -> reportService.reportComment(reporter, postId2, comment.id(), "신고"))
+		assertThatThrownBy(() -> reportService.reportComment(reporter, postId2, comment.id(), ReportCategory.SPAM, null))
 			.isInstanceOf(SocialFeedNotFoundException.class);
 	}
 
