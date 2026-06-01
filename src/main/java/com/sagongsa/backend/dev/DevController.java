@@ -65,6 +65,8 @@ public class DevController {
 			"INSERT INTO user_profiles (user_id, nickname, mascot_name, timezone, notification_enabled, created_at, updated_at) VALUES (?, ?, '너구리', 'Asia/Seoul', true, ?, ?)",
 			userId, nickname, now, now);
 
+		ensureCurrentBudgetCycle(userId, now);
+
 		return ResponseEntity.ok(Map.of("userId", userId.toString(), "nickname", nickname));
 	}
 
@@ -88,21 +90,9 @@ public class DevController {
 		String result = request.result() != null ? request.result().toUpperCase() : "GO";
 
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		String yearMonth = YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
+		String yearMonth = currentYearMonth();
 
-		// 예산 사이클 없으면 생성
-		UUID budgetCycleId = jdbcTemplate.query(
-			"SELECT id FROM budget_cycles WHERE user_id = ? AND year_month = ?",
-			(rs, i) -> rs.getObject("id", UUID.class),
-			userId, yearMonth
-		).stream().findFirst().orElseGet(() -> {
-			UUID id = UUID.randomUUID();
-			jdbcTemplate.update(
-				"INSERT INTO budget_cycles (id, user_id, year_month, monthly_budget_amount, spent_amount, warning_threshold_rate, created_at, updated_at) VALUES (?, ?, ?, 500000, 0, 80.00, ?, ?)",
-				id, userId, yearMonth, now, now
-			);
-			return id;
-		});
+		UUID budgetCycleId = ensureCurrentBudgetCycle(userId, now);
 
 		// 상품 삽입
 		UUID itemId = UUID.randomUUID();
@@ -139,11 +129,7 @@ public class DevController {
 	@Transactional
 	public ResponseEntity<Map<String, Object>> createTestDecisions(@CurrentUserId UUID userId) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		String yearMonth = YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
-
-		UUID budgetCycleId = jdbcTemplate.queryForObject(
-			"SELECT id FROM budget_cycles WHERE user_id = ? AND year_month = ?",
-			UUID.class, userId, yearMonth);
+		UUID budgetCycleId = ensureCurrentBudgetCycle(userId, now);
 
 		record TestCase(String title, int price, String category, String result, int yesCount, String rationality) {}
 		var cases = java.util.List.of(
@@ -199,6 +185,8 @@ public class DevController {
 	public ResponseEntity<Map<String, String>> createTestWish(@CurrentUserId UUID userId) {
 		UserAccount user = userAccountRepository.findById(userId)
 			.orElseThrow(() -> new RuntimeException("로그인 유저를 찾을 수 없음"));
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		ensureCurrentBudgetCycle(userId, now);
 
 		SavedItem item = SavedItem.create(user,
 			"테스트 상품 (에어팟 프로)", 350000, null, null,
@@ -207,12 +195,33 @@ public class DevController {
 
 		em.createNativeQuery("UPDATE saved_items SET created_at = :ts WHERE id = :id")
 			.setParameter("ts", Instant.now().minus(25, ChronoUnit.HOURS))
-			.setParameter("id", item.getId().toString())
+			.setParameter("id", item.getId())
 			.executeUpdate();
 
 		return ResponseEntity.ok(Map.of(
 			"itemId", item.getId().toString(),
 			"tip", "GET /api/v1/deliberations/items/" + item.getId() + " 으로 숙려 화면 조회 가능"
 		));
+	}
+
+	private UUID ensureCurrentBudgetCycle(UUID userId, OffsetDateTime now) {
+		String yearMonth = currentYearMonth();
+		return jdbcTemplate.query(
+			"SELECT id FROM budget_cycles WHERE user_id = ? AND year_month = ?",
+			(rs, rowNumber) -> rs.getObject("id", UUID.class),
+			userId,
+			yearMonth
+		).stream().findFirst().orElseGet(() -> {
+			UUID id = UUID.randomUUID();
+			jdbcTemplate.update(
+				"INSERT INTO budget_cycles (id, user_id, year_month, monthly_budget_amount, spent_amount, warning_threshold_rate, created_at, updated_at) VALUES (?, ?, ?, 500000, 0, 80.00, ?, ?)",
+				id, userId, yearMonth, now, now
+			);
+			return id;
+		});
+	}
+
+	private String currentYearMonth() {
+		return YearMonth.now(ZoneId.of("Asia/Seoul")).toString();
 	}
 }
