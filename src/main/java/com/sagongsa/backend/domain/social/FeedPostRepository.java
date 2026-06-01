@@ -31,9 +31,6 @@ public interface FeedPostRepository extends JpaRepository<FeedPost, UUID> {
 
 	long countByUserIdAndDeletedAtIsNull(UUID userId);
 
-	@Query("SELECT p.id, COUNT(c) FROM PostComment c JOIN c.post p WHERE p.id IN :postIds AND c.deletedAt IS NULL GROUP BY p.id")
-	List<Object[]> countCommentsByPostIds(@Param("postIds") List<UUID> postIds);
-
 	@Modifying
 	@Query("UPDATE FeedPost p SET p.deletedAt = CURRENT_TIMESTAMP WHERE p.user.id = :userId")
 	void softDeleteByUserId(@Param("userId") UUID userId);

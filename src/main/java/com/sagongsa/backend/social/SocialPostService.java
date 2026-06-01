@@ -7,6 +7,7 @@ import com.sagongsa.backend.domain.item.SavedItem;
 import com.sagongsa.backend.domain.item.SavedItemRepository;
 import com.sagongsa.backend.domain.social.FeedPost;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
+import com.sagongsa.backend.domain.social.PostCommentCount;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
 import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
@@ -63,7 +64,7 @@ class SocialPostService {
 
 	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
-		List<UUID> blockedIds = userId != null ? blockService.getBlockedUserIds(userId) : java.util.Collections.emptyList();
+		List<UUID> blockedIds = blockedIdsFor(userId);
 		List<FeedPost> posts;
 		if (blockedIds.isEmpty()) {
 			posts = cursor != null ? feedPostRepository.findAllVisibleBefore(cursor, pageable) : feedPostRepository.findAllVisible(pageable);
@@ -74,7 +75,7 @@ class SocialPostService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
-		List<PostResponse> items = toPostResponses(posts, userId);
+		List<PostResponse> items = toPostResponses(posts, userId, blockedIds);
 
 		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
@@ -82,7 +83,7 @@ class SocialPostService {
 
 	PostResponse getPost(UUID userId, UUID postId) {
 		FeedPost post = findPostOrThrow(postId);
-		long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(postId);
+		long commentCount = countVisibleCommentsByPostId(postId, blockedIdsFor(userId));
 		PostVoteType myVote = resolveMyVote(userId, postId);
 		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
@@ -96,7 +97,7 @@ class SocialPostService {
 			throw new SocialFeedForbiddenException("본인의 게시글만 수정할 수 있습니다.");
 		}
 		post.updateBody(request.body());
-		long commentCount = postCommentRepository.countByPostIdAndDeletedAtIsNull(postId);
+		long commentCount = countVisibleCommentsByPostId(postId, blockedIdsFor(userId));
 		PostVoteType myVote = resolveMyVote(userId, postId);
 		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
@@ -121,7 +122,7 @@ class SocialPostService {
 		boolean hasMore = posts.size() > size;
 		if (hasMore) posts = posts.subList(0, size);
 
-		List<PostResponse> items = toPostResponses(posts, userId);
+		List<PostResponse> items = toPostResponses(posts, userId, blockedIdsFor(userId));
 
 		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
 		return new PostListResponse(items, nextCursor, hasMore);
@@ -136,14 +137,13 @@ class SocialPostService {
 		return post;
 	}
 
-	private List<PostResponse> toPostResponses(List<FeedPost> posts, UUID userId) {
+	private List<PostResponse> toPostResponses(List<FeedPost> posts, UUID userId, List<UUID> blockedIds) {
 		if (posts.isEmpty()) return Collections.emptyList();
 
 		List<UUID> postIds = posts.stream().map(FeedPost::getId).toList();
 		List<UUID> authorIds = posts.stream().map(p -> p.getUser().getId()).distinct().toList();
 
-		Map<UUID, Long> commentCounts = feedPostRepository.countCommentsByPostIds(postIds).stream()
-			.collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+		Map<UUID, Long> commentCounts = countVisibleCommentsByPostIds(postIds, blockedIds);
 
 		Map<UUID, PostVote> myVotes = userId == null
 			? Collections.emptyMap()
@@ -163,6 +163,24 @@ class SocialPostService {
 				return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
 			})
 			.toList();
+	}
+
+	private List<UUID> blockedIdsFor(UUID userId) {
+		return userId != null ? blockService.getBlockedUserIds(userId) : Collections.emptyList();
+	}
+
+	private long countVisibleCommentsByPostId(UUID postId, List<UUID> blockedIds) {
+		return countVisibleCommentsByPostIds(List.of(postId), blockedIds).getOrDefault(postId, 0L);
+	}
+
+	private Map<UUID, Long> countVisibleCommentsByPostIds(List<UUID> postIds, List<UUID> blockedIds) {
+		if (postIds.isEmpty()) return Collections.emptyMap();
+
+		List<PostCommentCount> counts = blockedIds.isEmpty()
+			? postCommentRepository.countVisibleByPostIds(postIds)
+			: postCommentRepository.countVisibleByPostIdsExcludingBlockers(postIds, blockedIds);
+		return counts.stream()
+			.collect(Collectors.toMap(PostCommentCount::postId, PostCommentCount::commentCount));
 	}
 
 	private PostVoteType resolveMyVote(UUID userId, UUID postId) {
