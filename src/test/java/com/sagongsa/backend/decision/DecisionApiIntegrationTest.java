@@ -468,7 +468,7 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 
 	private void insertPreviousGoDecision(UUID userId, String title, String category, int finalPrice) {
 		UUID itemId = insertSavedItem(userId, title, category, "GO", finalPrice);
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = currentKstMonthFixtureTime();
 		jdbcTemplate.update(
 			"""
 			insert into purchase_decisions (
@@ -485,6 +485,15 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 			now,
 			now
 		);
+	}
+
+	private OffsetDateTime currentKstMonthFixtureTime() {
+		return YearMonth.now(SEOUL_ZONE)
+			.atDay(1)
+			.atStartOfDay(SEOUL_ZONE)
+			.plusHours(1)
+			.toOffsetDateTime()
+			.withOffsetSameInstant(ZoneOffset.UTC);
 	}
 
 	private String queryString(String sql, Object... args) {

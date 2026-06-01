@@ -295,7 +295,7 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 		UUID budgetCycleId
 	) {
 		UUID decisionId = UUID.randomUUID();
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = currentKstMonthFixtureTime();
 		jdbcTemplate.update(
 			"""
 			insert into purchase_decisions (
@@ -319,6 +319,15 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 			now
 		);
 		return decisionId;
+	}
+
+	private OffsetDateTime currentKstMonthFixtureTime() {
+		return YearMonth.now(SEOUL_ZONE)
+			.atDay(1)
+			.atStartOfDay(SEOUL_ZONE)
+			.plusHours(1)
+			.toOffsetDateTime()
+			.withOffsetSameInstant(ZoneOffset.UTC);
 	}
 
 	private void insertSelfCheck(UUID decisionId, int yesCount, String rationalityResult, boolean first, boolean second, boolean third, boolean fourth) {
