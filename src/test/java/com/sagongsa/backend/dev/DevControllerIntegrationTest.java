@@ -8,8 +8,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,8 +56,8 @@ class DevControllerIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void devDecisionHelpersCanCreateDecisionsWithoutExistingBudgetCycle() throws Exception {
-		UUID userId = createDevUser();
+	void devSingleDecisionHelperCreatesBudgetCycleWhenMissing() throws Exception {
+		UUID userId = insertUserWithoutBudgetCycle();
 
 		mockMvc.perform(post("/api/dev/decisions/test")
 				.header(USER_ID_HEADER, userId)
@@ -69,6 +73,22 @@ class DevControllerIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.result").value("GO"))
 			.andExpect(jsonPath("$.month").value(YearMonth.now(SEOUL_ZONE).toString()));
 
+		assertThat(queryInteger(
+			"select count(*) from budget_cycles where user_id = ? and year_month = ?",
+			userId,
+			YearMonth.now(SEOUL_ZONE).toString()
+		)).isOne();
+		assertThat(queryInteger(
+			"select spent_amount from budget_cycles where user_id = ? and year_month = ?",
+			userId,
+			YearMonth.now(SEOUL_ZONE).toString()
+		)).isEqualTo(99000);
+	}
+
+	@Test
+	void devBatchDecisionHelperCreatesBudgetCycleWhenMissing() throws Exception {
+		UUID userId = insertUserWithoutBudgetCycle();
+
 		mockMvc.perform(post("/api/dev/decisions/test-batch")
 				.header(USER_ID_HEADER, userId))
 			.andExpect(status().isOk())
@@ -79,6 +99,11 @@ class DevControllerIntegrationTest extends PostgreSqlContainerTest {
 			userId,
 			YearMonth.now(SEOUL_ZONE).toString()
 		)).isOne();
+		assertThat(queryInteger(
+			"select spent_amount from budget_cycles where user_id = ? and year_month = ?",
+			userId,
+			YearMonth.now(SEOUL_ZONE).toString()
+		)).isEqualTo(500000);
 	}
 
 	private void assertDevWishDecisionFlow(String result) throws Exception {
@@ -91,6 +116,8 @@ class DevControllerIntegrationTest extends PostgreSqlContainerTest {
 			.getResponse()
 			.getContentAsString();
 		UUID itemId = UUID.fromString(objectMapper.readTree(wishBody).get("itemId").asText());
+		assertThat(queryOffsetDateTime("select created_at from saved_items where id = ?", itemId).toInstant())
+			.isBefore(Instant.now().minus(24, ChronoUnit.HOURS));
 
 		mockMvc.perform(get("/api/v1/deliberations/items/{itemId}", itemId)
 				.header(USER_ID_HEADER, userId))
@@ -129,6 +156,23 @@ class DevControllerIntegrationTest extends PostgreSqlContainerTest {
 		return userId;
 	}
 
+	private UUID insertUserWithoutBudgetCycle() {
+		UUID userId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"insert into users (id, status, onboarding_status, created_at, updated_at) values (?, 'ACTIVE', 'COMPLETED', ?, ?)",
+			userId,
+			now,
+			now
+		);
+		assertThat(queryInteger(
+			"select count(*) from budget_cycles where user_id = ? and year_month = ?",
+			userId,
+			YearMonth.now(SEOUL_ZONE).toString()
+		)).isZero();
+		return userId;
+	}
+
 	private String decisionRequest(UUID itemId, String result) {
 		return """
 			{
@@ -146,5 +190,13 @@ class DevControllerIntegrationTest extends PostgreSqlContainerTest {
 
 	private Integer queryInteger(String sql, Object... args) {
 		return jdbcTemplate.queryForObject(sql, Integer.class, args);
+	}
+
+	private OffsetDateTime queryOffsetDateTime(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(
+			sql,
+			(rs, rowNumber) -> rs.getObject(1, OffsetDateTime.class),
+			args
+		);
 	}
 }

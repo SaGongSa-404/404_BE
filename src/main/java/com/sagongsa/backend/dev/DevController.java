@@ -65,7 +65,7 @@ public class DevController {
 			"INSERT INTO user_profiles (user_id, nickname, mascot_name, timezone, notification_enabled, created_at, updated_at) VALUES (?, ?, '너구리', 'Asia/Seoul', true, ?, ?)",
 			userId, nickname, now, now);
 
-		ensureCurrentBudgetCycle(userId, now);
+		ensureCurrentBudgetCycleExists(userId, now);
 
 		return ResponseEntity.ok(Map.of("userId", userId.toString(), "nickname", nickname));
 	}
@@ -92,7 +92,7 @@ public class DevController {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		String yearMonth = currentYearMonth();
 
-		UUID budgetCycleId = ensureCurrentBudgetCycle(userId, now);
+		UUID budgetCycleId = getOrCreateCurrentBudgetCycleId(userId, now);
 
 		// 상품 삽입
 		UUID itemId = UUID.randomUUID();
@@ -129,7 +129,7 @@ public class DevController {
 	@Transactional
 	public ResponseEntity<Map<String, Object>> createTestDecisions(@CurrentUserId UUID userId) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		UUID budgetCycleId = ensureCurrentBudgetCycle(userId, now);
+		UUID budgetCycleId = getOrCreateCurrentBudgetCycleId(userId, now);
 
 		record TestCase(String title, int price, String category, String result, int yesCount, String rationality) {}
 		var cases = java.util.List.of(
@@ -186,7 +186,7 @@ public class DevController {
 		UserAccount user = userAccountRepository.findById(userId)
 			.orElseThrow(() -> new RuntimeException("로그인 유저를 찾을 수 없음"));
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		ensureCurrentBudgetCycle(userId, now);
+		ensureCurrentBudgetCycleExists(userId, now);
 
 		SavedItem item = SavedItem.create(user,
 			"테스트 상품 (에어팟 프로)", 350000, null, null,
@@ -204,7 +204,11 @@ public class DevController {
 		));
 	}
 
-	private UUID ensureCurrentBudgetCycle(UUID userId, OffsetDateTime now) {
+	private void ensureCurrentBudgetCycleExists(UUID userId, OffsetDateTime now) {
+		getOrCreateCurrentBudgetCycleId(userId, now);
+	}
+
+	private UUID getOrCreateCurrentBudgetCycleId(UUID userId, OffsetDateTime now) {
 		String yearMonth = currentYearMonth();
 		return jdbcTemplate.query(
 			"SELECT id FROM budget_cycles WHERE user_id = ? AND year_month = ?",
