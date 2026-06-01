@@ -15,4 +15,14 @@ class MypageExceptionHandler {
 	ErrorBody handleNotFound(MypageNotFoundException ex) {
 		return new ErrorBody("NOT_FOUND", ex.getMessage());
 	}
+
+	@ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	ErrorBody handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {
+		String message = ex.getConstraintViolations().stream()
+			.map(v -> v.getPropertyPath() + ": " + v.getMessage())
+			.findFirst()
+			.orElse("잘못된 요청입니다.");
+		return new ErrorBody("BAD_REQUEST", message);
+	}
 }
