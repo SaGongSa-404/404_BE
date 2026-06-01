@@ -19,11 +19,11 @@ public interface PostCommentRepository extends JpaRepository<PostComment, UUID> 
 
 	long countByPostIdAndDeletedAtIsNull(UUID postId);
 
-	@Query("SELECT c.post.id, COUNT(c) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL GROUP BY c.post.id")
-	List<Object[]> countVisibleByPostIds(@Param("postIds") List<UUID> postIds);
+	@Query("SELECT new com.sagongsa.backend.domain.social.PostCommentCount(c.post.id, COUNT(c)) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL GROUP BY c.post.id")
+	List<PostCommentCount> countVisibleByPostIds(@Param("postIds") List<UUID> postIds);
 
-	@Query("SELECT c.post.id, COUNT(c) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL AND c.user.id NOT IN :blockedIds GROUP BY c.post.id")
-	List<Object[]> countVisibleByPostIdsExcludingBlockers(@Param("postIds") List<UUID> postIds, @Param("blockedIds") List<UUID> blockedIds);
+	@Query("SELECT new com.sagongsa.backend.domain.social.PostCommentCount(c.post.id, COUNT(c)) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL AND c.user.id NOT IN :blockedIds GROUP BY c.post.id")
+	List<PostCommentCount> countVisibleByPostIdsExcludingBlockers(@Param("postIds") List<UUID> postIds, @Param("blockedIds") List<UUID> blockedIds);
 
 	@Query("SELECT c.user.id FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL GROUP BY c.user.id ORDER BY MIN(c.createdAt) ASC")
 	List<UUID> findCommenterIdsByPostIdOrderedByFirstComment(@Param("postId") UUID postId);

@@ -10,22 +10,27 @@ import com.sagongsa.backend.domain.enums.ItemStatus;
 import com.sagongsa.backend.domain.item.SavedItem;
 import com.sagongsa.backend.domain.item.SavedItemRepository;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
+import com.sagongsa.backend.domain.social.PostCommentCount;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
 import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
 import com.sagongsa.backend.domain.user.UserProfile;
 import com.sagongsa.backend.domain.user.UserProfileRepository;
+import com.sagongsa.backend.social.BlockService;
 import com.sagongsa.backend.social.PostListResponse;
 import com.sagongsa.backend.social.PostResponse;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -46,6 +51,7 @@ class MypageService {
 	private final SavedItemRepository savedItemRepository;
 	private final BudgetCycleRepository budgetCycleRepository;
 	private final JdbcTemplate jdbcTemplate;
+	private final BlockService blockService;
 
 	MypageService(UserAccountRepository userAccountRepository,
 		UserProfileRepository userProfileRepository,
@@ -55,7 +61,8 @@ class MypageService {
 		PostCommentRepository postCommentRepository,
 		SavedItemRepository savedItemRepository,
 		BudgetCycleRepository budgetCycleRepository,
-		JdbcTemplate jdbcTemplate) {
+		JdbcTemplate jdbcTemplate,
+		BlockService blockService) {
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
 		this.socialAccountRepository = socialAccountRepository;
@@ -65,6 +72,7 @@ class MypageService {
 		this.savedItemRepository = savedItemRepository;
 		this.budgetCycleRepository = budgetCycleRepository;
 		this.jdbcTemplate = jdbcTemplate;
+		this.blockService = blockService;
 	}
 
 	MyProfileResponse getMyProfile(UUID userId) {
@@ -221,9 +229,13 @@ class MypageService {
 
 		String myNickname = userProfileRepository.findByUserId(userId).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+		List<UUID> blockedIds = blockService.getBlockedUserIds(userId);
+		Map<UUID, Long> commentCounts = countVisibleCommentsByPostIds(
+			posts.stream().map(post -> post.getId()).toList(),
+			blockedIds);
 
 		var items = posts.stream().map(post -> {
-			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
+			long cc = commentCounts.getOrDefault(post.getId(), 0L);
 			var myVote = postVoteRepository.findByPostIdAndUserId(post.getId(), userId)
 				.filter(PostVote::isActive).map(PostVote::getVoteType).orElse(null);
 			return PostResponse.of(post, myNickname, cc, myVote, userId);
@@ -245,12 +257,16 @@ class MypageService {
 		List<UUID> authorIds = votes.stream()
 			.map(v -> v.getPost().getUser().getId()).distinct().toList();
 		Set<UUID> existingProfileIds = new HashSet<>(userProfileRepository.findExistingProfileUserIds(authorIds));
+		List<UUID> blockedIds = blockService.getBlockedUserIds(userId);
+		Map<UUID, Long> commentCounts = countVisibleCommentsByPostIds(
+			votes.stream().map(v -> v.getPost().getId()).toList(),
+			blockedIds);
 
 		var items = votes.stream().map(vote -> {
 			var post = vote.getPost();
 			String authorNickname = existingProfileIds.contains(post.getUser().getId())
 				? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-			long cc = postCommentRepository.countByPostIdAndDeletedAtIsNull(post.getId());
+			long cc = commentCounts.getOrDefault(post.getId(), 0L);
 			return PostResponse.of(post, authorNickname, cc, vote.getVoteType(), userId);
 		}).toList();
 
@@ -261,5 +277,15 @@ class MypageService {
 	private UserAccount findUserOrThrow(UUID userId) {
 		return userAccountRepository.findById(userId)
 			.orElseThrow(() -> new MypageNotFoundException("사용자를 찾을 수 없습니다."));
+	}
+
+	private Map<UUID, Long> countVisibleCommentsByPostIds(List<UUID> postIds, List<UUID> blockedIds) {
+		if (postIds.isEmpty()) return Collections.emptyMap();
+
+		List<PostCommentCount> counts = blockedIds.isEmpty()
+			? postCommentRepository.countVisibleByPostIds(postIds)
+			: postCommentRepository.countVisibleByPostIdsExcludingBlockers(postIds, blockedIds);
+		return counts.stream()
+			.collect(Collectors.toMap(PostCommentCount::postId, PostCommentCount::commentCount));
 	}
 }

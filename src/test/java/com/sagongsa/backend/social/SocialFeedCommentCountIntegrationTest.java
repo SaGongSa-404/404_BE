@@ -54,6 +54,11 @@ class SocialFeedCommentCountIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.total").value(1))
 			.andExpect(jsonPath("$.comments[0].body").value("보이는 댓글"));
+
+		mockMvc.perform(get("/api/v1/social/posts/{postId}", postId)
+				.header("X-User-Id", viewerId.toString()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.commentCount").value(1));
 	}
 
 	@Test
@@ -70,6 +75,44 @@ class SocialFeedCommentCountIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.posts[0].id").value(postId.toString()))
 			.andExpect(jsonPath("$.posts[0].commentCount").value(0));
+	}
+
+	@Test
+	void mypageCommentCountExcludesBlockedCommenters() throws Exception {
+		UUID viewerId = insertUserWithProfile();
+		UUID visibleCommenterId = insertUserWithProfile();
+		UUID blockedCommenterId = insertUserWithProfile();
+		UUID postId = insertPost(viewerId, "마이페이지 차단 댓글 집계 테스트");
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		insertComment(postId, visibleCommenterId, "보이는 댓글", now.plusSeconds(1));
+		insertComment(postId, blockedCommenterId, "차단된 댓글", now.plusSeconds(2));
+		insertBlock(viewerId, blockedCommenterId);
+
+		mockMvc.perform(get("/api/v1/users/me/posts")
+				.header("X-User-Id", viewerId.toString()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.posts[0].id").value(postId.toString()))
+			.andExpect(jsonPath("$.posts[0].commentCount").value(1));
+	}
+
+	@Test
+	void mypageVotedPostCommentCountExcludesBlockedCommenters() throws Exception {
+		UUID viewerId = insertUserWithProfile();
+		UUID authorId = insertUserWithProfile();
+		UUID visibleCommenterId = insertUserWithProfile();
+		UUID blockedCommenterId = insertUserWithProfile();
+		UUID postId = insertPost(authorId, "내 투표글 차단 댓글 집계 테스트");
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		insertComment(postId, visibleCommenterId, "보이는 댓글", now.plusSeconds(1));
+		insertComment(postId, blockedCommenterId, "차단된 댓글", now.plusSeconds(2));
+		insertBlock(viewerId, blockedCommenterId);
+		insertVote(postId, viewerId);
+
+		mockMvc.perform(get("/api/v1/users/me/votes")
+				.header("X-User-Id", viewerId.toString()))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.posts[0].id").value(postId.toString()))
+			.andExpect(jsonPath("$.posts[0].commentCount").value(1));
 	}
 
 	private UUID insertUserWithProfile() {
@@ -108,6 +151,14 @@ class SocialFeedCommentCountIntegrationTest extends PostgreSqlContainerTest {
 		jdbcTemplate.update(
 			"INSERT INTO user_blocks (id, blocker_user_id, blocked_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
 			UUID.randomUUID(), blockerId, blockedId, now, now
+		);
+	}
+
+	private void insertVote(UUID postId, UUID userId) {
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"INSERT INTO post_votes (id, post_id, user_id, vote_type, created_at, updated_at) VALUES (?, ?, ?, 'GO', ?, ?)",
+			UUID.randomUUID(), postId, userId, now, now
 		);
 	}
 }
