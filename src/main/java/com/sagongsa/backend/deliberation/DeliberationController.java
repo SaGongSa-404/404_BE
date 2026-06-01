@@ -29,8 +29,8 @@ public class DeliberationController {
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Deliberation summary returned"),
 			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
-			@ApiResponse(responseCode = "403", description = "Item belongs to another user"),
-			@ApiResponse(responseCode = "404", description = "Item does not exist")
+			@ApiResponse(responseCode = "403", description = "User not eligible (onboarding incomplete or suspended)"),
+			@ApiResponse(responseCode = "404", description = "Item does not exist or belongs to another user")
 		}
 	)
 	public DeliberationSummaryResponse getSummary(
