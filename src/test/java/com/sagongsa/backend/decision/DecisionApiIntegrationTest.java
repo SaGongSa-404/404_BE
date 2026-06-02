@@ -503,7 +503,7 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 
 	private void insertPreviousGoDecision(UUID userId, String title, String category, int finalPrice) {
 		UUID itemId = insertSavedItem(userId, title, category, "GO", finalPrice);
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusHours(1);
 		jdbcTemplate.update(
 			"""
 			insert into purchase_decisions (

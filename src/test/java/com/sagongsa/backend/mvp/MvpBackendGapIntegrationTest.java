@@ -295,7 +295,7 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 		UUID budgetCycleId
 	) {
 		UUID decisionId = UUID.randomUUID();
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusHours(1);
 		jdbcTemplate.update(
 			"""
 			insert into purchase_decisions (
@@ -323,7 +323,7 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 
 	private void insertSelfCheck(UUID decisionId, int yesCount, String rationalityResult, boolean first, boolean second, boolean third, boolean fourth) {
 		UUID responseSetId = UUID.randomUUID();
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusHours(1);
 		jdbcTemplate.update(
 			"""
 			insert into self_check_response_sets (
@@ -346,7 +346,7 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	private void insertSelfCheckAnswer(UUID responseSetId, String questionCode, boolean answerBoolean) {
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusHours(1);
 		jdbcTemplate.update(
 			"""
 			insert into self_check_answers (
@@ -365,7 +365,7 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 
 	private UUID insertReminder(UUID userId, UUID itemId, UUID decisionId, String status) {
 		UUID reminderId = UUID.randomUUID();
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusHours(1);
 		OffsetDateTime scheduledFor = now.plusDays(7);
 		OffsetDateTime sentAt = status.equals("SENT") ? now : null;
 		OffsetDateTime canceledAt = status.equals("CANCELED") ? now : null;
@@ -392,7 +392,7 @@ class MvpBackendGapIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	private void insertMascotEvent(UUID userId, UUID itemId, UUID decisionId) {
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).minusHours(1);
 		jdbcTemplate.update(
 			"""
 			insert into mascot_state_events (
