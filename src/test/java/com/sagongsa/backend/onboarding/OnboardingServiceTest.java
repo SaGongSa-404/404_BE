@@ -219,7 +219,7 @@ class OnboardingServiceTest extends PostgreSqlContainerTest {
 	}
 
 	private OnboardingCompleteRequest request(String mascotName, String timezone, Integer monthlyBudgetAmount, String regretFrequencyChoice) {
-		return new OnboardingCompleteRequest(mascotName, timezone, monthlyBudgetAmount, regretFrequencyChoice);
+		return new OnboardingCompleteRequest(null, mascotName, timezone, monthlyBudgetAmount, regretFrequencyChoice);
 	}
 
 	private String queryString(String sql, UUID userId) {
