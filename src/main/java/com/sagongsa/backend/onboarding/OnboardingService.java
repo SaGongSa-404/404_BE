@@ -115,7 +115,7 @@ public class OnboardingService {
 
 	private void insertUserProfile(UUID userId, NormalizedOnboardingRequest request, OffsetDateTime now) {
 		Long seq = jdbcTemplate.queryForObject("SELECT nextval('user_nickname_seq')", Long.class);
-		String autoNickname = "너굴" + seq;
+		String nickname = request.nickname() != null ? request.nickname() : "너굴" + seq;
 		jdbcTemplate.update(
 			"""
 				insert into user_profiles (
@@ -124,7 +124,7 @@ public class OnboardingService {
 				values (?, ?, ?, ?, null, ?, ?)
 				""",
 			userId,
-			autoNickname,
+			nickname,
 			request.mascotName(),
 			request.timezone(),
 			now,
@@ -204,12 +204,16 @@ public class OnboardingService {
 			throw new OnboardingBadRequestException("Request body is required.");
 		}
 
+		String nickname = request.nickname() != null && !request.nickname().isBlank()
+			? requireNicknameText(request.nickname())
+			: null;
 		String mascotName = requireText(request.mascotName(), "mascotName", 40);
 		String timezone = normalizeTimezone(request.timezone());
 		int monthlyBudgetAmount = normalizeMonthlyBudgetAmount(request.monthlyBudgetAmount());
 		String regretFrequencyChoice = normalizeRegretFrequencyChoice(request.regretFrequencyChoice());
 
 		return new NormalizedOnboardingRequest(
+			nickname,
 			mascotName,
 			timezone,
 			ZoneId.of(timezone),
@@ -226,6 +230,20 @@ public class OnboardingService {
 		String trimmed = value.trim();
 		if (trimmed.length() > maxLength) {
 			throw new OnboardingBadRequestException(fieldName + " must be " + maxLength + " characters or less.");
+		}
+		return trimmed;
+	}
+
+	private static final java.util.regex.Pattern NICKNAME_PATTERN =
+		java.util.regex.Pattern.compile("^[가-힣a-zA-Z0-9]+$");
+
+	private String requireNicknameText(String value) {
+		String trimmed = value.trim();
+		if (trimmed.length() < 1 || trimmed.length() > 10) {
+			throw new OnboardingBadRequestException("nickname must be between 1 and 10 characters.");
+		}
+		if (!NICKNAME_PATTERN.matcher(trimmed).matches()) {
+			throw new OnboardingBadRequestException("닉네임은 한글, 영문, 숫자만 허용됩니다.");
 		}
 		return trimmed;
 	}
@@ -271,6 +289,7 @@ public class OnboardingService {
 	}
 
 	private record NormalizedOnboardingRequest(
+		String nickname,
 		String mascotName,
 		String timezone,
 		ZoneId zoneId,
