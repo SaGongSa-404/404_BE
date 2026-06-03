@@ -221,8 +221,47 @@ class MypageService {
 		Instant from = ym.atDay(1).atStartOfDay(KST).toInstant();
 		Instant to = ym.atEndOfMonth().plusDays(1).atStartOfDay(KST).toInstant();
 
-		String statusName = status != null ? status.name() : null;
-		List<WishSummaryResponse> wishes = jdbcTemplate.query(
+		List<WishSummaryResponse> wishes = getWishSummaries(userId, status, from, to, page, size);
+		long total = countWishSummaries(userId, status, from, to);
+		return new WishHistoryResponse(wishes, total, page, size);
+	}
+
+	private List<WishSummaryResponse> getWishSummaries(
+		UUID userId, ItemStatus status, Instant from, Instant to, int page, int size) {
+		if (status == null) {
+			return jdbcTemplate.query(
+				"""
+				SELECT si.id,
+				       pd.id AS decision_id,
+				       si.title,
+				       COALESCE(pd.final_price, si.listed_price) AS price,
+				       si.image_url,
+				       si.category,
+				       si.status,
+				       pr.satisfaction_score,
+				       pr.regret_level,
+				       pr.still_using,
+				       pr.reflection_note,
+				       pr.reflected_at
+				FROM purchase_decisions pd
+				JOIN saved_items si ON si.id = pd.item_id
+				LEFT JOIN purchase_reflections pr ON pr.decision_id = pd.id
+				WHERE pd.user_id = ?
+				  AND pd.decided_at >= ?
+				  AND pd.decided_at < ?
+				ORDER BY pd.decided_at DESC
+				LIMIT ? OFFSET ?
+				""",
+				this::mapWishSummary,
+				userId,
+				Timestamp.from(from),
+				Timestamp.from(to),
+				size,
+				page * size
+			);
+		}
+
+		return jdbcTemplate.query(
 			"""
 			SELECT si.id,
 			       pd.id AS decision_id,
@@ -240,7 +279,7 @@ class MypageService {
 			JOIN saved_items si ON si.id = pd.item_id
 			LEFT JOIN purchase_reflections pr ON pr.decision_id = pd.id
 			WHERE pd.user_id = ?
-			  AND (? IS NULL OR si.status = ?)
+			  AND si.status = ?
 			  AND pd.decided_at >= ?
 			  AND pd.decided_at < ?
 			ORDER BY pd.decided_at DESC
@@ -248,32 +287,48 @@ class MypageService {
 			""",
 			this::mapWishSummary,
 			userId,
-			statusName,
-			statusName,
-			from,
-			to,
+			status.name(),
+			Timestamp.from(from),
+			Timestamp.from(to),
 			size,
 			page * size
 		);
+	}
 
-		long total = jdbcTemplate.queryForObject(
+	private long countWishSummaries(UUID userId, ItemStatus status, Instant from, Instant to) {
+		if (status == null) {
+			return jdbcTemplate.queryForObject(
+				"""
+				SELECT COUNT(*)
+				FROM purchase_decisions pd
+				JOIN saved_items si ON si.id = pd.item_id
+				WHERE pd.user_id = ?
+				  AND pd.decided_at >= ?
+				  AND pd.decided_at < ?
+				""",
+				Long.class,
+				userId,
+				Timestamp.from(from),
+				Timestamp.from(to)
+			);
+		}
+
+		return jdbcTemplate.queryForObject(
 			"""
 			SELECT COUNT(*)
 			FROM purchase_decisions pd
 			JOIN saved_items si ON si.id = pd.item_id
 			WHERE pd.user_id = ?
-			  AND (? IS NULL OR si.status = ?)
+			  AND si.status = ?
 			  AND pd.decided_at >= ?
 			  AND pd.decided_at < ?
 			""",
 			Long.class,
 			userId,
-			statusName,
-			statusName,
-			from,
-			to
+			status.name(),
+			Timestamp.from(from),
+			Timestamp.from(to)
 		);
-		return new WishHistoryResponse(wishes, total, page, size);
 	}
 
 	private StatsAggregation getStatsAggregation(UUID userId, Instant from, Instant to) {
@@ -309,8 +364,8 @@ class MypageService {
 				);
 			},
 			userId,
-			from,
-			to
+			Timestamp.from(from),
+			Timestamp.from(to)
 		);
 	}
 
@@ -333,8 +388,8 @@ class MypageService {
 				rs.getInt("amount")
 			),
 			userId,
-			from,
-			to
+			Timestamp.from(from),
+			Timestamp.from(to)
 		);
 	}
 
