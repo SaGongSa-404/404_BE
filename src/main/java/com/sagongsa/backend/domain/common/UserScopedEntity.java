@@ -20,6 +20,10 @@ public abstract class UserScopedEntity extends BaseEntity {
 		this.user = user;
 	}
 
+	protected void assignUser(UserAccount user) {
+		this.user = user;
+	}
+
 	public UserAccount getUser() {
 		return user;
 	}

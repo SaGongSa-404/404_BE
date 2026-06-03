@@ -17,9 +17,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -40,6 +41,7 @@ class PurchaseReflectionControllerTest {
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new PurchaseReflectionController(purchaseReflectionService))
 			.setCustomArgumentResolvers(new HeaderUserIdArgumentResolver())
+			.setMessageConverters(new MappingJackson2HttpMessageConverter())
 			.build();
 	}
 

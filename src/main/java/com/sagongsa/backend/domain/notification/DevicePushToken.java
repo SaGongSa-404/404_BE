@@ -1,6 +1,7 @@
 package com.sagongsa.backend.domain.notification;
 
 import com.sagongsa.backend.domain.common.UserScopedEntity;
+import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.enums.PushPlatform;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,5 +41,60 @@ public class DevicePushToken extends UserScopedEntity {
 	private Instant disabledAt;
 
 	protected DevicePushToken() {
+	}
+
+	private DevicePushToken(UserAccount user, String deviceId, PushPlatform platform, String pushToken) {
+		super(user);
+		this.deviceId = normalizeDeviceId(deviceId);
+		this.platform = platform;
+		this.pushToken = pushToken;
+		this.isActive = true;
+	}
+
+	public static DevicePushToken create(UserAccount user, String deviceId, PushPlatform platform, String pushToken) {
+		return new DevicePushToken(user, deviceId, platform, pushToken);
+	}
+
+	public void activateFor(UserAccount user, String deviceId, PushPlatform platform) {
+		assignUser(user);
+		this.deviceId = normalizeDeviceId(deviceId);
+		this.platform = platform;
+		this.isActive = true;
+		this.disabledAt = null;
+	}
+
+	public void deactivate() {
+		if (!isActive) {
+			return;
+		}
+		this.isActive = false;
+		this.disabledAt = Instant.now();
+	}
+
+	public String getDeviceId() {
+		return deviceId;
+	}
+
+	public PushPlatform getPlatform() {
+		return platform;
+	}
+
+	public String getPushToken() {
+		return pushToken;
+	}
+
+	public boolean isActive() {
+		return isActive;
+	}
+
+	public Instant getDisabledAt() {
+		return disabledAt;
+	}
+
+	private static String normalizeDeviceId(String deviceId) {
+		if (deviceId == null || deviceId.isBlank()) {
+			return null;
+		}
+		return deviceId;
 	}
 }

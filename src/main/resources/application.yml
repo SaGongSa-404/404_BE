@@ -52,3 +52,7 @@ app:
     access-token-ttl: ${APP_ACCESS_TOKEN_TTL:PT2H}
     refresh-token-ttl: ${APP_REFRESH_TOKEN_TTL:P30D}
     allowed-redirect-uri-prefixes: ${APP_ALLOWED_REDIRECT_URI_PREFIXES:sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://localhost/auth/callback,https://127.0.0.1/auth/callback}
+  push:
+    fcm:
+      enabled: ${APP_PUSH_FCM_ENABLED:false}
+      credentials-location: ${APP_PUSH_FCM_CREDENTIALS_LOCATION:}
