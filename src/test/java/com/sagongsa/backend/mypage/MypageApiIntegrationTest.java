@@ -209,7 +209,11 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.restrainedAmount").value(50_000))
 			.andExpect(jsonPath("$.boughtCount").value(1))
 			.andExpect(jsonPath("$.restrainedCount").value(1))
-			.andExpect(jsonPath("$.usageRate").value(33.3));
+			.andExpect(jsonPath("$.usageRate").value(33.3))
+			.andExpect(jsonPath("$.categorySpendAmounts[0].category").value("DIGITAL"))
+			.andExpect(jsonPath("$.categorySpendAmounts[0].amount").value(100_000))
+			.andExpect(jsonPath("$.rationalChoiceRate").value(100.0))
+			.andExpect(jsonPath("$.irrationalChoiceCount").value(0));
 	}
 
 	// ── GET /api/v1/users/me/wishes/history ──────────────────────────────────
@@ -221,6 +225,24 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get(BASE + "/wishes/history").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.wishes").isArray());
+	}
+
+	@Test
+	void 위시_히스토리_평가_결과_조회_200() throws Exception {
+		UUID userId = insertUser("너굴이", "너구리");
+		String yearMonth = YearMonth.now(KST).toString();
+		UUID decisionId = insertDecision(userId, "GO", 100_000, yearMonth);
+		insertReflection(userId, decisionId, 5, "NONE", true, "잘 쓰고 있어요");
+
+		mockMvc.perform(get(BASE + "/wishes/history")
+				.header("X-User-Id", userId)
+				.param("status", "GO")
+				.param("yearMonth", yearMonth))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.wishes[0].decisionId").value(decisionId.toString()))
+			.andExpect(jsonPath("$.wishes[0].reflection.satisfactionScore").value(5))
+			.andExpect(jsonPath("$.wishes[0].reflection.regretLevel").value("NONE"))
+			.andExpect(jsonPath("$.wishes[0].reflection.stillUsing").value(true));
 	}
 
 	@Test
@@ -298,8 +320,9 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 			UUID.randomUUID(), postId, userId, voteType, now, now);
 	}
 
-	private void insertDecision(UUID userId, String result, int price, String yearMonth) {
+	private UUID insertDecision(UUID userId, String result, int price, String yearMonth) {
 		UUID itemId = UUID.randomUUID();
+		UUID decisionId = UUID.randomUUID();
 		ZoneId kst = ZoneId.of("Asia/Seoul");
 		java.time.YearMonth ym = java.time.YearMonth.parse(yearMonth);
 		OffsetDateTime monthMid = OffsetDateTime.ofInstant(
@@ -310,6 +333,18 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 			itemId, userId, price, result, monthMid, monthMid);
 		jdbcTemplate.update(
 			"INSERT INTO purchase_decisions (id, user_id, item_id, result, final_price, rationality_result, self_check_yes_count, is_changed, change_count, decided_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'RATIONAL', 0, false, 0, ?, ?, ?)",
-			UUID.randomUUID(), userId, itemId, result, price, monthMid, now, now);
+			decisionId, userId, itemId, result, price, monthMid, now, now);
+		return decisionId;
+	}
+
+	private void insertReflection(UUID userId, UUID decisionId, Integer satisfactionScore, String regretLevel,
+		Boolean stillUsing, String reflectionNote) {
+		UUID itemId = jdbcTemplate.queryForObject(
+			"SELECT item_id FROM purchase_decisions WHERE id = ?", UUID.class, decisionId);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"INSERT INTO purchase_reflections (id, user_id, item_id, decision_id, satisfaction_score, regret_level, still_using, reflection_note, reflected_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			UUID.randomUUID(), userId, itemId, decisionId, satisfactionScore, regretLevel, stillUsing, reflectionNote,
+			now, now, now);
 	}
 }
