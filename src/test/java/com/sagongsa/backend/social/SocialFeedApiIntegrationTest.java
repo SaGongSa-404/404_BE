@@ -273,7 +273,7 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 				.header("X-User-Id", reporter)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-					{"reason":"스팸입니다"}
+					{"category":"SPAM","reason":"스팸입니다"}
 					"""))
 			.andExpect(status().isNoContent());
 	}
@@ -284,7 +284,7 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 		UUID author = insertUser();
 		UUID postId = insertPost(author);
 		String body = """
-			{"reason":"스팸"}
+			{"category":"SPAM"}
 			""";
 
 		mockMvc.perform(post("/api/v1/social/posts/{postId}/reports", postId)
@@ -308,7 +308,7 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 				.header("X-User-Id", reporter)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-					{"reason":"스팸"}
+					{"category":"SPAM"}
 					"""))
 			.andExpect(status().isNotFound());
 	}
@@ -326,7 +326,7 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 				.header("X-User-Id", reporter)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-					{"reason":"부적절한 내용"}
+					{"category":"OBSCENE","reason":"부적절한 내용"}
 					"""))
 			.andExpect(status().isNoContent());
 	}
@@ -338,7 +338,7 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 		UUID postId = insertPost(author);
 		UUID commentId = insertComment(author, postId);
 		String body = """
-			{"reason":"신고"}
+			{"category":"PROFANITY"}
 			""";
 
 		mockMvc.perform(post("/api/v1/social/posts/{postId}/comments/{commentId}/reports", postId, commentId)
