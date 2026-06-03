@@ -174,7 +174,7 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void completeWithTooShortNicknameReturns400() throws Exception {
+	void completeWithTooLongNicknameReturns400() throws Exception {
 		UUID userId = insertUser("NOT_STARTED");
 
 		mockMvc.perform(post("/api/v1/onboarding/complete")
@@ -182,7 +182,7 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 					{
-						"nickname": "가",
+						"nickname": "열한글자닉네임이야여기",
 						"mascotName": "wigul",
 						"timezone": "Asia/Seoul",
 						"monthlyBudgetAmount": 300000,
@@ -193,7 +193,7 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void completeWithTooLongNicknameReturns400() throws Exception {
+	void completeWithSpecialCharNicknameReturns400() throws Exception {
 		UUID userId = insertUser("NOT_STARTED");
 
 		mockMvc.perform(post("/api/v1/onboarding/complete")
@@ -201,7 +201,7 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 					{
-						"nickname": "아홉글자닉네임이야",
+						"nickname": "ab!",
 						"mascotName": "wigul",
 						"timezone": "Asia/Seoul",
 						"monthlyBudgetAmount": 300000,

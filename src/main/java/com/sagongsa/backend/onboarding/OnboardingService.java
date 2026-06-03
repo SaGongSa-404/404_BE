@@ -234,13 +234,16 @@ public class OnboardingService {
 		return trimmed;
 	}
 
+	private static final java.util.regex.Pattern NICKNAME_PATTERN =
+		java.util.regex.Pattern.compile("^[가-힣a-zA-Z0-9]+$");
+
 	private String requireNicknameText(String value) {
 		String trimmed = value.trim();
-		if (trimmed.length() < 2) {
-			throw new OnboardingBadRequestException("nickname must be at least 2 characters.");
+		if (trimmed.length() < 1 || trimmed.length() > 10) {
+			throw new OnboardingBadRequestException("nickname must be between 1 and 10 characters.");
 		}
-		if (trimmed.length() > 8) {
-			throw new OnboardingBadRequestException("nickname must be 8 characters or less.");
+		if (!NICKNAME_PATTERN.matcher(trimmed).matches()) {
+			throw new OnboardingBadRequestException("닉네임은 한글, 영문, 숫자만 허용됩니다.");
 		}
 		return trimmed;
 	}
