@@ -173,6 +173,44 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 			.matches("너굴\\d+");
 	}
 
+	@Test
+	void completeWithTooShortNicknameReturns400() throws Exception {
+		UUID userId = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+						"nickname": "가",
+						"mascotName": "wigul",
+						"timezone": "Asia/Seoul",
+						"monthlyBudgetAmount": 300000,
+						"regretFrequencyChoice": "FOUR_OR_MORE"
+					}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void completeWithTooLongNicknameReturns400() throws Exception {
+		UUID userId = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+						"nickname": "아홉글자닉네임이야",
+						"mascotName": "wigul",
+						"timezone": "Asia/Seoul",
+						"monthlyBudgetAmount": 300000,
+						"regretFrequencyChoice": "FOUR_OR_MORE"
+					}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
+
 	private UUID insertUser(String onboardingStatus) {
 		return insertUser("ACTIVE", onboardingStatus);
 	}

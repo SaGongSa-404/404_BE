@@ -205,7 +205,7 @@ public class OnboardingService {
 		}
 
 		String nickname = request.nickname() != null && !request.nickname().isBlank()
-			? requireText(request.nickname(), "nickname", 20)
+			? requireNicknameText(request.nickname())
 			: null;
 		String mascotName = requireText(request.mascotName(), "mascotName", 40);
 		String timezone = normalizeTimezone(request.timezone());
@@ -230,6 +230,17 @@ public class OnboardingService {
 		String trimmed = value.trim();
 		if (trimmed.length() > maxLength) {
 			throw new OnboardingBadRequestException(fieldName + " must be " + maxLength + " characters or less.");
+		}
+		return trimmed;
+	}
+
+	private String requireNicknameText(String value) {
+		String trimmed = value.trim();
+		if (trimmed.length() < 2) {
+			throw new OnboardingBadRequestException("nickname must be at least 2 characters.");
+		}
+		if (trimmed.length() > 8) {
+			throw new OnboardingBadRequestException("nickname must be 8 characters or less.");
 		}
 		return trimmed;
 	}
