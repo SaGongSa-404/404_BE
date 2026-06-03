@@ -21,10 +21,16 @@ public class ReminderNotificationWorker {
 
 	private final JdbcTemplate jdbcTemplate;
 	private final TransactionTemplate transactionTemplate;
+	private final PushNotificationService pushNotificationService;
 
-	public ReminderNotificationWorker(JdbcTemplate jdbcTemplate, TransactionTemplate transactionTemplate) {
+	public ReminderNotificationWorker(
+		JdbcTemplate jdbcTemplate,
+		TransactionTemplate transactionTemplate,
+		PushNotificationService pushNotificationService
+	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.transactionTemplate = transactionTemplate;
+		this.pushNotificationService = pushNotificationService;
 	}
 
 	public int processDueReminders() {
@@ -62,8 +68,14 @@ public class ReminderNotificationWorker {
 
 	private boolean processReminder(UUID reminderId) {
 		try {
-			Boolean processed = transactionTemplate.execute(status -> processReminderInTransaction(reminderId));
-			return Boolean.TRUE.equals(processed);
+			ReminderProcessResult result = transactionTemplate.execute(status -> processReminderInTransaction(reminderId));
+			if (result == null || !result.processed()) {
+				return false;
+			}
+			if (result.pushMessage() != null) {
+				pushNotificationService.send(result.pushMessage());
+			}
+			return true;
 		}
 		catch (RuntimeException exception) {
 			log.warn("Failed to process reminder {}", reminderId, exception);
@@ -71,16 +83,27 @@ public class ReminderNotificationWorker {
 		}
 	}
 
-	private boolean processReminderInTransaction(UUID reminderId) {
+	private ReminderProcessResult processReminderInTransaction(UUID reminderId) {
 		ReminderTarget target = lockReminderTarget(reminderId);
 		if (target == null || !"SCHEDULED".equals(target.status())) {
-			return false;
+			return ReminderProcessResult.skipped();
 		}
+		NotificationPushMessage pushMessage = null;
 		if (!notificationExists(target.reminderId())) {
-			insertNotification(target);
+			UUID notificationId = insertNotification(target);
+			if (notificationId != null) {
+				pushMessage = new NotificationPushMessage(
+					target.userId(),
+					notificationId,
+					"REGRET_CHECK_READY",
+					"구매 후 7일이 지났어요",
+					"[%s] 지금도 잘 샀다고 생각하나요?".formatted(target.itemTitle()),
+					"/reflections?decisionId=" + target.decisionId()
+				);
+			}
 		}
 		markSent(target.reminderId());
-		return true;
+		return ReminderProcessResult.processed(pushMessage);
 	}
 
 	private ReminderTarget lockReminderTarget(UUID reminderId) {
@@ -128,8 +151,9 @@ public class ReminderNotificationWorker {
 		return Boolean.TRUE.equals(exists);
 	}
 
-	private void insertNotification(ReminderTarget target) {
+	private UUID insertNotification(ReminderTarget target) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		UUID notificationId = UUID.randomUUID();
 		try {
 			jdbcTemplate.update(
 				"""
@@ -140,7 +164,7 @@ public class ReminderNotificationWorker {
 				)
 				values (?, ?, 'REGRET_CHECK_READY', ?, ?, ?, ?, ?, ?, false, ?, ?)
 				""",
-				UUID.randomUUID(),
+				notificationId,
 				target.userId(),
 				"구매 후 7일이 지났어요",
 				"[%s] 지금도 잘 샀다고 생각하나요?".formatted(target.itemTitle()),
@@ -151,9 +175,11 @@ public class ReminderNotificationWorker {
 				now,
 				now
 			);
+			return notificationId;
 		}
 		catch (DuplicateKeyException ignored) {
 			// Another worker inserted the reminder notification first.
+			return null;
 		}
 	}
 
@@ -193,5 +219,16 @@ public class ReminderNotificationWorker {
 		String status,
 		String itemTitle
 	) {
+	}
+
+	private record ReminderProcessResult(boolean processed, NotificationPushMessage pushMessage) {
+
+		static ReminderProcessResult skipped() {
+			return new ReminderProcessResult(false, null);
+		}
+
+		static ReminderProcessResult processed(NotificationPushMessage pushMessage) {
+			return new ReminderProcessResult(true, pushMessage);
+		}
 	}
 }

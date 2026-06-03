@@ -9,6 +9,7 @@ import com.sagongsa.backend.domain.budget.BudgetCycleRepository;
 import com.sagongsa.backend.domain.enums.ItemStatus;
 import com.sagongsa.backend.domain.item.SavedItem;
 import com.sagongsa.backend.domain.item.SavedItemRepository;
+import com.sagongsa.backend.domain.notification.DevicePushTokenRepository;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
 import com.sagongsa.backend.domain.social.PostCommentCount;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
@@ -50,6 +51,7 @@ class MypageService {
 	private final PostCommentRepository postCommentRepository;
 	private final SavedItemRepository savedItemRepository;
 	private final BudgetCycleRepository budgetCycleRepository;
+	private final DevicePushTokenRepository devicePushTokenRepository;
 	private final JdbcTemplate jdbcTemplate;
 	private final BlockService blockService;
 
@@ -61,6 +63,7 @@ class MypageService {
 		PostCommentRepository postCommentRepository,
 		SavedItemRepository savedItemRepository,
 		BudgetCycleRepository budgetCycleRepository,
+		DevicePushTokenRepository devicePushTokenRepository,
 		JdbcTemplate jdbcTemplate,
 		BlockService blockService) {
 		this.userAccountRepository = userAccountRepository;
@@ -71,6 +74,7 @@ class MypageService {
 		this.postCommentRepository = postCommentRepository;
 		this.savedItemRepository = savedItemRepository;
 		this.budgetCycleRepository = budgetCycleRepository;
+		this.devicePushTokenRepository = devicePushTokenRepository;
 		this.jdbcTemplate = jdbcTemplate;
 		this.blockService = blockService;
 	}
@@ -156,6 +160,7 @@ class MypageService {
 		jdbcTemplate.update("DELETE FROM purchase_decisions WHERE user_id = ?", userId);
 		jdbcTemplate.update("DELETE FROM item_source_metadata WHERE item_id IN (SELECT id FROM saved_items WHERE user_id = ?)", userId);
 
+		devicePushTokenRepository.deleteByUserId(userId);
 		savedItemRepository.deleteByUserId(userId);
 		budgetCycleRepository.deleteByUserId(userId);
 		userProfileRepository.deleteByUserId(userId);

@@ -1,6 +1,9 @@
 package com.sagongsa.backend.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
@@ -9,6 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -20,6 +24,9 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+
+	@MockBean
+	private PushNotificationService pushNotificationService;
 
 	@BeforeEach
 	void setUp() {
@@ -41,6 +48,13 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 		assertThat(queryString("select notification_type from notifications where reminder_id = ?", reminderId)).isEqualTo("REGRET_CHECK_READY");
 		assertThat(queryString("select target_path from notifications where reminder_id = ?", reminderId))
 			.isEqualTo("/reflections?decisionId=" + decisionId);
+		UUID notificationId = queryUuid("select id from notifications where reminder_id = ?", reminderId);
+		verify(pushNotificationService).send(argThat(message ->
+			message.userId().equals(userId)
+				&& message.notificationId().equals(notificationId)
+				&& message.notificationType().equals("REGRET_CHECK_READY")
+				&& message.targetPath().equals("/reflections?decisionId=" + decisionId)
+		));
 	}
 
 	@Test
@@ -56,6 +70,7 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 		assertThat(processedCount).isEqualTo(1);
 		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SENT");
 		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isEqualTo(1);
+		verify(pushNotificationService, never()).send(org.mockito.ArgumentMatchers.any());
 	}
 
 	@Test
@@ -260,5 +275,9 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 
 	private Integer queryInteger(String sql, Object... args) {
 		return jdbcTemplate.queryForObject(sql, Integer.class, args);
+	}
+
+	private UUID queryUuid(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, UUID.class, args);
 	}
 }
