@@ -37,6 +37,7 @@ public class ShoppingLinkImportService {
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
 	);
+	private static final Set<String> OLIVE_YOUNG_HOSTS = Set.of("oliveyoung.co.kr", "m.oliveyoung.co.kr");
 	private static final double DEFAULT_CATEGORY_CONFIDENCE = 0.35d;
 
 	private final PageFetcher pageFetcher;
@@ -74,6 +75,9 @@ public class ShoppingLinkImportService {
 		}
 
 		Document document = Jsoup.parse(page.body(), page.finalUri().toString());
+		if (isBlockedShoppingPage(document, page)) {
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page access was challenged");
+		}
 		ExtractionResult extracted = extractFromPage(document, page);
 		List<String> warnings = new ArrayList<>(normalized.warnings());
 
@@ -81,7 +85,10 @@ public class ShoppingLinkImportService {
 			warnings.add("상품 메타데이터가 일부만 추출되었습니다.");
 		}
 
-		if (isBlank(extracted.title()) && extracted.price() == null && isBlank(extracted.imageUrl())) {
+		if (isBlank(extracted.title())) {
+			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Unable to extract shopping item title");
+		}
+		if (extracted.price() == null && isBlank(extracted.imageUrl())) {
 			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Unable to extract shopping metadata");
 		}
 
@@ -208,13 +215,15 @@ public class ShoppingLinkImportService {
 
 	private ExtractionResult extractFromPage(Document document, FetchedPage page) {
 		String html = page.body();
+		String sourceDomain = sourceDomain(page.finalUri());
 		String summary = firstNonBlank(
 			metaContent(document, "meta[property=og:description]"),
 			metaContent(document, "meta[name=description]"),
 			metaContent(document, "meta[name=twitter:description]"),
 			jsonLdText(document, "description")
 		);
-		String title = firstNonBlank(
+		String title = firstProductTitle(
+			sourceDomain,
 			metaContent(document, "meta[property=og:title]"),
 			metaContent(document, "meta[name=twitter:title]"),
 			jsonLdText(document, "name"),
@@ -416,6 +425,27 @@ public class ShoppingLinkImportService {
 		return matcher.find() ? matcher.group(1) : null;
 	}
 
+	private boolean isBlockedShoppingPage(Document document, FetchedPage page) {
+		String title = normalizeWhitespace(document.title());
+		String bodyText = normalizeWhitespace(document.body() == null ? null : document.body().text());
+		String html = page.body() == null ? "" : page.body().toLowerCase(Locale.ROOT);
+		return isBlockedPageText(title)
+			|| isBlockedPageText(bodyText)
+			|| html.contains("cf-mitigated")
+			|| html.contains("cf_chl")
+			|| html.contains("/cdn-cgi/challenge-platform");
+	}
+
+	private boolean isBlockedPageText(String text) {
+		if (isBlank(text)) {
+			return false;
+		}
+		String normalized = text.toLowerCase(Locale.ROOT);
+		return normalized.contains("잠시만 기다")
+			|| normalized.contains("접속 정보를 확인")
+			|| normalized.contains("enable javascript and cookies");
+	}
+
 	private Integer parsePrice(String rawPrice) {
 		if (isBlank(rawPrice)) {
 			return null;
@@ -457,6 +487,46 @@ public class ShoppingLinkImportService {
 	private String sourceDomain(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("");
 		return host.toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "");
+	}
+
+	private String firstProductTitle(String sourceDomain, String... values) {
+		for (String value : values) {
+			String title = cleanProductTitle(sourceDomain, value);
+			if (!isBlank(title)) {
+				return title;
+			}
+		}
+		return null;
+	}
+
+	private String cleanProductTitle(String sourceDomain, String value) {
+		String title = normalizeWhitespace(value);
+		if (isBlank(title) || isBlockedPageText(title)) {
+			return null;
+		}
+		if (isOliveYoungDomain(sourceDomain)) {
+			title = normalizeWhitespace(title.replaceFirst("\\s*/\\s*올리브영$", ""));
+			if (isOliveYoungSiteTitle(title)) {
+				return null;
+			}
+		}
+		return title;
+	}
+
+	private boolean isOliveYoungDomain(String sourceDomain) {
+		return OLIVE_YOUNG_HOSTS.contains(sourceDomain);
+	}
+
+	private boolean isOliveYoungSiteTitle(String title) {
+		if (isBlank(title)) {
+			return true;
+		}
+		String normalized = title.replace("[", "")
+			.replace("]", "")
+			.replace("/", "")
+			.trim()
+			.toLowerCase(Locale.ROOT);
+		return normalized.equals("올리브영") || normalized.equals("oliveyoung");
 	}
 
 	private boolean containsAny(String value, String... keywords) {

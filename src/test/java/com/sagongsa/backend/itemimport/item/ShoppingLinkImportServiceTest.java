@@ -115,6 +115,74 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void skipsOliveYoungSiteTitleAndUsesProductTitleFallback() {
+		pageFetcher.stub(
+			"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000230109",
+			"""
+				<html>
+				<head>
+				  <title>[올리브영]</title>
+				  <meta property="og:title" content="/ 올리브영" />
+				  <meta property="og:image" content="https://image.oliveyoung.co.kr/item.jpg" />
+				  <meta property="product:price:amount" content="12900" />
+				</head>
+				<body>
+				  <h1>[포켓몬 에디션] 힐링버드 헤어에센스 150ml / 올리브영</h1>
+				</body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000230109",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("[포켓몬 에디션] 힐링버드 헤어에센스 150ml");
+		assertThat(response.saveRequest().title()).isEqualTo("[포켓몬 에디션] 힐링버드 헤어에센스 150ml");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.BEAUTY);
+	}
+
+	@Test
+	void rejectsOliveYoungChallengePageInsteadOfUsingChallengeTitle() {
+		pageFetcher.stub(
+			"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000230109",
+			"""
+				<html>
+				<head>
+				  <title>잠시만 기다려 주세요 - 올리브영</title>
+				  <meta property="og:image" content="https://image.oliveyoung.co.kr/item.jpg" />
+				  <meta property="product:price:amount" content="12900" />
+				</head>
+				<body>안전하고 원활한 올리브영 이용을 위해 접속 정보를 확인 중이에요</body>
+				</html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000230109",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+			});
+	}
+
+	@Test
 	void acceptsDirectInputWithoutRemoteFetch() {
 		ShoppingLinkImportResponse response = service.importLink(
 			new ShoppingLinkImportRequest(
