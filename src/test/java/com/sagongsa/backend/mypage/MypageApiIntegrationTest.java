@@ -166,6 +166,24 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 회원탈퇴_결정_셀프체크_이력이_있어도_204() throws Exception {
+		UUID userId = insertUser("너굴이", "너구리");
+		String yearMonth = YearMonth.now(KST).toString();
+		UUID decisionId = insertDecision(userId, "GO", 100_000, yearMonth);
+		UUID responseSetId = insertSelfCheckResponseSet(decisionId);
+
+		mockMvc.perform(delete(BASE).header("X-User-Id", userId))
+			.andExpect(status().isNoContent());
+
+		Integer responseSetCount = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM self_check_response_sets WHERE id = ?", Integer.class, responseSetId);
+		Integer decisionCount = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM purchase_decisions WHERE id = ?", Integer.class, decisionId);
+		org.assertj.core.api.Assertions.assertThat(responseSetCount).isZero();
+		org.assertj.core.api.Assertions.assertThat(decisionCount).isZero();
+	}
+
+	@Test
 	void 탈퇴_후_프로필_삭제_확인() throws Exception {
 		UUID userId = insertUser("너굴이", "너구리");
 		mockMvc.perform(delete(BASE).header("X-User-Id", userId))
@@ -335,6 +353,18 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 			"INSERT INTO purchase_decisions (id, user_id, item_id, result, final_price, rationality_result, self_check_yes_count, is_changed, change_count, decided_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'RATIONAL', 0, false, 0, ?, ?, ?)",
 			decisionId, userId, itemId, result, price, monthMid, now, now);
 		return decisionId;
+	}
+
+	private UUID insertSelfCheckResponseSet(UUID decisionId) {
+		UUID responseSetId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"INSERT INTO self_check_response_sets (id, decision_id, yes_count, rationality_result, submitted_at, created_at, updated_at) VALUES (?, ?, 0, 'RATIONAL', ?, ?, ?)",
+			responseSetId, decisionId, now, now, now);
+		jdbcTemplate.update(
+			"INSERT INTO self_check_answers (id, response_set_id, question_code, answer_boolean, created_at, updated_at) VALUES (?, ?, 'NEED', false, ?, ?)",
+			UUID.randomUUID(), responseSetId, now, now);
+		return responseSetId;
 	}
 
 	private void insertReflection(UUID userId, UUID decisionId, Integer satisfactionScore, String regretLevel,

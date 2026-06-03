@@ -127,7 +127,7 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 		assertPartialIndex("idx_post_comments_post_created_visible", "deleted_at is null");
 		assertTrigger("trg_post_votes_sync_feed_counts", "post_votes");
 		assertTrigger("trg_self_check_matches_decision", "self_check_response_sets");
-		assertTrigger("trg_prevent_self_check_response_set_delete", "self_check_response_sets");
+		assertNoTrigger("trg_prevent_self_check_response_set_delete", "self_check_response_sets");
 		assertTrigger("trg_decision_matches_self_check", "purchase_decisions");
 		assertConstraintComment("social_accounts", "uk_social_accounts_user_id", "MVP policy");
 		assertTableComment("share_tokens", "MVP policy");
@@ -316,15 +316,20 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void preventsDeletingSelfCheckSetAfterDecisionSummaryWasStored() {
+	void allowsDeletingSelfCheckSetForAccountWithdrawalCleanup() {
 		UUID userId = insertUser();
 		UUID itemId = insertSavedItem(userId, "https://shop.example/self-check-delete");
 		UUID decisionId = insertPurchaseDecision(userId, itemId, (short) 1, "RATIONAL");
 		UUID responseSetId = insertSelfCheckResponseSet(decisionId, (short) 1, "RATIONAL");
 
-		assertThatThrownBy(() ->
-			jdbcTemplate.update("delete from self_check_response_sets where id = ?", responseSetId)
-		).isInstanceOf(DataIntegrityViolationException.class);
+		jdbcTemplate.update("delete from self_check_response_sets where id = ?", responseSetId);
+
+		Integer count = jdbcTemplate.queryForObject(
+			"select count(*) from self_check_response_sets where id = ?",
+			Integer.class,
+			responseSetId
+		);
+		assertThat(count).isZero();
 	}
 
 	@Test
@@ -407,6 +412,26 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 		);
 
 		assertThat(count).isNotNull().isGreaterThan(0);
+	}
+
+	private void assertNoTrigger(String triggerName, String tableName) {
+		Integer count = jdbcTemplate.queryForObject(
+			"""
+			select count(*)
+			from pg_trigger trg
+			join pg_class tbl on tbl.oid = trg.tgrelid
+			join pg_namespace n on n.oid = tbl.relnamespace
+			where n.nspname = current_schema()
+			  and lower(trg.tgname) = ?
+			  and lower(tbl.relname) = ?
+			  and not trg.tgisinternal
+			""",
+			Integer.class,
+			triggerName,
+			tableName
+		);
+
+		assertThat(count).isZero();
 	}
 
 	private void assertConstraintComment(String tableName, String constraintName, String expectedFragment) {
