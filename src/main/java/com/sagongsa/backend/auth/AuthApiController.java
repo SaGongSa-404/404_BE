@@ -1,13 +1,17 @@
 package com.sagongsa.backend.auth;
 
+import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -23,10 +27,18 @@ import org.springframework.web.server.ResponseStatusException;
 @Tag(name = "Auth", description = "OAuth login session and JWT refresh APIs")
 public class AuthApiController {
 
-	private final JwtTokenService jwtTokenService;
+	private static final UUID APP_REVIEWER_USER_ID = UUID.fromString("40400000-0000-0000-0000-000000000055");
+	private static final String APP_REVIEWER_PROVIDER = "kakao";
+	private static final String APP_REVIEWER_PROVIDER_USER_ID = "app-reviewer-fixed";
+	private static final String APP_REVIEWER_NAME = "앱 심사 계정";
+	private static final String APP_REVIEWER_EMAIL = "app-reviewer@sagongsa.dev";
 
-	public AuthApiController(JwtTokenService jwtTokenService) {
+	private final JwtTokenService jwtTokenService;
+	private final UserAccountRepository userAccountRepository;
+
+	public AuthApiController(JwtTokenService jwtTokenService, UserAccountRepository userAccountRepository) {
 		this.jwtTokenService = jwtTokenService;
+		this.userAccountRepository = userAccountRepository;
 	}
 
 	@GetMapping("/me")
@@ -70,16 +82,39 @@ public class AuthApiController {
 	public TokenRefreshResponse refresh(@RequestBody TokenRefreshRequest request) {
 		try {
 			JwtTokenService.TokenPair tokenPair = jwtTokenService.refresh(request.refreshToken());
-			return new TokenRefreshResponse(
-				tokenPair.tokenType(),
-				tokenPair.accessToken(),
-				tokenPair.accessTokenExpiresAt(),
-				tokenPair.refreshToken(),
-				tokenPair.refreshTokenExpiresAt()
-			);
+			return toTokenResponse(tokenPair);
 		} catch (RuntimeException exception) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token", exception);
 		}
+	}
+
+	@PostMapping("/reviewer-token")
+	@Operation(
+		summary = "Issue app reviewer token",
+		description = "Issues a regular user JWT token pair for the fixed app review account.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Reviewer token pair issued"),
+			@ApiResponse(responseCode = "500", description = "Reviewer account seed data is missing")
+		}
+	)
+	public TokenRefreshResponse issueReviewerToken() {
+		if (!userAccountRepository.existsById(APP_REVIEWER_USER_ID)) {
+			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "App reviewer account is not configured.");
+		}
+
+		JwtTokenService.TokenPair tokenPair = jwtTokenService.issueTokenPair(
+			new SocialUserProfile(
+				APP_REVIEWER_PROVIDER,
+				APP_REVIEWER_PROVIDER_USER_ID,
+				APP_REVIEWER_NAME,
+				APP_REVIEWER_EMAIL,
+				null,
+				Map.of("purpose", "app-review"),
+				APP_REVIEWER_USER_ID
+			),
+			List.of(new SimpleGrantedAuthority("ROLE_USER"))
+		);
+		return toTokenResponse(tokenPair);
 	}
 
 	private SocialUserProfile extractProfile(Authentication authentication) {
@@ -94,6 +129,16 @@ public class AuthApiController {
 		}
 
 		throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+	}
+
+	private TokenRefreshResponse toTokenResponse(JwtTokenService.TokenPair tokenPair) {
+		return new TokenRefreshResponse(
+			tokenPair.tokenType(),
+			tokenPair.accessToken(),
+			tokenPair.accessTokenExpiresAt(),
+			tokenPair.refreshToken(),
+			tokenPair.refreshTokenExpiresAt()
+		);
 	}
 
 	public record AuthenticatedUserResponse(
