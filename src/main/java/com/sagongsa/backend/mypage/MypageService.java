@@ -6,8 +6,8 @@ import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.budget.BudgetCycle;
 import com.sagongsa.backend.domain.budget.BudgetCycleRepository;
+import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemStatus;
-import com.sagongsa.backend.domain.item.SavedItem;
 import com.sagongsa.backend.domain.item.SavedItemRepository;
 import com.sagongsa.backend.domain.notification.DevicePushTokenRepository;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
@@ -20,6 +20,9 @@ import com.sagongsa.backend.domain.user.UserProfileRepository;
 import com.sagongsa.backend.social.BlockService;
 import com.sagongsa.backend.social.PostListResponse;
 import com.sagongsa.backend.social.PostResponse;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -188,19 +191,26 @@ class MypageService {
 
 		BudgetCycle budget = budgetCycleRepository.findByUserIdAndYearMonth(userId, yearMonth).orElse(null);
 		Integer budgetAmount = budget != null ? budget.getMonthlyBudgetAmount() : null;
-		Integer spent = savedItemRepository.sumPriceByUserIdAndStatusBetween(userId, ItemStatus.GO, from, to);
-		Integer restrained = savedItemRepository.sumPriceByUserIdAndStatusBetween(userId, ItemStatus.STOP, from, to);
-		long boughtCount = savedItemRepository.countByUserIdAndStatusBetween(userId, ItemStatus.GO, from, to);
-		long restrainedCount = savedItemRepository.countByUserIdAndStatusBetween(userId, ItemStatus.STOP, from, to);
+		StatsAggregation stats = getStatsAggregation(userId, from, to);
+		List<CategorySpendAmountResponse> categorySpendAmounts = getCategorySpendAmounts(userId, from, to);
 
 		Double usageRate = null;
-		int spentVal = spent != null ? spent : 0;
 		if (budgetAmount != null && budgetAmount > 0) {
-			usageRate = Math.round((double) spentVal / budgetAmount * 1000.0) / 10.0;
+			usageRate = roundRate((double) stats.spentAmount() / budgetAmount * 100.0);
 		}
 
-		return new StatsResponse(yearMonth, budgetAmount, spentVal,
-			restrained != null ? restrained : 0, usageRate, boughtCount, restrainedCount);
+		return new StatsResponse(
+			yearMonth,
+			budgetAmount,
+			stats.spentAmount(),
+			stats.restrainedAmount(),
+			usageRate,
+			stats.boughtCount(),
+			stats.restrainedCount(),
+			categorySpendAmounts,
+			stats.rationalChoiceRate(),
+			stats.irrationalChoiceCount()
+		);
 	}
 
 	WishHistoryResponse getWishHistory(UUID userId, ItemStatus status, String yearMonth, int page, int size) {
@@ -211,17 +221,232 @@ class MypageService {
 		Instant from = ym.atDay(1).atStartOfDay(KST).toInstant();
 		Instant to = ym.atEndOfMonth().plusDays(1).atStartOfDay(KST).toInstant();
 
-		List<SavedItem> items = savedItemRepository.findByUserIdAndStatusBetween(
-			userId, status, from, to, PageRequest.of(page, size));
-
-		long total = (status != null)
-			? savedItemRepository.countByUserIdAndStatusBetween(userId, status, from, to)
-			: savedItemRepository.countByUserIdAndStatusBetween(userId, ItemStatus.GO, from, to)
-			+ savedItemRepository.countByUserIdAndStatusBetween(userId, ItemStatus.STOP, from, to);
-
-		List<WishSummaryResponse> wishes = items.stream().map(WishSummaryResponse::of).toList();
+		List<WishSummaryResponse> wishes = getWishSummaries(userId, status, from, to, page, size);
+		long total = countWishSummaries(userId, status, from, to);
 		return new WishHistoryResponse(wishes, total, page, size);
 	}
+
+	private List<WishSummaryResponse> getWishSummaries(
+		UUID userId, ItemStatus status, Instant from, Instant to, int page, int size) {
+		if (status == null) {
+			return jdbcTemplate.query(
+				"""
+				SELECT si.id,
+				       pd.id AS decision_id,
+				       si.title,
+				       COALESCE(pd.final_price, si.listed_price) AS price,
+				       si.image_url,
+				       si.category,
+				       si.status,
+				       pr.satisfaction_score,
+				       pr.regret_level,
+				       pr.still_using,
+				       pr.reflection_note,
+				       pr.reflected_at
+				FROM purchase_decisions pd
+				JOIN saved_items si ON si.id = pd.item_id
+				LEFT JOIN purchase_reflections pr ON pr.decision_id = pd.id
+				WHERE pd.user_id = ?
+				  AND pd.decided_at >= ?
+				  AND pd.decided_at < ?
+				ORDER BY pd.decided_at DESC
+				LIMIT ? OFFSET ?
+				""",
+				this::mapWishSummary,
+				userId,
+				Timestamp.from(from),
+				Timestamp.from(to),
+				size,
+				page * size
+			);
+		}
+
+		return jdbcTemplate.query(
+			"""
+			SELECT si.id,
+			       pd.id AS decision_id,
+			       si.title,
+			       COALESCE(pd.final_price, si.listed_price) AS price,
+			       si.image_url,
+			       si.category,
+			       si.status,
+			       pr.satisfaction_score,
+			       pr.regret_level,
+			       pr.still_using,
+			       pr.reflection_note,
+			       pr.reflected_at
+			FROM purchase_decisions pd
+			JOIN saved_items si ON si.id = pd.item_id
+			LEFT JOIN purchase_reflections pr ON pr.decision_id = pd.id
+			WHERE pd.user_id = ?
+			  AND si.status = ?
+			  AND pd.decided_at >= ?
+			  AND pd.decided_at < ?
+			ORDER BY pd.decided_at DESC
+			LIMIT ? OFFSET ?
+			""",
+			this::mapWishSummary,
+			userId,
+			status.name(),
+			Timestamp.from(from),
+			Timestamp.from(to),
+			size,
+			page * size
+		);
+	}
+
+	private long countWishSummaries(UUID userId, ItemStatus status, Instant from, Instant to) {
+		if (status == null) {
+			return jdbcTemplate.queryForObject(
+				"""
+				SELECT COUNT(*)
+				FROM purchase_decisions pd
+				JOIN saved_items si ON si.id = pd.item_id
+				WHERE pd.user_id = ?
+				  AND pd.decided_at >= ?
+				  AND pd.decided_at < ?
+				""",
+				Long.class,
+				userId,
+				Timestamp.from(from),
+				Timestamp.from(to)
+			);
+		}
+
+		return jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM purchase_decisions pd
+			JOIN saved_items si ON si.id = pd.item_id
+			WHERE pd.user_id = ?
+			  AND si.status = ?
+			  AND pd.decided_at >= ?
+			  AND pd.decided_at < ?
+			""",
+			Long.class,
+			userId,
+			status.name(),
+			Timestamp.from(from),
+			Timestamp.from(to)
+		);
+	}
+
+	private StatsAggregation getStatsAggregation(UUID userId, Instant from, Instant to) {
+		return jdbcTemplate.queryForObject(
+			"""
+			SELECT COALESCE(SUM(CASE WHEN pd.result = 'GO'
+			           THEN COALESCE(pd.final_price, si.listed_price, 0) ELSE 0 END), 0)::integer AS spent_amount,
+			       COALESCE(SUM(CASE WHEN pd.result = 'STOP'
+			           THEN COALESCE(si.listed_price, 0) ELSE 0 END), 0)::integer AS restrained_amount,
+			       COUNT(*) FILTER (WHERE pd.result = 'GO') AS bought_count,
+			       COUNT(*) FILTER (WHERE pd.result = 'STOP') AS restrained_count,
+			       COUNT(*) AS decision_count,
+			       COUNT(*) FILTER (WHERE pd.rationality_result = 'RATIONAL') AS rational_count,
+			       COUNT(*) FILTER (WHERE pd.rationality_result = 'IRRATIONAL') AS irrational_count
+			FROM purchase_decisions pd
+			JOIN saved_items si ON si.id = pd.item_id
+			WHERE pd.user_id = ?
+			  AND pd.decided_at >= ?
+			  AND pd.decided_at < ?
+			""",
+			(rs, rowNum) -> {
+				long decisionCount = rs.getLong("decision_count");
+				Double rationalChoiceRate = decisionCount == 0
+					? null
+					: roundRate((double) rs.getLong("rational_count") / decisionCount * 100.0);
+				return new StatsAggregation(
+					rs.getInt("spent_amount"),
+					rs.getInt("restrained_amount"),
+					rs.getLong("bought_count"),
+					rs.getLong("restrained_count"),
+					rationalChoiceRate,
+					rs.getLong("irrational_count")
+				);
+			},
+			userId,
+			Timestamp.from(from),
+			Timestamp.from(to)
+		);
+	}
+
+	private List<CategorySpendAmountResponse> getCategorySpendAmounts(UUID userId, Instant from, Instant to) {
+		return jdbcTemplate.query(
+			"""
+			SELECT si.category,
+			       COALESCE(SUM(COALESCE(pd.final_price, si.listed_price, 0)), 0)::integer AS amount
+			FROM purchase_decisions pd
+			JOIN saved_items si ON si.id = pd.item_id
+			WHERE pd.user_id = ?
+			  AND pd.result = 'GO'
+			  AND pd.decided_at >= ?
+			  AND pd.decided_at < ?
+			GROUP BY si.category
+			ORDER BY amount DESC, si.category ASC
+			""",
+			(rs, rowNum) -> new CategorySpendAmountResponse(
+				ItemCategory.valueOf(rs.getString("category")),
+				rs.getInt("amount")
+			),
+			userId,
+			Timestamp.from(from),
+			Timestamp.from(to)
+		);
+	}
+
+	private WishSummaryResponse mapWishSummary(ResultSet rs, int rowNum) throws SQLException {
+		return new WishSummaryResponse(
+			rs.getObject("id", UUID.class),
+			rs.getObject("decision_id", UUID.class),
+			rs.getString("title"),
+			nullableInt(rs, "price"),
+			rs.getString("image_url"),
+			ItemCategory.valueOf(rs.getString("category")),
+			ItemStatus.valueOf(rs.getString("status")),
+			mapWishReflection(rs)
+		);
+	}
+
+	private WishReflectionResponse mapWishReflection(ResultSet rs) throws SQLException {
+		String regretLevel = rs.getString("regret_level");
+		if (regretLevel == null) {
+			return null;
+		}
+		return new WishReflectionResponse(
+			nullableInt(rs, "satisfaction_score"),
+			regretLevel,
+			nullableBoolean(rs, "still_using"),
+			rs.getString("reflection_note"),
+			toInstant(rs, "reflected_at")
+		);
+	}
+
+	private Integer nullableInt(ResultSet rs, String column) throws SQLException {
+		int value = rs.getInt(column);
+		return rs.wasNull() ? null : value;
+	}
+
+	private Boolean nullableBoolean(ResultSet rs, String column) throws SQLException {
+		boolean value = rs.getBoolean(column);
+		return rs.wasNull() ? null : value;
+	}
+
+	private Instant toInstant(ResultSet rs, String column) throws SQLException {
+		Timestamp timestamp = rs.getTimestamp(column);
+		return timestamp == null ? null : timestamp.toInstant();
+	}
+
+	private Double roundRate(double rate) {
+		return Math.round(rate * 10.0) / 10.0;
+	}
+
+	private record StatsAggregation(
+		int spentAmount,
+		int restrainedAmount,
+		long boughtCount,
+		long restrainedCount,
+		Double rationalChoiceRate,
+		long irrationalChoiceCount
+	) {}
 
 	PostListResponse getMyPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
