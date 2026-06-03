@@ -1,0 +1,2 @@
+drop trigger if exists trg_prevent_self_check_response_set_delete on self_check_response_sets;
+drop function if exists prevent_self_check_response_set_delete();
