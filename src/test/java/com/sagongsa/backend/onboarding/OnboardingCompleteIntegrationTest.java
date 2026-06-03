@@ -137,6 +137,42 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 		assertThat(countRows("user_profiles", userId)).isZero();
 	}
 
+	@Test
+	void completeWithNicknameSavesProvidedNickname() throws Exception {
+		UUID userId = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+						"nickname": "테스트닉네임",
+						"mascotName": "wigul",
+						"timezone": "Asia/Seoul",
+						"monthlyBudgetAmount": 300000,
+						"regretFrequencyChoice": "FOUR_OR_MORE"
+					}
+					"""))
+			.andExpect(status().isOk());
+
+		assertThat(queryString("select nickname from user_profiles where user_id = ?", userId))
+			.isEqualTo("테스트닉네임");
+	}
+
+	@Test
+	void completeWithoutNicknameFallsBackToAutoNickname() throws Exception {
+		UUID userId = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(onboardingRequestBody()))
+			.andExpect(status().isOk());
+
+		assertThat(queryString("select nickname from user_profiles where user_id = ?", userId))
+			.matches("너굴\\d+");
+	}
+
 	private UUID insertUser(String onboardingStatus) {
 		return insertUser("ACTIVE", onboardingStatus);
 	}

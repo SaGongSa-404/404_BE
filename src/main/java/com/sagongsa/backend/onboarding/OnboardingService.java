@@ -115,7 +115,7 @@ public class OnboardingService {
 
 	private void insertUserProfile(UUID userId, NormalizedOnboardingRequest request, OffsetDateTime now) {
 		Long seq = jdbcTemplate.queryForObject("SELECT nextval('user_nickname_seq')", Long.class);
-		String autoNickname = "너굴" + seq;
+		String nickname = request.nickname() != null ? request.nickname() : "너굴" + seq;
 		jdbcTemplate.update(
 			"""
 				insert into user_profiles (
@@ -124,7 +124,7 @@ public class OnboardingService {
 				values (?, ?, ?, ?, null, ?, ?)
 				""",
 			userId,
-			autoNickname,
+			nickname,
 			request.mascotName(),
 			request.timezone(),
 			now,
@@ -204,12 +204,16 @@ public class OnboardingService {
 			throw new OnboardingBadRequestException("Request body is required.");
 		}
 
+		String nickname = request.nickname() != null && !request.nickname().isBlank()
+			? requireText(request.nickname(), "nickname", 20)
+			: null;
 		String mascotName = requireText(request.mascotName(), "mascotName", 40);
 		String timezone = normalizeTimezone(request.timezone());
 		int monthlyBudgetAmount = normalizeMonthlyBudgetAmount(request.monthlyBudgetAmount());
 		String regretFrequencyChoice = normalizeRegretFrequencyChoice(request.regretFrequencyChoice());
 
 		return new NormalizedOnboardingRequest(
+			nickname,
 			mascotName,
 			timezone,
 			ZoneId.of(timezone),
@@ -271,6 +275,7 @@ public class OnboardingService {
 	}
 
 	private record NormalizedOnboardingRequest(
+		String nickname,
 		String mascotName,
 		String timezone,
 		ZoneId zoneId,
