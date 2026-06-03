@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
@@ -70,6 +71,7 @@ public class SecurityConfig {
 						"/deliberation.html", "/test-mypage.html", "/test-nickname.html", "/test-consumption.html", "/favicon.ico", "/error").permitAll()
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
+					.requestMatchers(HttpMethod.POST, "/api/auth/reviewer-token").permitAll()
 					.requestMatchers("/api/auth/me").authenticated();
 
 				if (nonProd) {
