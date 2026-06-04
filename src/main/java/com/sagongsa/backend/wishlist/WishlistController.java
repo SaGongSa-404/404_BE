@@ -88,7 +88,7 @@ public class WishlistController {
 	@PatchMapping("/{itemId}")
 	@Operation(
 		summary = "Update wishlist item",
-		description = "Updates editable wishlist item fields. Direct input items can update URL, title, price, and category; shared-link items can update title, price, and category.",
+		description = "Replaces the editable wishlist item fields. title and category are required. listedPrice is optional and null clears the saved price. Direct input items can update URL fields, and blank or null URL fields clear the saved URL. Shared-link item URLs cannot be changed.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Wishlist item updated"),
 			@ApiResponse(responseCode = "400", description = "Invalid wishlist update payload"),

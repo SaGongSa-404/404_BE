@@ -129,6 +129,22 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void serializesDuplicateSavedItemResponseWhenExistingItemIsNull() throws Exception {
+		DuplicateSavedItemResponse response = new DuplicateSavedItemResponse(
+			"DUPLICATE_SAVED_ITEM",
+			"Saved wishlist item already exists for the normalized URL.",
+			null
+		);
+
+		JsonNode body = objectMapper.readTree(objectMapper.writeValueAsString(response));
+
+		assertThat(body.get("code").asText()).isEqualTo("DUPLICATE_SAVED_ITEM");
+		assertThat(body.get("message").asText()).isEqualTo("Saved wishlist item already exists for the normalized URL.");
+		assertThat(body.has("existingItem")).isTrue();
+		assertThat(body.get("existingItem").isNull()).isTrue();
+	}
+
+	@Test
 	void createsItemByNormalizingOriginalUrlWhenNormalizedUrlIsMissing() throws Exception {
 		UUID userId = createUser();
 
