@@ -217,6 +217,78 @@ public class WishlistService {
 	}
 
 	@Transactional
+	public WishlistItemResponse update(UUID userId, UUID itemId, WishlistItemUpdateRequest request) {
+		ensureWishlistUserAllowed(userId);
+		if (request == null) {
+			throw new BadRequestException("Request body is required.");
+		}
+
+		WishlistItemResponse current = findSavedByUserAndId(userId, itemId);
+		ItemInputSource inputSource = parseRequiredEnum(current.inputSource(), ItemInputSource.class, "inputSource");
+		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
+		String title = cleanRequired(request.title(), "title", 255);
+		Integer listedPrice = validateListedPrice(request.listedPrice());
+		String originalUrl = cleanOptional(request.originalUrl(), "originalUrl");
+		String normalizedUrl = cleanOptional(request.normalizedUrl(), "normalizedUrl");
+
+		if (inputSource == ItemInputSource.SHARE) {
+			if (StringUtils.hasText(originalUrl) || StringUtils.hasText(normalizedUrl)) {
+				throw new BadRequestException("SHARE wishlist item URL cannot be updated.");
+			}
+			originalUrl = current.originalUrl();
+			normalizedUrl = current.normalizedUrl();
+		} else {
+			normalizedUrl = normalizeSavedUrl(inputSource, originalUrl, normalizedUrl);
+			findExistingSavedNormalizedUrl(userId, normalizedUrl, itemId)
+				.ifPresent(existingItem -> {
+					throw new DuplicateSavedItemException(
+						"Saved wishlist item already exists for the normalized URL.",
+						existingItem
+					);
+				});
+		}
+
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		try {
+			int updated = jdbcTemplate.update(
+				"""
+				update saved_items
+				set original_url = ?,
+					normalized_url = ?,
+					title = ?,
+					listed_price = ?,
+					category = ?,
+					category_locked_by_user = true,
+					updated_at = ?
+				where user_id = ?
+				  and id = ?
+				  and status = 'SAVED'
+				""",
+				originalUrl,
+				normalizedUrl,
+				title,
+				listedPrice,
+				category.name(),
+				now,
+				userId,
+				itemId
+			);
+
+			if (updated == 0) {
+				throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
+			}
+		}
+		catch (DuplicateKeyException exception) {
+			throw new DuplicateSavedItemException(
+				"Saved wishlist item already exists for the normalized URL.",
+				findExistingSavedNormalizedUrl(userId, normalizedUrl, itemId).orElse(null)
+			);
+		}
+
+		return findByUserAndId(userId, itemId);
+	}
+
+	@Transactional
 	public void drop(UUID userId, UUID itemId) {
 		ensureWishlistUserAllowed(userId);
 		int updated = jdbcTemplate.update(
@@ -304,16 +376,31 @@ public class WishlistService {
 	}
 
 	private Optional<WishlistItemResponse> findExistingSavedNormalizedUrl(UUID userId, String normalizedUrl) {
-		List<WishlistItemResponse> items = jdbcTemplate.query(
-			baseSelect() + """
+		return findExistingSavedNormalizedUrl(userId, normalizedUrl, null);
+	}
+
+	private Optional<WishlistItemResponse> findExistingSavedNormalizedUrl(UUID userId, String normalizedUrl, UUID excludedItemId) {
+		if (!StringUtils.hasText(normalizedUrl)) {
+			return Optional.empty();
+		}
+		List<Object> parameters = new ArrayList<>();
+		parameters.add(userId);
+		parameters.add(normalizedUrl);
+		StringBuilder query = new StringBuilder(baseSelect());
+		query.append("""
 			where si.user_id = ?
 			  and si.normalized_url = ?
 			  and si.status = 'SAVED'
-			limit 1
-			""",
+			""");
+		if (excludedItemId != null) {
+			query.append("  and si.id <> ?\n");
+			parameters.add(excludedItemId);
+		}
+		query.append("limit 1\n");
+		List<WishlistItemResponse> items = jdbcTemplate.query(
+			query.toString(),
 			this::mapRow,
-			userId,
-			normalizedUrl
+			parameters.toArray()
 		);
 		return items.stream().findFirst();
 	}

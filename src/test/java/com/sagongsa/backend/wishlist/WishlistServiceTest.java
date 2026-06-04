@@ -310,6 +310,118 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 			.isInstanceOf(WishlistItemNotFoundException.class);
 	}
 
+	// ── TC7: 상품 정보 수정 ────────────────────────────────────────────────
+
+	@Test
+	void updatesDirectInputItemEditableFieldsIncludingUrl() {
+		UUID userId = createActiveUser();
+		WishlistItemResponse created = wishlistService.create(userId, new WishlistItemCreateRequest(
+			"DIRECT_INPUT", null, null, "직접 입력 상품", null,
+			29000, "KRW", "FASHION", null, false,
+			null, null, null, null, null
+		));
+
+		WishlistItemResponse updated = wishlistService.update(userId, created.id(), new WishlistItemUpdateRequest(
+			"https://shop.example.com/item?id=100&utm_source=kakao",
+			null,
+			"수정된 상품",
+			39000,
+			"DIGITAL"
+		));
+
+		assertThat(updated.inputSource()).isEqualTo("DIRECT_INPUT");
+		assertThat(updated.originalUrl()).isEqualTo("https://shop.example.com/item?id=100&utm_source=kakao");
+		assertThat(updated.normalizedUrl()).isEqualTo("https://shop.example.com/item?id=100");
+		assertThat(updated.title()).isEqualTo("수정된 상품");
+		assertThat(updated.listedPrice()).isEqualTo(39000);
+		assertThat(updated.category()).isEqualTo("DIGITAL");
+		assertThat(updated.categoryLockedByUser()).isTrue();
+	}
+
+	@Test
+	void clearsDirectInputItemUrlWhenUrlIsBlank() {
+		UUID userId = createActiveUser();
+		WishlistItemResponse created = wishlistService.create(userId, new WishlistItemCreateRequest(
+			"DIRECT_INPUT", "https://shop.example.com/item", null, "직접 입력 상품", null,
+			29000, "KRW", "FASHION", null, false,
+			null, null, null, null, null
+		));
+
+		WishlistItemResponse updated = wishlistService.update(userId, created.id(), new WishlistItemUpdateRequest(
+			"   ",
+			null,
+			"URL 없는 상품",
+			19000,
+			"FASHION"
+		));
+
+		assertThat(updated.originalUrl()).isNull();
+		assertThat(updated.normalizedUrl()).isNull();
+	}
+
+	@Test
+	void updatesShareItemEditableFieldsButKeepsUrl() {
+		UUID userId = createActiveUser();
+		WishlistItemResponse created = wishlistService.create(userId,
+			shareRequest("https://shop.example.com/product?id=1", "상품"));
+
+		WishlistItemResponse updated = wishlistService.update(userId, created.id(), new WishlistItemUpdateRequest(
+			null,
+			null,
+			"공유 상품 수정",
+			45000,
+			"LIVING"
+		));
+
+		assertThat(updated.inputSource()).isEqualTo("SHARE");
+		assertThat(updated.originalUrl()).isEqualTo("https://shop.example.com/product?id=1");
+		assertThat(updated.normalizedUrl()).isEqualTo("https://shop.example.com/product?id=1");
+		assertThat(updated.title()).isEqualTo("공유 상품 수정");
+		assertThat(updated.listedPrice()).isEqualTo(45000);
+		assertThat(updated.category()).isEqualTo("LIVING");
+		assertThat(updated.categoryLockedByUser()).isTrue();
+	}
+
+	@Test
+	void rejectsShareItemUrlUpdate() {
+		UUID userId = createActiveUser();
+		WishlistItemResponse created = wishlistService.create(userId,
+			shareRequest("https://shop.example.com/product?id=1", "상품"));
+
+		assertThatThrownBy(() -> wishlistService.update(userId, created.id(), new WishlistItemUpdateRequest(
+			"https://shop.example.com/changed",
+			null,
+			"공유 상품 수정",
+			45000,
+			"LIVING"
+		)))
+			.isInstanceOf(BadRequestException.class);
+	}
+
+	@Test
+	void rejectsDuplicateDirectInputUrlOnUpdate() {
+		UUID userId = createActiveUser();
+		wishlistService.create(userId, new WishlistItemCreateRequest(
+			"DIRECT_INPUT", "https://shop.example.com/duplicated", null, "기존 상품", null,
+			29000, "KRW", "FASHION", null, false,
+			null, null, null, null, null
+		));
+		WishlistItemResponse target = wishlistService.create(userId, new WishlistItemCreateRequest(
+			"DIRECT_INPUT", null, null, "수정 대상", null,
+			19000, "KRW", "FASHION", null, false,
+			null, null, null, null, null
+		));
+
+		assertThatThrownBy(() -> wishlistService.update(userId, target.id(), new WishlistItemUpdateRequest(
+			"https://shop.example.com/duplicated?utm_source=kakao",
+			null,
+			"수정 대상",
+			19000,
+			"FASHION"
+		)))
+			.isInstanceOf(DuplicateSavedItemException.class);
+	}
+
 	// ── 헬퍼 ───────────────────────────────────────────────────────────────
 
 	private UUID createActiveUser() {

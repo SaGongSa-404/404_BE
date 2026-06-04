@@ -129,6 +129,22 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void serializesDuplicateSavedItemResponseWhenExistingItemIsNull() throws Exception {
+		DuplicateSavedItemResponse response = new DuplicateSavedItemResponse(
+			"DUPLICATE_SAVED_ITEM",
+			"Saved wishlist item already exists for the normalized URL.",
+			null
+		);
+
+		JsonNode body = objectMapper.readTree(objectMapper.writeValueAsString(response));
+
+		assertThat(body.get("code").asText()).isEqualTo("DUPLICATE_SAVED_ITEM");
+		assertThat(body.get("message").asText()).isEqualTo("Saved wishlist item already exists for the normalized URL.");
+		assertThat(body.has("existingItem")).isTrue();
+		assertThat(body.get("existingItem").isNull()).isTrue();
+	}
+
+	@Test
 	void createsItemByNormalizingOriginalUrlWhenNormalizedUrlIsMissing() throws Exception {
 		UUID userId = createUser();
 
@@ -381,6 +397,104 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void updatesDirectInputItemFieldsIncludingUrl() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertItem(userId, "Manual update target", "ETC", "SAVED", OffsetDateTime.now(ZoneOffset.UTC));
+
+		mockMvc.perform(patch(WISHLIST_ITEMS_PATH + "/{itemId}", itemId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"originalUrl": "https://shop.example.com/product?id=100&utm_source=social",
+					"title": "Updated manual item",
+					"listedPrice": 99000,
+					"category": "DIGITAL"
+				}
+				"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.inputSource").value("DIRECT_INPUT"))
+			.andExpect(jsonPath("$.originalUrl").value("https://shop.example.com/product?id=100&utm_source=social"))
+			.andExpect(jsonPath("$.normalizedUrl").value("https://shop.example.com/product?id=100"))
+			.andExpect(jsonPath("$.title").value("Updated manual item"))
+			.andExpect(jsonPath("$.listedPrice").value(99000))
+			.andExpect(jsonPath("$.category").value("DIGITAL"))
+			.andExpect(jsonPath("$.categoryLockedByUser").value(true));
+	}
+
+	@Test
+	void updatesShareItemFieldsWithoutChangingUrl() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertShareItem(
+			userId,
+			"Share update target",
+			"https://shop.example.com/product?id=100",
+			"DIGITAL",
+			"SAVED",
+			OffsetDateTime.now(ZoneOffset.UTC)
+		);
+
+		mockMvc.perform(patch(WISHLIST_ITEMS_PATH + "/{itemId}", itemId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"title": "Updated share item",
+					"listedPrice": 88000,
+					"category": "LIVING"
+				}
+				"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.inputSource").value("SHARE"))
+			.andExpect(jsonPath("$.originalUrl").value("https://shop.example.com/product?id=100"))
+			.andExpect(jsonPath("$.normalizedUrl").value("https://shop.example.com/product?id=100"))
+			.andExpect(jsonPath("$.title").value("Updated share item"))
+			.andExpect(jsonPath("$.listedPrice").value(88000))
+			.andExpect(jsonPath("$.category").value("LIVING"))
+			.andExpect(jsonPath("$.categoryLockedByUser").value(true));
+	}
+
+	@Test
+	void rejectsShareItemUrlUpdate() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertShareItem(
+			userId,
+			"Share update target",
+			"https://shop.example.com/product?id=100",
+			"DIGITAL",
+			"SAVED",
+			OffsetDateTime.now(ZoneOffset.UTC)
+		);
+
+		mockMvc.perform(patch(WISHLIST_ITEMS_PATH + "/{itemId}", itemId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"originalUrl": "https://shop.example.com/changed",
+					"title": "Updated share item",
+					"listedPrice": 88000,
+					"category": "LIVING"
+				}
+				"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
+	void rejectsNullBodyForItemUpdate() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertItem(userId, "Manual update target", "ETC", "SAVED", OffsetDateTime.now(ZoneOffset.UTC));
+
+		mockMvc.perform(patch(WISHLIST_ITEMS_PATH + "/{itemId}", itemId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("null"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+	}
+
+	@Test
 	void rejectsNullBodyForCategoryUpdate() throws Exception {
 		UUID userId = createUser();
 		UUID itemId = insertItem(userId, "Category update target", "ETC", "SAVED", OffsetDateTime.now(ZoneOffset.UTC));
@@ -456,6 +570,29 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 			""",
 			itemId,
 			userId,
+			title,
+			category,
+			status,
+			createdAt,
+			createdAt
+		);
+		return itemId;
+	}
+
+	private UUID insertShareItem(UUID userId, String title, String url, String category, String status, OffsetDateTime createdAt) {
+		UUID itemId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into saved_items (
+				id, user_id, input_source, original_url, normalized_url, title, category,
+				category_locked_by_user, status, created_at, updated_at
+			)
+			values (?, ?, 'SHARE', ?, ?, ?, ?, false, ?, ?, ?)
+			""",
+			itemId,
+			userId,
+			url,
+			url,
 			title,
 			category,
 			status,

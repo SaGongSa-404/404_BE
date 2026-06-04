@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/wishlist/items")
-@Tag(name = "Wishlist", description = "Saved wishlist item create, list, detail, category update, and delete APIs")
+@Tag(name = "Wishlist", description = "Saved wishlist item create, list, detail, update, category update, and delete APIs")
 public class WishlistController {
 
 	private final WishlistService wishlistService;
@@ -83,6 +83,27 @@ public class WishlistController {
 		@PathVariable UUID itemId
 	) {
 		return wishlistService.get(userId, itemId);
+	}
+
+	@PatchMapping("/{itemId}")
+	@Operation(
+		summary = "Update wishlist item",
+		description = "Replaces the editable wishlist item fields. title and category are required. listedPrice is optional and null clears the saved price. Direct input items can update URL fields, and blank or null URL fields clear the saved URL. Shared-link item URLs cannot be changed.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Wishlist item updated"),
+			@ApiResponse(responseCode = "400", description = "Invalid wishlist update payload"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+			@ApiResponse(responseCode = "403", description = "Item belongs to another user"),
+			@ApiResponse(responseCode = "404", description = "Wishlist item does not exist"),
+			@ApiResponse(responseCode = "409", description = "Same normalized URL is already saved")
+		}
+	)
+	public WishlistItemResponse update(
+		@Parameter(hidden = true) @CurrentUserId UUID userId,
+		@PathVariable UUID itemId,
+		@RequestBody WishlistItemUpdateRequest request
+	) {
+		return wishlistService.update(userId, itemId, request);
 	}
 
 	@PatchMapping("/{itemId}/category")
