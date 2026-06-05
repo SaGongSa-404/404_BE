@@ -10,6 +10,12 @@ class SocialFeedExceptionHandler {
 
 	record ErrorBody(String code, String message) {}
 
+	@ExceptionHandler(SocialFeedBadRequestException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	ErrorBody handleBadRequest(SocialFeedBadRequestException ex) {
+		return new ErrorBody("INVALID_REQUEST", ex.getMessage());
+	}
+
 	@ExceptionHandler(SocialFeedNotFoundException.class)
 	@ResponseStatus(HttpStatus.NOT_FOUND)
 	ErrorBody handleNotFound(SocialFeedNotFoundException ex) {

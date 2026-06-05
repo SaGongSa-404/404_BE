@@ -39,7 +39,8 @@ class VoteIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void goVoteThenCancelDoesNotGoNegative() throws Exception {
 		UUID userId = insertUser();
-		UUID postId = insertPost(userId);
+		UUID authorId = insertUser();
+		UUID postId = insertPost(authorId);
 
 		// GO 투표
 		mockMvc.perform(post("/api/v1/social/posts/{postId}/votes", postId)
@@ -68,7 +69,8 @@ class VoteIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void goToStopSwitchUpdatesCountsCorrectly() throws Exception {
 		UUID userId = insertUser();
-		UUID postId = insertPost(userId);
+		UUID authorId = insertUser();
+		UUID postId = insertPost(authorId);
 
 		// GO 투표
 		mockMvc.perform(post("/api/v1/social/posts/{postId}/votes", postId)
@@ -96,7 +98,8 @@ class VoteIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void cancelledVoteCanBeReactivated() throws Exception {
 		UUID userId = insertUser();
-		UUID postId = insertPost(userId);
+		UUID authorId = insertUser();
+		UUID postId = insertPost(authorId);
 
 		String goBody = """
 			{"voteType":"GO"}
@@ -123,6 +126,21 @@ class VoteIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.myVote").value("GO"))
 			.andExpect(jsonPath("$.goCount").value(1));
+	}
+
+	@Test
+	void authorCannotVoteOwnPost() throws Exception {
+		UUID authorId = insertUser();
+		UUID postId = insertPost(authorId);
+
+		mockMvc.perform(post("/api/v1/social/posts/{postId}/votes", postId)
+				.header("X-User-Id", authorId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"voteType":"GO"}
+					"""))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("FORBIDDEN"));
 	}
 
 	private UUID insertUser() {
