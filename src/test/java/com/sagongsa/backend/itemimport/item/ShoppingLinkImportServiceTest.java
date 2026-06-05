@@ -221,6 +221,41 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void acceptsAblySearchPageWithCloudflareMarkerAndRenderedTitle() {
+		pageFetcher.stub(
+			"https://m.a-bly.com/search?keyword=%EA%B0%80%EB%94%94%EA%B1%B4",
+			"""
+				<html>
+				<head>
+				  <title>가디건 - 에이블리 스토어</title>
+				  <meta property="og:title" content="가디건 - 에이블리 스토어" />
+				  <meta property="og:image" content="https://img.a-bly.com/og_image.jpg" />
+				  <script>window.__cf_chl_opt = {};</script>
+				</head>
+				<body>
+				  앱에서 더 많은 상품을 볼 수 있어요! 앱에서 보기 찜할 서랍 선택 새 서랍 만들기 보러가기 새 서랍 만들기 완료
+				</body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.a-bly.com/search?keyword=%EA%B0%80%EB%94%94%EA%B1%B4",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("가디건 - 에이블리 스토어");
+		assertThat(response.item().imageUrl()).isEqualTo("https://img.a-bly.com/og_image.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
 	void acceptsDirectInputWithoutRemoteFetch() {
 		ShoppingLinkImportResponse response = service.importLink(
 			new ShoppingLinkImportRequest(

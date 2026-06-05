@@ -19,6 +19,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 
+	private static final String ABLY_MOBILE_HOST = "m.a-bly.com";
+	private static final String IOS_MOBILE_USER_AGENT =
+		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+			+ "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
 	private final ShoppingImportProperties.BrowserFetch properties;
 	private final Object browserLock = new Object();
 	private Playwright playwright;
@@ -32,7 +37,7 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	public FetchedPage fetch(URI uri) {
 		ShoppingUrlSafety.validatePublicHost(uri);
 
-		try (BrowserContext context = browser().newContext(contextOptions())) {
+		try (BrowserContext context = browser().newContext(contextOptions(uri))) {
 			installRequestSafetyGuard(context);
 			Page page = context.newPage();
 			try {
@@ -94,11 +99,25 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		});
 	}
 
-	private Browser.NewContextOptions contextOptions() {
+	private Browser.NewContextOptions contextOptions(URI uri) {
+		if (isAblyMobileUri(uri)) {
+			return new Browser.NewContextOptions()
+				.setUserAgent(IOS_MOBILE_USER_AGENT)
+				.setLocale(properties.getLocale())
+				.setViewportSize(390, 844)
+				.setDeviceScaleFactor(3)
+				.setIsMobile(true)
+				.setHasTouch(true);
+		}
 		return new Browser.NewContextOptions()
 			.setUserAgent(properties.getUserAgent())
 			.setLocale(properties.getLocale())
 			.setViewportSize(properties.getViewportWidth(), properties.getViewportHeight());
+	}
+
+	private boolean isAblyMobileUri(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return ABLY_MOBILE_HOST.equals(host);
 	}
 
 	private void waitForNetworkIdle(Page page) {

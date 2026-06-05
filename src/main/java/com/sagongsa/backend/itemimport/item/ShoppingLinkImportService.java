@@ -294,7 +294,7 @@ public class ShoppingLinkImportService {
 		String haystack = ((sourceDomain == null ? "" : sourceDomain) + " " + (title == null ? "" : title) + " " + (summary == null ? "" : summary))
 			.toLowerCase(Locale.ROOT);
 
-		if (containsAny(haystack, "셔츠", "니트", "팬츠", "아우터", "원피스", "스니커즈", "신발", "가방", "musinsa", "zigzag", "ably", "29cm")) {
+		if (containsAny(haystack, "셔츠", "니트", "가디건", "팬츠", "아우터", "원피스", "스니커즈", "신발", "가방", "musinsa", "zigzag", "ably", "29cm")) {
 			return ItemCategory.FASHION;
 		}
 		if (containsAny(haystack, "립", "쿠션", "에센스", "크림", "마스크팩", "oliveyoung", "향수", "샴푸")) {
@@ -431,14 +431,16 @@ public class ShoppingLinkImportService {
 		String html = page.body() == null ? "" : page.body().toLowerCase(Locale.ROOT);
 		return isBlockedPageText(title)
 			|| isBlockedPageText(bodyText)
-			|| isChallengeShell(bodyText, html);
+			|| isChallengeShell(title, bodyText, html);
 	}
 
-	private boolean isChallengeShell(String bodyText, String html) {
+	private boolean isChallengeShell(String title, String bodyText, String html) {
 		boolean hasChallengeMarker = html.contains("cf-mitigated")
 			|| html.contains("cf_chl")
 			|| html.contains("/cdn-cgi/challenge-platform");
-		return hasChallengeMarker && (isBlank(bodyText) || bodyText.length() < 80);
+		return hasChallengeMarker
+			&& (isBlank(title) || isBlockedPageText(title))
+			&& (isBlank(bodyText) || bodyText.length() < 80);
 	}
 
 	private boolean isBlockedPageText(String text) {
