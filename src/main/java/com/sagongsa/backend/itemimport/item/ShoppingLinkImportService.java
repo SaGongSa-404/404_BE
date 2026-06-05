@@ -431,9 +431,14 @@ public class ShoppingLinkImportService {
 		String html = page.body() == null ? "" : page.body().toLowerCase(Locale.ROOT);
 		return isBlockedPageText(title)
 			|| isBlockedPageText(bodyText)
-			|| html.contains("cf-mitigated")
+			|| isChallengeShell(bodyText, html);
+	}
+
+	private boolean isChallengeShell(String bodyText, String html) {
+		boolean hasChallengeMarker = html.contains("cf-mitigated")
 			|| html.contains("cf_chl")
 			|| html.contains("/cdn-cgi/challenge-platform");
+		return hasChallengeMarker && (isBlank(bodyText) || bodyText.length() < 80);
 	}
 
 	private boolean isBlockedPageText(String text) {

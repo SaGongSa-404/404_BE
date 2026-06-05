@@ -14,7 +14,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -33,9 +32,8 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	public FetchedPage fetch(URI uri) {
 		ShoppingUrlSafety.validatePublicHost(uri);
 
-		AtomicReference<String> blockedRequestUrl = new AtomicReference<>();
 		try (BrowserContext context = browser().newContext(contextOptions())) {
-			installRequestSafetyGuard(context, blockedRequestUrl);
+			installRequestSafetyGuard(context);
 			Page page = context.newPage();
 			try {
 				Response response = page.navigate(
@@ -46,7 +44,6 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 				);
 				waitForNetworkIdle(page);
 				waitForRenderDelay(page);
-				rejectIfBlockedRequestOccurred(blockedRequestUrl);
 
 				URI finalUri = URI.create(page.url());
 				ShoppingUrlSafety.validatePublicHost(finalUri);
@@ -64,7 +61,6 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		} catch (IllegalArgumentException exception) {
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Invalid rendered shopping page url", exception);
 		} catch (PlaywrightException exception) {
-			rejectIfBlockedRequestOccurred(blockedRequestUrl, exception);
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to render shopping page", exception);
 		}
 	}
@@ -79,7 +75,7 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		}
 	}
 
-	private void installRequestSafetyGuard(BrowserContext context, AtomicReference<String> blockedRequestUrl) {
+	private void installRequestSafetyGuard(BrowserContext context) {
 		context.route("**/*", route -> {
 			String requestUrl = route.request().url();
 			try {
@@ -93,7 +89,6 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 				route.resume();
 			}
 			catch (RuntimeException exception) {
-				blockedRequestUrl.compareAndSet(null, requestUrl);
 				route.abort();
 			}
 		});
@@ -138,20 +133,6 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 			return 0;
 		}
 		return duration.toMillis();
-	}
-
-	private void rejectIfBlockedRequestOccurred(AtomicReference<String> blockedRequestUrl) {
-		rejectIfBlockedRequestOccurred(blockedRequestUrl, null);
-	}
-
-	private void rejectIfBlockedRequestOccurred(AtomicReference<String> blockedRequestUrl, Throwable cause) {
-		if (blockedRequestUrl.get() != null) {
-			throw new ResponseStatusException(
-				HttpStatus.BAD_REQUEST,
-				"Rendered shopping page requested a private network resource",
-				cause
-			);
-		}
 	}
 
 	@Override

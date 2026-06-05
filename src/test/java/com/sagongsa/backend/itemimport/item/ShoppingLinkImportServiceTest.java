@@ -183,6 +183,44 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void acceptsRenderedProductPageWithCloudflareScriptMarker() {
+		pageFetcher.stub(
+			"https://www.musinsa.com/products/478021",
+			"""
+				<html>
+				<head>
+				  <title>키르시 코치 자켓 | 무신사</title>
+				  <meta property="og:title" content="키르시 코치 자켓 [블랙] - 사이즈 & 후기 | 무신사" />
+				  <meta property="og:image" content="https://image.msscdn.net/item.jpg" />
+				  <meta property="product:price:amount" content="129000" />
+				  <script src="/cdn-cgi/challenge-platform/h/b/scripts/jsd/main.js"></script>
+				</head>
+				<body>
+				  MUSINSA BEAUTY SPORTS OUTLET BOUTIQUE KICKS KIDS USED SNAP
+				  키르시 코치 자켓 상품 정보와 사이즈 추천, 스냅 후기, 문의 영역이 정상적으로 렌더링된 페이지입니다.
+				</body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.musinsa.com/products/478021",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("키르시 코치 자켓 [블랙] - 사이즈 & 후기 | 무신사");
+		assertThat(response.item().listedPrice()).isEqualTo(129000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://image.msscdn.net/item.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
 	void acceptsDirectInputWithoutRemoteFetch() {
 		ShoppingLinkImportResponse response = service.importLink(
 			new ShoppingLinkImportRequest(
