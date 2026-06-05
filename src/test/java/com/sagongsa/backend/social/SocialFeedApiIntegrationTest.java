@@ -279,6 +279,22 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 게시글_기타_신고_상세사유_없으면_400() throws Exception {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+
+		mockMvc.perform(post("/api/v1/social/posts/{postId}/reports", postId)
+				.header("X-User-Id", reporter)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"category":"OTHER","reason":" "}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+	}
+
+	@Test
 	void 같은_게시글_두번_신고_403() throws Exception {
 		UUID reporter = insertUser();
 		UUID author = insertUser();
@@ -329,6 +345,23 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 					{"category":"OBSCENE","reason":"부적절한 내용"}
 					"""))
 			.andExpect(status().isNoContent());
+	}
+
+	@Test
+	void 댓글_기타_신고_상세사유_없으면_400() throws Exception {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+		UUID commentId = insertComment(author, postId);
+
+		mockMvc.perform(post("/api/v1/social/posts/{postId}/comments/{commentId}/reports", postId, commentId)
+				.header("X-User-Id", reporter)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"category":"OTHER"}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 	}
 
 	@Test

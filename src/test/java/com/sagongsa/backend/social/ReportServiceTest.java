@@ -62,6 +62,26 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 게시글_기타_신고는_상세_사유가_필수() {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+
+		assertThatThrownBy(() -> reportService.reportPost(reporter, postId, ReportCategory.OTHER, " "))
+			.isInstanceOf(SocialFeedBadRequestException.class);
+	}
+
+	@Test
+	void 게시글_기타_신고는_상세_사유가_있으면_성공() {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+
+		assertThatNoException().isThrownBy(() ->
+			reportService.reportPost(reporter, postId, ReportCategory.OTHER, "기타 상세 사유"));
+	}
+
+	@Test
 	void 같은_게시글_두번_신고하면_예외() {
 		UUID reporter = insertUser();
 		UUID author = insertUser();
@@ -102,6 +122,29 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 
 		assertThatNoException().isThrownBy(() ->
 			reportService.reportComment(reporter, postId, comment.id(), ReportCategory.OBSCENE, "부적절한 내용")
+		);
+	}
+
+	@Test
+	void 댓글_기타_신고는_상세_사유가_필수() {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+		CommentResponse comment = commentService.createComment(author, postId, new CreateCommentRequest("댓글"));
+
+		assertThatThrownBy(() -> reportService.reportComment(reporter, postId, comment.id(), ReportCategory.OTHER, null))
+			.isInstanceOf(SocialFeedBadRequestException.class);
+	}
+
+	@Test
+	void 댓글_기타_신고는_상세_사유가_있으면_성공() {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+		CommentResponse comment = commentService.createComment(author, postId, new CreateCommentRequest("댓글"));
+
+		assertThatNoException().isThrownBy(() ->
+			reportService.reportComment(reporter, postId, comment.id(), ReportCategory.OTHER, "기타 상세 사유")
 		);
 	}
 

@@ -35,6 +35,9 @@ class VoteService {
 		FeedPost post = socialPostService.findPostOrThrow(postId);
 		UserAccount user = userAccountRepository.findById(userId)
 			.orElseThrow(() -> new SocialFeedNotFoundException("사용자를 찾을 수 없습니다."));
+		if (post.getUser().getId().equals(userId)) {
+			throw new SocialFeedForbiddenException("본인 게시글에는 투표할 수 없습니다.");
+		}
 
 		Optional<PostVote> existing = postVoteRepository.findByPostIdAndUserId(postId, userId);
 		PostVoteType resultVote;
