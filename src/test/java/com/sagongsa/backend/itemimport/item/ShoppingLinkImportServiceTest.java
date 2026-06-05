@@ -183,6 +183,79 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void acceptsRenderedProductPageWithCloudflareScriptMarker() {
+		pageFetcher.stub(
+			"https://www.musinsa.com/products/478021",
+			"""
+				<html>
+				<head>
+				  <title>키르시 코치 자켓 | 무신사</title>
+				  <meta property="og:title" content="키르시 코치 자켓 [블랙] - 사이즈 & 후기 | 무신사" />
+				  <meta property="og:image" content="https://image.msscdn.net/item.jpg" />
+				  <meta property="product:price:amount" content="129000" />
+				  <script src="/cdn-cgi/challenge-platform/h/b/scripts/jsd/main.js"></script>
+				</head>
+				<body>
+				  MUSINSA BEAUTY SPORTS OUTLET BOUTIQUE KICKS KIDS USED SNAP
+				  키르시 코치 자켓 상품 정보와 사이즈 추천, 스냅 후기, 문의 영역이 정상적으로 렌더링된 페이지입니다.
+				</body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.musinsa.com/products/478021",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("키르시 코치 자켓 [블랙] - 사이즈 & 후기 | 무신사");
+		assertThat(response.item().listedPrice()).isEqualTo(129000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://image.msscdn.net/item.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
+	void acceptsAblySearchPageWithCloudflareMarkerAndRenderedTitle() {
+		pageFetcher.stub(
+			"https://m.a-bly.com/search?keyword=%EA%B0%80%EB%94%94%EA%B1%B4",
+			"""
+				<html>
+				<head>
+				  <title>가디건 - 에이블리 스토어</title>
+				  <meta property="og:title" content="가디건 - 에이블리 스토어" />
+				  <meta property="og:image" content="https://img.a-bly.com/og_image.jpg" />
+				  <script>window.__cf_chl_opt = {};</script>
+				</head>
+				<body>
+				  앱에서 더 많은 상품을 볼 수 있어요! 앱에서 보기 찜할 서랍 선택 새 서랍 만들기 보러가기 새 서랍 만들기 완료
+				</body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.a-bly.com/search?keyword=%EA%B0%80%EB%94%94%EA%B1%B4",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("가디건 - 에이블리 스토어");
+		assertThat(response.item().imageUrl()).isEqualTo("https://img.a-bly.com/og_image.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
 	void acceptsDirectInputWithoutRemoteFetch() {
 		ShoppingLinkImportResponse response = service.importLink(
 			new ShoppingLinkImportRequest(
