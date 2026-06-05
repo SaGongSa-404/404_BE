@@ -449,6 +449,13 @@ public class WishlistService {
 				si.category,
 				si.category_confidence,
 				si.category_locked_by_user,
+				exists (
+					select 1
+					from feed_posts fp
+					where fp.item_id = si.id
+					  and fp.user_id = si.user_id
+					  and fp.deleted_at is null
+				) as selected,
 				si.status,
 				si.created_at,
 				si.updated_at
@@ -496,6 +503,7 @@ public class WishlistService {
 			resultSet.getString("category"),
 			resultSet.getBigDecimal("category_confidence"),
 			resultSet.getBoolean("category_locked_by_user"),
+			resultSet.getBoolean("selected"),
 			resultSet.getString("status"),
 			getInstant(resultSet, "created_at"),
 			getInstant(resultSet, "updated_at")

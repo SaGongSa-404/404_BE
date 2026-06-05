@@ -86,6 +86,7 @@ class WishlistCursorTest {
 			"FASHION",
 			BigDecimal.valueOf(0.85),
 			false,
+			false,
 			"SAVED",
 			CREATED_AT,
 			UPDATED_AT

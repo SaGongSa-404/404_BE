@@ -294,6 +294,39 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void marksSelectedItemsAlreadyUsedByVisibleFeedPost() throws Exception {
+		UUID userId = createUser();
+		OffsetDateTime older = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1);
+		OffsetDateTime newer = OffsetDateTime.now(ZoneOffset.UTC);
+		UUID selectedItemId = insertItem(userId, "Selected item", "FASHION", "SAVED", older);
+		UUID unselectedItemId = insertItem(userId, "Unselected item", "FASHION", "SAVED", newer);
+		insertFeedPost(userId, selectedItemId, false);
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items", hasSize(2)))
+			.andExpect(jsonPath("$.items[0].id").value(unselectedItemId.toString()))
+			.andExpect(jsonPath("$.items[0].selected").value(false))
+			.andExpect(jsonPath("$.items[1].id").value(selectedItemId.toString()))
+			.andExpect(jsonPath("$.items[1].selected").value(true));
+	}
+
+	@Test
+	void ignoresDeletedFeedPostWhenMarkingSelectedItems() throws Exception {
+		UUID userId = createUser();
+		UUID itemId = insertItem(userId, "Deleted post item", "FASHION", "SAVED", OffsetDateTime.now(ZoneOffset.UTC));
+		insertFeedPost(userId, itemId, true);
+
+		mockMvc.perform(get(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.items[0].id").value(itemId.toString()))
+			.andExpect(jsonPath("$.items[0].selected").value(false));
+	}
+
+	@Test
 	void rejectsMalformedCursorQueryParameter() throws Exception {
 		UUID userId = createUser();
 
@@ -577,6 +610,27 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 			createdAt
 		);
 		return itemId;
+	}
+
+	private UUID insertFeedPost(UUID userId, UUID itemId, boolean deleted) {
+		UUID postId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			insert into feed_posts (
+				id, user_id, item_id, title, body, go_count, stop_count,
+				deleted_at, created_at, updated_at
+			)
+			values (?, ?, ?, '작성된 글', '내용', 0, 0, ?, ?, ?)
+			""",
+			postId,
+			userId,
+			itemId,
+			deleted ? now : null,
+			now,
+			now
+		);
+		return postId;
 	}
 
 	private UUID insertShareItem(UUID userId, String title, String url, String category, String status, OffsetDateTime createdAt) {
