@@ -5,6 +5,7 @@ import com.sagongsa.backend.domain.auth.SocialAccountRepository;
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.enums.SocialProvider;
+import com.sagongsa.backend.domain.enums.UserStatus;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,11 +29,18 @@ public class SocialAccountLinkService {
 		SocialProvider provider = resolveProvider(profile.provider());
 
 		return socialAccountRepository.findByProviderAndProviderUserId(provider, profile.providerUserId())
-			.map(existingAccount -> {
-				existingAccount.updateProfile(profile.email(), profile.profileImageUrl());
-				return profile.withUserId(existingAccount.getUser().getId());
-			})
+			.map(existingAccount -> linkExistingAccount(profile, existingAccount))
 			.orElseGet(() -> createNewAccount(profile, provider));
+	}
+
+	private SocialUserProfile linkExistingAccount(SocialUserProfile profile, SocialAccount existingAccount) {
+		existingAccount.updateProfile(profile.email(), profile.profileImageUrl());
+		UserAccount linkedUser = existingAccount.getUser();
+		if (linkedUser.getStatus() == UserStatus.WITHDRAWN) {
+			linkedUser = userAccountRepository.save(UserAccount.create());
+			existingAccount.relinkUser(linkedUser);
+		}
+		return profile.withUserId(linkedUser.getId());
 	}
 
 	private SocialUserProfile createNewAccount(SocialUserProfile profile, SocialProvider provider) {
@@ -49,10 +57,7 @@ public class SocialAccountLinkService {
 			return profile.withUserId(userAccount.getId());
 		} catch (DataIntegrityViolationException exception) {
 			return socialAccountRepository.findByProviderAndProviderUserId(provider, profile.providerUserId())
-				.map(existingAccount -> {
-					existingAccount.updateProfile(profile.email(), profile.profileImageUrl());
-					return profile.withUserId(existingAccount.getUser().getId());
-				})
+				.map(existingAccount -> linkExistingAccount(profile, existingAccount))
 				.orElseThrow(() -> exception);
 		}
 	}

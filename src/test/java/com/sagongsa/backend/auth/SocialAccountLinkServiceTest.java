@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.sagongsa.backend.domain.auth.SocialAccountRepository;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,5 +83,49 @@ class SocialAccountLinkServiceTest extends PostgreSqlContainerTest {
 		assertThat(socialAccountRepository.count()).isEqualTo(1);
 		assertThat(socialAccountRepository.findAll().getFirst().getEmail()).isEqualTo("kakao@test.dev");
 		assertThat(socialAccountRepository.findAll().getFirst().getProfileImageUrl()).isEqualTo("https://example.com/kakao-after.png");
+	}
+
+	@Test
+	void createsNewUserWhenExistingSocialAccountBelongsToWithdrawnUser() {
+		SocialUserProfile firstLogin = socialAccountLinkService.linkOrCreateUser(
+			new SocialUserProfile(
+				"google",
+				"withdrawn-google-123",
+				"Google Tester",
+				"before@test.dev",
+				"https://example.com/before.png",
+				java.util.Map.of(),
+				null
+			)
+		);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"update users set status = 'WITHDRAWN', withdrawn_at = ?, updated_at = ? where id = ?",
+			now, now, firstLogin.userId()
+		);
+
+		SocialUserProfile secondLogin = socialAccountLinkService.linkOrCreateUser(
+			new SocialUserProfile(
+				"google",
+				"withdrawn-google-123",
+				"Google Tester",
+				"after@test.dev",
+				"https://example.com/after.png",
+				java.util.Map.of(),
+				null
+			)
+		);
+
+		assertThat(secondLogin.userId()).isNotEqualTo(firstLogin.userId());
+		assertThat(userAccountRepository.count()).isEqualTo(2);
+		assertThat(socialAccountRepository.count()).isEqualTo(1);
+		assertThat(socialAccountRepository.findAll().getFirst().getUser().getId()).isEqualTo(secondLogin.userId());
+		assertThat(socialAccountRepository.findAll().getFirst().getEmail()).isEqualTo("after@test.dev");
+		assertThat(queryString("select status from users where id = ?", secondLogin.userId())).isEqualTo("ACTIVE");
+		assertThat(queryString("select onboarding_status from users where id = ?", secondLogin.userId())).isEqualTo("NOT_STARTED");
+	}
+
+	private String queryString(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, String.class, args);
 	}
 }

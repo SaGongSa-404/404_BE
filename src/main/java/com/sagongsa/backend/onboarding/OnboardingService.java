@@ -204,7 +204,7 @@ public class OnboardingService {
 			throw new OnboardingBadRequestException("Request body is required.");
 		}
 
-		String nickname = request.nickname() != null && !request.nickname().isBlank()
+		String nickname = request.nickname() != null
 			? requireNicknameText(request.nickname())
 			: null;
 		String mascotName = requireText(request.mascotName(), "mascotName", 40);
@@ -236,11 +236,16 @@ public class OnboardingService {
 
 	private static final java.util.regex.Pattern NICKNAME_PATTERN =
 		java.util.regex.Pattern.compile("^[가-힣a-zA-Z0-9]+$");
+	private static final int NICKNAME_MIN_LENGTH = 2;
+	private static final int NICKNAME_MAX_LENGTH = 8;
 
 	private String requireNicknameText(String value) {
+		if (!value.equals(value.trim())) {
+			throw new OnboardingBadRequestException("nickname must not have leading or trailing whitespace.");
+		}
 		String trimmed = value.trim();
-		if (trimmed.length() < 1 || trimmed.length() > 10) {
-			throw new OnboardingBadRequestException("nickname must be between 1 and 10 characters.");
+		if (trimmed.length() < NICKNAME_MIN_LENGTH || trimmed.length() > NICKNAME_MAX_LENGTH) {
+			throw new OnboardingBadRequestException("nickname must be between 2 and 8 characters.");
 		}
 		if (!NICKNAME_PATTERN.matcher(trimmed).matches()) {
 			throw new OnboardingBadRequestException("닉네임은 한글, 영문, 숫자만 허용됩니다.");
@@ -272,8 +277,8 @@ public class OnboardingService {
 		if (monthlyBudgetAmount == null) {
 			throw new OnboardingBadRequestException("monthlyBudgetAmount is required.");
 		}
-		if (monthlyBudgetAmount < 0) {
-			throw new OnboardingBadRequestException("monthlyBudgetAmount must be zero or greater.");
+		if (monthlyBudgetAmount <= 0) {
+			throw new OnboardingBadRequestException("monthlyBudgetAmount must be greater than zero.");
 		}
 		return monthlyBudgetAmount;
 	}

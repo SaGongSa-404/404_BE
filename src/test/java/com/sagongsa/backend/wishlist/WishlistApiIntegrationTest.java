@@ -102,6 +102,26 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void rejectsZeroListedPriceOnCreate() throws Exception {
+		UUID userId = createUser();
+
+		mockMvc.perform(post(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+				{
+					"inputSource": "SHARE",
+					"originalUrl": "https://shop.example.com/product?id=100",
+					"normalizedUrl": "https://shop.example.com/product?id=100",
+					"title": "Zero price item",
+					"listedPrice": 0,
+					"category": "DIGITAL"
+				}
+				"""))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void blocksDuplicateSavedNormalizedUrlForSameUser() throws Exception {
 		UUID userId = createUser();
 		String request = """
