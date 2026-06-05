@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @Transactional(readOnly = true)
@@ -55,7 +56,8 @@ class SocialPostService {
 	PostResponse createPost(UUID userId, CreatePostRequest request) {
 		UserAccount user = findUserOrThrow(userId);
 		SavedItem item = resolveItem(userId, request.itemId());
-		FeedPost post = new FeedPost(user, item, request.title(), request.body(), request.imageUrl(), request.price());
+		String imageUrl = resolveImageUrl(request.imageUrl(), item);
+		FeedPost post = new FeedPost(user, item, request.title(), request.body(), imageUrl, request.price());
 		feedPostRepository.save(post);
 		String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
 			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
@@ -196,6 +198,13 @@ class SocialPostService {
 		return savedItemRepository.findById(itemId)
 			.filter(item -> item.getUser().getId().equals(userId))
 			.orElse(null);
+	}
+
+	private String resolveImageUrl(String requestImageUrl, SavedItem item) {
+		if (StringUtils.hasText(requestImageUrl)) {
+			return requestImageUrl;
+		}
+		return item != null ? item.getImageUrl() : null;
 	}
 
 	private UserAccount findUserOrThrow(UUID userId) {

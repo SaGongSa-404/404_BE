@@ -17,6 +17,7 @@ public record WishlistItemSummaryResponse(
 	String category,
 	BigDecimal categoryConfidence,
 	boolean categoryLockedByUser,
+	boolean selected,
 	String status,
 	Instant createdAt,
 	Instant updatedAt

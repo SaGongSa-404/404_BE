@@ -110,6 +110,27 @@ class FeedPostProductSectionIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void feedListUsesWishlistImageWhenPostCreatedFromItem() throws Exception {
+		String userId = createDevUser();
+		String imageUrl = "https://cdn.example.com/wishlist-item.png";
+		String itemId = createTestItem(userId, "크롤링 상품", 129000, "https://shop.example.com/item", imageUrl);
+
+		mockMvc.perform(post("/api/v1/social/posts")
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"title":"크롤링 상품 게시글","itemId":"%s"}
+					""".formatted(itemId)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.imageUrl").value(imageUrl));
+
+		mockMvc.perform(get("/api/v1/social/posts")
+				.header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.posts[0].imageUrl").value(imageUrl));
+	}
+
+	@Test
 	void otherUserItemIdIsIgnored() throws Exception {
 		String owner = createDevUser();
 		String otherUser = createDevUser();
@@ -135,21 +156,26 @@ class FeedPostProductSectionIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	private String createTestItem(String userId, String name, Integer price, String link) {
+		return createTestItem(userId, name, price, link, null);
+	}
+
+	private String createTestItem(String userId, String name, Integer price, String link, String imageUrl) {
 		UUID itemId = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		jdbcTemplate.update(
 			"""
 			INSERT INTO saved_items (
-				id, user_id, input_source, original_url, normalized_url, title, listed_price,
+				id, user_id, input_source, original_url, normalized_url, title, image_url, listed_price,
 				currency_code, category, category_locked_by_user, status, created_at, updated_at
 			)
-			VALUES (?, ?, 'DIRECT_INPUT', ?, ?, ?, ?, 'KRW', 'DIGITAL', false, 'SAVED', ?, ?)
+			VALUES (?, ?, 'DIRECT_INPUT', ?, ?, ?, ?, ?, 'KRW', 'DIGITAL', false, 'SAVED', ?, ?)
 			""",
 			itemId,
 			UUID.fromString(userId),
 			link,
 			link,
 			name,
+			imageUrl,
 			price,
 			now,
 			now

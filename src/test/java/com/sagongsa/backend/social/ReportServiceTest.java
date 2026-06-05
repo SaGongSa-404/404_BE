@@ -1,5 +1,6 @@
 package com.sagongsa.backend.social;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -41,6 +42,23 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 
 		assertThatNoException().isThrownBy(() ->
 			reportService.reportPost(reporter, postId, ReportCategory.SPAM, "스팸입니다"));
+	}
+
+	@Test
+	void 불법_정보_공유_신고_성공() {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+
+		reportService.reportPost(reporter, postId, ReportCategory.ILLEGAL_INFORMATION, null);
+
+		String category = jdbcTemplate.queryForObject(
+			"select report_category from post_reports where reporter_user_id = ? and target_id = ?",
+			String.class,
+			reporter,
+			postId
+		);
+		assertThat(category).isEqualTo("ILLEGAL_INFORMATION");
 	}
 
 	@Test
