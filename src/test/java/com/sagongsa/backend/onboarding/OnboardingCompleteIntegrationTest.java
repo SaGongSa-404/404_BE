@@ -193,6 +193,25 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void completeWithOneCharacterNicknameReturns400() throws Exception {
+		UUID userId = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+						"nickname": "a",
+						"mascotName": "wigul",
+						"timezone": "Asia/Seoul",
+						"monthlyBudgetAmount": 300000,
+						"regretFrequencyChoice": "FOUR_OR_MORE"
+					}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void completeWithSpecialCharNicknameReturns400() throws Exception {
 		UUID userId = insertUser("NOT_STARTED");
 
@@ -202,6 +221,44 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 				.content("""
 					{
 						"nickname": "ab!",
+						"mascotName": "wigul",
+						"timezone": "Asia/Seoul",
+						"monthlyBudgetAmount": 300000,
+						"regretFrequencyChoice": "FOUR_OR_MORE"
+					}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void completeWithOuterWhitespaceNicknameReturns400() throws Exception {
+		UUID userId = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+						"nickname": " nick",
+						"mascotName": "wigul",
+						"timezone": "Asia/Seoul",
+						"monthlyBudgetAmount": 300000,
+						"regretFrequencyChoice": "FOUR_OR_MORE"
+					}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void completeWithBlankNicknameReturns400() throws Exception {
+		UUID userId = insertUser("NOT_STARTED");
+
+		mockMvc.perform(post("/api/v1/onboarding/complete")
+				.header("X-User-Id", userId.toString())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+						"nickname": "   ",
 						"mascotName": "wigul",
 						"timezone": "Asia/Seoul",
 						"monthlyBudgetAmount": 300000,

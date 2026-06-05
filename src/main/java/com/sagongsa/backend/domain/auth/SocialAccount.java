@@ -63,6 +63,10 @@ public class SocialAccount extends BaseEntity {
 		this.profileImageUrl = profileImageUrl;
 	}
 
+	public void relinkUser(UserAccount user) {
+		this.user = user;
+	}
+
 	public UserAccount getUser() {
 		return user;
 	}

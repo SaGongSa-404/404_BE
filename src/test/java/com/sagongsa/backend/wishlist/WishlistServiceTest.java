@@ -119,6 +119,18 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void rejectsZeroListedPrice() {
+		UUID userId = createActiveUser();
+
+		assertThatThrownBy(() -> wishlistService.create(userId, new WishlistItemCreateRequest(
+			"SHARE", "https://shop.example.com/product", null, "상품", null,
+			0, null, "DIGITAL", null, false,
+			null, null, null, null, null
+		)))
+			.isInstanceOf(BadRequestException.class);
+	}
+
+	@Test
 	void rejectsCurrencyCodeNotThreeCharacters() {
 		UUID userId = createActiveUser();
 

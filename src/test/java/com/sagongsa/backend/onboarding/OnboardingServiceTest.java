@@ -94,9 +94,44 @@ class OnboardingServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void acceptsZeroMonthlyBudgetAmount() {
+	void rejectsZeroMonthlyBudgetAmount() {
 		UUID userId = insertUser("NOT_STARTED");
-		OnboardingCompleteResponse response = onboardingService.complete(userId, request("너굴", "Asia/Seoul", 0, "LESS_THAN_ONCE"));
+		assertThatThrownBy(() -> onboardingService.complete(userId, request("너굴", "Asia/Seoul", 0, "LESS_THAN_ONCE")))
+			.isInstanceOf(OnboardingBadRequestException.class);
+	}
+
+	@Test
+	void rejectsNicknameShorterThanTwoCharacters() {
+		UUID userId = insertUser("NOT_STARTED");
+		assertThatThrownBy(() -> onboardingService.complete(userId, request("a", "너굴", "Asia/Seoul", 100000, "LESS_THAN_ONCE")))
+			.isInstanceOf(OnboardingBadRequestException.class);
+	}
+
+	@Test
+	void rejectsNicknameLongerThanEightCharacters() {
+		UUID userId = insertUser("NOT_STARTED");
+		assertThatThrownBy(() -> onboardingService.complete(userId, request("123456789", "너굴", "Asia/Seoul", 100000, "LESS_THAN_ONCE")))
+			.isInstanceOf(OnboardingBadRequestException.class);
+	}
+
+	@Test
+	void rejectsNicknameWithOuterWhitespace() {
+		UUID userId = insertUser("NOT_STARTED");
+		assertThatThrownBy(() -> onboardingService.complete(userId, request(" 닉네임", "너굴", "Asia/Seoul", 100000, "LESS_THAN_ONCE")))
+			.isInstanceOf(OnboardingBadRequestException.class);
+	}
+
+	@Test
+	void rejectsBlankNickname() {
+		UUID userId = insertUser("NOT_STARTED");
+		assertThatThrownBy(() -> onboardingService.complete(userId, request("   ", "너굴", "Asia/Seoul", 100000, "LESS_THAN_ONCE")))
+			.isInstanceOf(OnboardingBadRequestException.class);
+	}
+
+	@Test
+	void acceptsNicknameExactlyEightCharacters() {
+		UUID userId = insertUser("NOT_STARTED");
+		OnboardingCompleteResponse response = onboardingService.complete(userId, request("12345678", "너굴", "Asia/Seoul", 100000, "LESS_THAN_ONCE"));
 		assertThat(response.onboardingStatus()).isEqualTo("COMPLETED");
 	}
 
@@ -220,6 +255,10 @@ class OnboardingServiceTest extends PostgreSqlContainerTest {
 
 	private OnboardingCompleteRequest request(String mascotName, String timezone, Integer monthlyBudgetAmount, String regretFrequencyChoice) {
 		return new OnboardingCompleteRequest(null, mascotName, timezone, monthlyBudgetAmount, regretFrequencyChoice);
+	}
+
+	private OnboardingCompleteRequest request(String nickname, String mascotName, String timezone, Integer monthlyBudgetAmount, String regretFrequencyChoice) {
+		return new OnboardingCompleteRequest(nickname, mascotName, timezone, monthlyBudgetAmount, regretFrequencyChoice);
 	}
 
 	private String queryString(String sql, UUID userId) {

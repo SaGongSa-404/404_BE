@@ -549,8 +549,8 @@ public class WishlistService {
 	}
 
 	private Integer validateListedPrice(Integer listedPrice) {
-		if (listedPrice != null && listedPrice < 0) {
-			throw new BadRequestException("listedPrice must be zero or greater.");
+		if (listedPrice != null && listedPrice <= 0) {
+			throw new BadRequestException("listedPrice must be greater than zero.");
 		}
 		return listedPrice;
 	}

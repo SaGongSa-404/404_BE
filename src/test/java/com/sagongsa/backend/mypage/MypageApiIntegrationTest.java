@@ -76,14 +76,40 @@ class MypageApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void 닉네임_10자_초과_400() throws Exception {
+	void 닉네임_9자_400() throws Exception {
 		UUID userId = insertUser("너굴이", "너구리");
 
 		mockMvc.perform(patch(BASE + "/profile")
 				.header("X-User-Id", userId)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-					{"nickname":"열한글자닉네임초과123"}
+					{"nickname":"123456789"}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 닉네임_1자_400() throws Exception {
+		UUID userId = insertUser("너굴이", "너구리");
+
+		mockMvc.perform(patch(BASE + "/profile")
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"nickname":"a"}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 닉네임_공백_400() throws Exception {
+		UUID userId = insertUser("너굴이", "너구리");
+
+		mockMvc.perform(patch(BASE + "/profile")
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"nickname":" 닉네임"}
 					"""))
 			.andExpect(status().isBadRequest());
 	}
