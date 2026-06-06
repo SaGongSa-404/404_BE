@@ -44,6 +44,36 @@ public class ReminderNotificationWorker {
 		return processedCount;
 	}
 
+	public int processDueReminder(UUID reminderId) {
+		if (!isDueReminder(reminderId)) {
+			return 0;
+		}
+		return processReminder(reminderId) ? 1 : 0;
+	}
+
+	private boolean isDueReminder(UUID reminderId) {
+		Boolean exists = jdbcTemplate.queryForObject(
+			"""
+			select exists(
+				select 1
+				from reminder_schedules rs
+				join users u on u.id = rs.user_id
+				left join user_notification_settings uns on uns.user_id = rs.user_id
+				where rs.id = ?
+				  and rs.reminder_type = 'REGRET_CHECK_7_DAYS'
+				  and rs.status = 'SCHEDULED'
+				  and rs.scheduled_for <= ?
+				  and u.status = 'ACTIVE'
+				  and coalesce(uns.regret_reminder_enabled, true) = true
+			)
+			""",
+			Boolean.class,
+			reminderId,
+			OffsetDateTime.now(ZoneOffset.UTC)
+		);
+		return Boolean.TRUE.equals(exists);
+	}
+
 	private List<UUID> findDueReminderIds() {
 		return jdbcTemplate.query(
 			"""

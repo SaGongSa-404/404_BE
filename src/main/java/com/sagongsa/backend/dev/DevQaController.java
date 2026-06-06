@@ -30,6 +30,21 @@ public class DevQaController {
 		return ResponseEntity.ok(qaScenarioService.createBasicScenario());
 	}
 
+	@PostMapping("/scenarios/result-combinations")
+	public ResponseEntity<QaDecisionScenarioResponse> createResultCombinationsScenario() {
+		return ResponseEntity.ok(qaScenarioService.createResultCombinationsScenario());
+	}
+
+	@PostMapping("/scenarios/regret-notification-ready")
+	public ResponseEntity<QaRegretReminderScenarioResponse> createRegretNotificationReadyScenario() {
+		return ResponseEntity.ok(qaScenarioService.createRegretNotificationReadyScenario());
+	}
+
+	@PostMapping("/reminders/{reminderId}/process")
+	public ResponseEntity<QaReminderProcessResponse> processDueReminder(@PathVariable UUID reminderId) {
+		return ResponseEntity.ok(qaScenarioService.processDueReminder(reminderId));
+	}
+
 	@DeleteMapping("/users/{userId}")
 	public ResponseEntity<Void> deleteQaUser(@PathVariable UUID userId) {
 		qaScenarioService.deleteQaUser(userId);
