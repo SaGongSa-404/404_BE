@@ -58,6 +58,23 @@ POST /api/dev/qa/scenarios/basic
 - 숙려 진입용 상품
 - 유사 카테고리 소비금액 계산용 GO 결정
 
+### 예산 0원 상태팩
+
+```http
+POST /api/dev/qa/scenarios/budget-zero
+```
+
+확인 가능한 화면/API:
+
+- `GET /api/v1/home/summary`
+- `GET /api/v1/users/me/stats?yearMonth={yearMonth}`
+
+생성 상태:
+
+- 현재 월 예산 0원
+- 현재 월 소비금액 0원
+- 마이페이지 통계의 예산 0원 조회 상태
+
 ### 결정 조합 상태팩
 
 ```http

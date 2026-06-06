@@ -178,6 +178,35 @@ public class QaScenarioService {
 	}
 
 	@Transactional
+	public QaUserScenarioResponse createBudgetZeroScenario() {
+		QaUserScenarioResponse user = createQaUser();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+		jdbcTemplate.update(
+			"""
+			update budget_cycles
+			   set monthly_budget_amount = 0,
+			       spent_amount = 0,
+			       updated_at = ?
+			 where id = ?
+			""",
+			now,
+			user.budgetCycleId()
+		);
+
+		Map<String, String> paths = new LinkedHashMap<>(user.paths());
+		paths.put("stats", "/api/v1/users/me/stats?yearMonth=" + user.yearMonth());
+
+		return new QaUserScenarioResponse(
+			user.userId(),
+			user.nickname(),
+			user.budgetCycleId(),
+			user.yearMonth(),
+			paths
+		);
+	}
+
+	@Transactional
 	public QaDecisionScenarioResponse createResultCombinationsScenario() {
 		QaUserScenarioResponse user = createQaUser();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
