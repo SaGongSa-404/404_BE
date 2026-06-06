@@ -1,9 +1,11 @@
 package com.sagongsa.backend.dev;
 
+import com.sagongsa.backend.notification.ReminderNotificationWorker;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,11 +22,14 @@ public class QaScenarioService {
 	private static final String QA_NICKNAME_PREFIX = "QA너굴";
 	private static final String QA_PROVIDER_USER_ID_PREFIX = "DEV_QA:";
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+	private static final List<String> SELF_CHECK_CODES = List.of("NEED", "BUDGET", "ALTERNATIVE", "DELAY");
 
 	private final JdbcTemplate jdbcTemplate;
+	private final ReminderNotificationWorker reminderNotificationWorker;
 
-	public QaScenarioService(JdbcTemplate jdbcTemplate) {
+	public QaScenarioService(JdbcTemplate jdbcTemplate, ReminderNotificationWorker reminderNotificationWorker) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.reminderNotificationWorker = reminderNotificationWorker;
 	}
 
 	@Transactional
@@ -130,7 +135,9 @@ public class QaScenarioService {
 			"GO",
 			now
 		);
-		UUID decisionId = insertGoDecision(user.userId(), decidedItemId, user.budgetCycleId(), 120000, now);
+		UUID decisionId = insertDecision(
+			user.userId(), decidedItemId, user.budgetCycleId(), "GO", 120000, 120000, "RATIONAL", 1, now
+		);
 		UUID deliberationItemId = insertSavedItem(
 			user.userId(),
 			"QA 숙려 진입용 키보드",
@@ -168,6 +175,83 @@ public class QaScenarioService {
 			List.of(notificationId),
 			paths
 		);
+	}
+
+	@Transactional
+	public QaDecisionScenarioResponse createResultCombinationsScenario() {
+		QaUserScenarioResponse user = createQaUser();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		Map<String, UUID> decisionIds = new LinkedHashMap<>();
+		List<UUID> itemIds = new ArrayList<>();
+		int budgetAfter = 0;
+
+		budgetAfter = insertDecisionCase(
+			user, itemIds, decisionIds, "goRational", "QA GO 합리 결과", "GO", 25000, budgetAfter, "RATIONAL", 1, now
+		);
+		budgetAfter = insertDecisionCase(
+			user, itemIds, decisionIds, "goIrrational", "QA GO 비합리 결과", "GO", 70000, budgetAfter, "IRRATIONAL", 3, now.minusMinutes(1)
+		);
+		budgetAfter = insertDecisionCase(
+			user, itemIds, decisionIds, "stopRational", "QA STOP 합리 결과", "STOP", 35000, budgetAfter, "RATIONAL", 0, now.minusMinutes(2)
+		);
+		insertDecisionCase(
+			user, itemIds, decisionIds, "stopIrrational", "QA STOP 비합리 결과", "STOP", 90000, budgetAfter, "IRRATIONAL", 4, now.minusMinutes(3)
+		);
+
+		jdbcTemplate.update(
+			"update budget_cycles set spent_amount = ?, updated_at = ? where id = ?",
+			budgetAfter,
+			now,
+			user.budgetCycleId()
+		);
+
+		Map<String, String> paths = new LinkedHashMap<>(user.paths());
+		paths.put("consumption", "/api/v1/my/consumption?month=" + user.yearMonth());
+
+		return new QaDecisionScenarioResponse(
+			user.userId(),
+			user.nickname(),
+			user.budgetCycleId(),
+			user.yearMonth(),
+			itemIds,
+			decisionIds,
+			paths
+		);
+	}
+
+	@Transactional
+	public QaRegretReminderScenarioResponse createRegretNotificationReadyScenario() {
+		QaUserScenarioResponse user = createQaUser();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		UUID itemId = insertSavedItem(user.userId(), "QA 회고 알림용 구매", 88000, "DIGITAL", "GO", now.minusDays(7));
+		UUID decisionId = insertDecision(
+			user.userId(), itemId, user.budgetCycleId(), "GO", 88000, 88000, "RATIONAL", 1, now.minusDays(7)
+		);
+		UUID reminderId = insertDueRegretReminder(user.userId(), itemId, decisionId, now.minusMinutes(1), now);
+		jdbcTemplate.update("update budget_cycles set spent_amount = 88000, updated_at = ? where id = ?", now, user.budgetCycleId());
+
+		Map<String, String> paths = new LinkedHashMap<>(user.paths());
+		paths.put("processDueReminder", "/api/dev/qa/reminders/" + reminderId + "/process");
+		paths.put("reflection", "/api/v1/reflections");
+
+		return new QaRegretReminderScenarioResponse(
+			user.userId(),
+			user.nickname(),
+			user.budgetCycleId(),
+			user.yearMonth(),
+			itemId,
+			decisionId,
+			reminderId,
+			paths
+		);
+	}
+
+	public QaReminderProcessResponse processDueReminder(UUID reminderId) {
+		UUID userId = reminderOwnerId(reminderId);
+		if (!isQaUser(userId)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only QA scenario reminders can be processed.");
+		}
+		return new QaReminderProcessResponse(reminderNotificationWorker.processDueReminder(reminderId));
 	}
 
 	@Transactional
@@ -211,6 +295,17 @@ public class QaScenarioService {
 		return Boolean.TRUE.equals(exists);
 	}
 
+	private UUID reminderOwnerId(UUID reminderId) {
+		return jdbcTemplate.query(
+				"select user_id from reminder_schedules where id = ?",
+				(rs, rowNumber) -> rs.getObject("user_id", UUID.class),
+				reminderId
+			)
+			.stream()
+			.findFirst()
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reminder was not found."));
+	}
+
 	private UUID insertSavedItem(
 		UUID userId,
 		String title,
@@ -240,7 +335,41 @@ public class QaScenarioService {
 		return itemId;
 	}
 
-	private UUID insertGoDecision(UUID userId, UUID itemId, UUID budgetCycleId, int finalPrice, OffsetDateTime now) {
+	private int insertDecisionCase(
+		QaUserScenarioResponse user,
+		List<UUID> itemIds,
+		Map<String, UUID> decisionIds,
+		String key,
+		String title,
+		String result,
+		int listedPrice,
+		int currentBudgetAfter,
+		String rationality,
+		int yesCount,
+		OffsetDateTime decidedAt
+	) {
+		UUID itemId = insertSavedItem(user.userId(), title, listedPrice, "DIGITAL", result, decidedAt);
+		Integer finalPrice = "GO".equals(result) ? listedPrice : null;
+		int nextBudgetAfter = finalPrice == null ? currentBudgetAfter : currentBudgetAfter + finalPrice;
+		UUID decisionId = insertDecision(
+			user.userId(), itemId, user.budgetCycleId(), result, finalPrice, nextBudgetAfter, rationality, yesCount, decidedAt
+		);
+		itemIds.add(itemId);
+		decisionIds.put(key, decisionId);
+		return nextBudgetAfter;
+	}
+
+	private UUID insertDecision(
+		UUID userId,
+		UUID itemId,
+		UUID budgetCycleId,
+		String result,
+		Integer finalPrice,
+		int budgetAfterAmount,
+		String rationality,
+		int yesCount,
+		OffsetDateTime decidedAt
+	) {
 		UUID decisionId = UUID.randomUUID();
 		jdbcTemplate.update(
 			"""
@@ -249,19 +378,85 @@ public class QaScenarioService {
 				similar_category_spend_amount, rationality_result, self_check_yes_count,
 				is_changed, change_count, decided_at, created_at, updated_at
 			)
-			values (?, ?, ?, ?, 'GO', ?, ?, 0, 'RATIONAL', 1, false, 0, ?, ?, ?)
+			values (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, false, 0, ?, ?, ?)
 			""",
 			decisionId,
 			userId,
 			itemId,
 			budgetCycleId,
+			result,
 			finalPrice,
-			finalPrice,
-			now,
+			budgetAfterAmount,
+			rationality,
+			yesCount,
+			decidedAt,
+			decidedAt,
+			decidedAt
+		);
+		insertSelfCheck(decisionId, rationality, yesCount, decidedAt);
+		return decisionId;
+	}
+
+	private void insertSelfCheck(UUID decisionId, String rationality, int yesCount, OffsetDateTime submittedAt) {
+		UUID responseSetId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into self_check_response_sets (
+				id, decision_id, yes_count, rationality_result, submitted_at, created_at, updated_at
+			)
+			values (?, ?, ?, ?, ?, ?, ?)
+			""",
+			responseSetId,
+			decisionId,
+			yesCount,
+			rationality,
+			submittedAt,
+			submittedAt,
+			submittedAt
+		);
+		for (int i = 0; i < SELF_CHECK_CODES.size(); i++) {
+			jdbcTemplate.update(
+				"""
+				insert into self_check_answers (
+					id, response_set_id, question_code, answer_boolean, created_at, updated_at
+				)
+				values (?, ?, ?, ?, ?, ?)
+				""",
+				UUID.randomUUID(),
+				responseSetId,
+				SELF_CHECK_CODES.get(i),
+				i < yesCount,
+				submittedAt,
+				submittedAt
+			);
+		}
+	}
+
+	private UUID insertDueRegretReminder(
+		UUID userId,
+		UUID itemId,
+		UUID decisionId,
+		OffsetDateTime scheduledFor,
+		OffsetDateTime now
+	) {
+		UUID reminderId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into reminder_schedules (
+				id, user_id, item_id, decision_id, reminder_type, scheduled_for,
+				status, sent_at, canceled_at, cancel_reason, created_at, updated_at
+			)
+			values (?, ?, ?, ?, 'REGRET_CHECK_7_DAYS', ?, 'SCHEDULED', null, null, null, ?, ?)
+			""",
+			reminderId,
+			userId,
+			itemId,
+			decisionId,
+			scheduledFor,
 			now,
 			now
 		);
-		return decisionId;
+		return reminderId;
 	}
 
 	private UUID insertUnreadNotification(UUID userId, OffsetDateTime now) {
