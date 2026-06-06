@@ -5,6 +5,7 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -117,6 +118,59 @@ public class QaScenarioService {
 	}
 
 	@Transactional
+	public QaBasicScenarioResponse createBasicScenario() {
+		QaUserScenarioResponse user = createQaUser();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+		UUID decidedItemId = insertSavedItem(
+			user.userId(),
+			"QA 기본팩 무선 이어폰",
+			120000,
+			"DIGITAL",
+			"GO",
+			now
+		);
+		UUID decisionId = insertGoDecision(user.userId(), decidedItemId, user.budgetCycleId(), 120000, now);
+		UUID deliberationItemId = insertSavedItem(
+			user.userId(),
+			"QA 숙려 진입용 키보드",
+			45000,
+			"DIGITAL",
+			"SAVED",
+			now.minusHours(25)
+		);
+		UUID notificationId = insertUnreadNotification(user.userId(), now);
+
+		jdbcTemplate.update(
+			"""
+			update budget_cycles
+			   set monthly_budget_amount = 100000,
+			       spent_amount = 120000,
+			       updated_at = ?
+			 where id = ?
+			""",
+			now,
+			user.budgetCycleId()
+		);
+
+		Map<String, String> paths = new LinkedHashMap<>(user.paths());
+		paths.put("deliberation", "/api/v1/deliberations/items/" + deliberationItemId);
+		paths.put("consumption", "/api/v1/my/consumption?month=" + user.yearMonth());
+
+		return new QaBasicScenarioResponse(
+			user.userId(),
+			user.nickname(),
+			user.budgetCycleId(),
+			user.yearMonth(),
+			List.of(deliberationItemId, decidedItemId),
+			List.of(decisionId),
+			deliberationItemId,
+			List.of(notificationId),
+			paths
+		);
+	}
+
+	@Transactional
 	public void deleteQaUser(UUID userId) {
 		if (!userExists(userId)) {
 			return;
@@ -155,6 +209,78 @@ public class QaScenarioService {
 			QA_PROVIDER_USER_ID_PREFIX + userId
 		);
 		return Boolean.TRUE.equals(exists);
+	}
+
+	private UUID insertSavedItem(
+		UUID userId,
+		String title,
+		int listedPrice,
+		String category,
+		String status,
+		OffsetDateTime createdAt
+	) {
+		UUID itemId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into saved_items (
+				id, user_id, input_source, title, listed_price, currency_code, category,
+				category_locked_by_user, status, created_at, updated_at
+			)
+			values (?, ?, 'DIRECT_INPUT', ?, ?, 'KRW', ?, false, ?, ?, ?)
+			""",
+			itemId,
+			userId,
+			title,
+			listedPrice,
+			category,
+			status,
+			createdAt,
+			createdAt
+		);
+		return itemId;
+	}
+
+	private UUID insertGoDecision(UUID userId, UUID itemId, UUID budgetCycleId, int finalPrice, OffsetDateTime now) {
+		UUID decisionId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into purchase_decisions (
+				id, user_id, item_id, budget_cycle_id, result, final_price, budget_after_amount,
+				similar_category_spend_amount, rationality_result, self_check_yes_count,
+				is_changed, change_count, decided_at, created_at, updated_at
+			)
+			values (?, ?, ?, ?, 'GO', ?, ?, 0, 'RATIONAL', 1, false, 0, ?, ?, ?)
+			""",
+			decisionId,
+			userId,
+			itemId,
+			budgetCycleId,
+			finalPrice,
+			finalPrice,
+			now,
+			now,
+			now
+		);
+		return decisionId;
+	}
+
+	private UUID insertUnreadNotification(UUID userId, OffsetDateTime now) {
+		UUID notificationId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into notifications (
+				id, user_id, notification_type, title, body, item_id, decision_id, reminder_id,
+				target_path, is_read, read_at, created_at, updated_at
+			)
+			values (?, ?, 'BUDGET_WARNING', 'QA 예산 초과 알림', '이번 달 예산을 초과한 상태입니다.',
+				null, null, null, '/api/v1/home/summary', false, null, ?, ?)
+			""",
+			notificationId,
+			userId,
+			now,
+			now
+		);
+		return notificationId;
 	}
 
 	private void deleteSocialData(UUID userId) {
