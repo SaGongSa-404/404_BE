@@ -25,6 +25,11 @@ public class DevQaController {
 		return ResponseEntity.ok(qaScenarioService.createQaUser());
 	}
 
+	@PostMapping("/scenarios/basic")
+	public ResponseEntity<QaBasicScenarioResponse> createBasicScenario() {
+		return ResponseEntity.ok(qaScenarioService.createBasicScenario());
+	}
+
 	@DeleteMapping("/users/{userId}")
 	public ResponseEntity<Void> deleteQaUser(@PathVariable UUID userId) {
 		qaScenarioService.deleteQaUser(userId);

@@ -45,6 +45,59 @@ class DevQaControllerIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void basicScenarioCreatesHomeNotificationWishlistAndDeliberationState() throws Exception {
+		String body = mockMvc.perform(post("/api/dev/qa/scenarios/basic"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.nickname").value(startsWith("QA너굴")))
+			.andExpect(jsonPath("$.itemIds.length()").value(2))
+			.andExpect(jsonPath("$.decisionIds.length()").value(1))
+			.andExpect(jsonPath("$.notificationIds.length()").value(1))
+			.andExpect(jsonPath("$.paths.deliberation").exists())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		UUID userId = UUID.fromString(objectMapper.readTree(body).get("userId").asText());
+		UUID deliberationItemId = UUID.fromString(objectMapper.readTree(body).get("deliberationItemId").asText());
+
+		mockMvc.perform(get("/api/v1/home/summary")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(100000))
+			.andExpect(jsonPath("$.budget.spentAmount").value(120000))
+			.andExpect(jsonPath("$.budget.exhausted").value(true))
+			.andExpect(jsonPath("$.notifications.unreadCount").value(1));
+
+		mockMvc.perform(get("/api/v1/notifications")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].type").value("BUDGET_WARNING"))
+			.andExpect(jsonPath("$[0].read").value(false));
+
+		mockMvc.perform(get("/api/v1/wishlist/items")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[0].id").value(deliberationItemId.toString()))
+			.andExpect(jsonPath("$.items[0].status").value("SAVED"));
+
+		mockMvc.perform(get("/api/v1/deliberations/items/{itemId}", deliberationItemId)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.item.id").value(deliberationItemId.toString()))
+			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(100000))
+			.andExpect(jsonPath("$.budget.spentAmount").value(120000))
+			.andExpect(jsonPath("$.similarCategorySpendAmount").value(120000));
+
+		mockMvc.perform(delete("/api/dev/qa/users/{userId}", userId))
+			.andExpect(status().isNoContent());
+
+		assertThat(queryInteger("select count(*) from users where id = ?", userId)).isZero();
+		assertThat(queryInteger("select count(*) from saved_items where user_id = ?", userId)).isZero();
+		assertThat(queryInteger("select count(*) from purchase_decisions where user_id = ?", userId)).isZero();
+		assertThat(queryInteger("select count(*) from notifications where user_id = ?", userId)).isZero();
+	}
+
+	@Test
 	void createsQaUserWithCurrentBudgetAndScenarioPaths() throws Exception {
 		String body = mockMvc.perform(post("/api/dev/qa/users"))
 			.andExpect(status().isOk())
