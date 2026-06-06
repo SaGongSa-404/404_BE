@@ -154,6 +154,37 @@ class DevQaControllerIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void budgetZeroScenarioSupportsHomeAndMypageBudgetState() throws Exception {
+		String body = mockMvc.perform(post("/api/dev/qa/scenarios/budget-zero"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.paths.home").value("/api/v1/home/summary"))
+			.andExpect(jsonPath("$.paths.stats").exists())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		UUID userId = UUID.fromString(objectMapper.readTree(body).get("userId").asText());
+		String yearMonth = objectMapper.readTree(body).get("yearMonth").asText();
+
+		mockMvc.perform(get("/api/v1/home/summary")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(0))
+			.andExpect(jsonPath("$.budget.spentAmount").value(0))
+			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
+			.andExpect(jsonPath("$.budget.exhausted").value(false));
+
+		mockMvc.perform(get("/api/v1/users/me/stats")
+				.header(USER_ID_HEADER, userId)
+				.param("yearMonth", yearMonth))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.yearMonth").value(yearMonth))
+			.andExpect(jsonPath("$.budgetAmount").value(0))
+			.andExpect(jsonPath("$.spentAmount").value(0))
+			.andExpect(jsonPath("$.usageRate").value(nullValue()));
+	}
+
+	@Test
 	void resultCombinationsScenarioCreatesGoStopAndRationalityCases() throws Exception {
 		String body = mockMvc.perform(post("/api/dev/qa/scenarios/result-combinations"))
 			.andExpect(status().isOk())

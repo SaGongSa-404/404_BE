@@ -30,6 +30,11 @@ public class DevQaController {
 		return ResponseEntity.ok(qaScenarioService.createBasicScenario());
 	}
 
+	@PostMapping("/scenarios/budget-zero")
+	public ResponseEntity<QaUserScenarioResponse> createBudgetZeroScenario() {
+		return ResponseEntity.ok(qaScenarioService.createBudgetZeroScenario());
+	}
+
 	@PostMapping("/scenarios/result-combinations")
 	public ResponseEntity<QaDecisionScenarioResponse> createResultCombinationsScenario() {
 		return ResponseEntity.ok(qaScenarioService.createResultCombinationsScenario());
