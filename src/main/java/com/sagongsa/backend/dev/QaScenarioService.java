@@ -220,6 +220,24 @@ public class QaScenarioService {
 	}
 
 	@Transactional
+	public QaDecisionScenarioResponse createMypageConsumptionScenario() {
+		QaDecisionScenarioResponse scenario = createResultCombinationsScenario();
+		Map<String, String> paths = new LinkedHashMap<>(scenario.paths());
+		paths.put("statsMonths", "/api/v1/users/me/stats/months");
+		paths.put("stats", "/api/v1/users/me/stats?yearMonth=" + scenario.yearMonth());
+		paths.put("wishHistory", "/api/v1/users/me/wishes/history?yearMonth=" + scenario.yearMonth());
+		return new QaDecisionScenarioResponse(
+			scenario.userId(),
+			scenario.nickname(),
+			scenario.budgetCycleId(),
+			scenario.yearMonth(),
+			scenario.itemIds(),
+			scenario.decisionIds(),
+			paths
+		);
+	}
+
+	@Transactional
 	public QaRegretReminderScenarioResponse createRegretNotificationReadyScenario() {
 		QaUserScenarioResponse user = createQaUser();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -242,6 +260,43 @@ public class QaScenarioService {
 			itemId,
 			decisionId,
 			reminderId,
+			paths
+		);
+	}
+
+	@Transactional
+	public QaFeedScenarioResponse createFeedReadyScenario() {
+		QaUserScenarioResponse viewer = createQaUser();
+		QaUserScenarioResponse peer = createQaUser();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+		UUID myItemId = insertSavedItem(viewer.userId(), "QA 내 피드 상품", 39000, "HOBBY", "GO", now.minusMinutes(3));
+		UUID peerItemId = insertSavedItem(peer.userId(), "QA 타인 피드 상품", 54000, "LIVING", "GO", now.minusMinutes(2));
+		UUID myPostId = insertFeedPost(
+			viewer.userId(), myItemId, "QA 내 게시글", "내 게시글 수정/삭제 확인용", 39000, now.minusMinutes(3)
+		);
+		UUID peerPostId = insertFeedPost(
+			peer.userId(), peerItemId, "QA 타인 게시글", "댓글/투표/신고 확인용", 54000, now.minusMinutes(2)
+		);
+		UUID commentId = insertPostComment(viewer.userId(), peerPostId, "QA 댓글 확인", now.minusMinutes(1));
+		UUID voteId = insertPostVote(viewer.userId(), peerPostId, "GO", now.minusSeconds(30));
+
+		Map<String, String> paths = new LinkedHashMap<>(viewer.paths());
+		paths.put("feed", "/api/v1/social/posts");
+		paths.put("myPosts", "/api/v1/users/me/posts");
+		paths.put("myVotes", "/api/v1/users/me/votes");
+		paths.put("peerCleanup", "/api/dev/qa/users/" + peer.userId());
+
+		return new QaFeedScenarioResponse(
+			viewer.userId(),
+			viewer.nickname(),
+			peer.userId(),
+			peer.nickname(),
+			List.of(myPostId, peerPostId),
+			myPostId,
+			peerPostId,
+			List.of(commentId),
+			List.of(voteId),
 			paths
 		);
 	}
@@ -457,6 +512,73 @@ public class QaScenarioService {
 			now
 		);
 		return reminderId;
+	}
+
+	private UUID insertFeedPost(
+		UUID userId,
+		UUID itemId,
+		String title,
+		String body,
+		int price,
+		OffsetDateTime createdAt
+	) {
+		UUID postId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into feed_posts (
+				id, user_id, item_id, decision_id, title, body, go_count, stop_count,
+				created_at, updated_at, deleted_at, image_url, price
+			)
+			values (?, ?, ?, null, ?, ?, 0, 0, ?, ?, null, null, ?)
+			""",
+			postId,
+			userId,
+			itemId,
+			title,
+			body,
+			createdAt,
+			createdAt,
+			price
+		);
+		return postId;
+	}
+
+	private UUID insertPostComment(UUID userId, UUID postId, String body, OffsetDateTime createdAt) {
+		UUID commentId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into post_comments (
+				id, post_id, user_id, body, created_at, updated_at, deleted_at
+			)
+			values (?, ?, ?, ?, ?, ?, null)
+			""",
+			commentId,
+			postId,
+			userId,
+			body,
+			createdAt,
+			createdAt
+		);
+		return commentId;
+	}
+
+	private UUID insertPostVote(UUID userId, UUID postId, String voteType, OffsetDateTime createdAt) {
+		UUID voteId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into post_votes (
+				id, post_id, user_id, vote_type, canceled_at, created_at, updated_at
+			)
+			values (?, ?, ?, ?, null, ?, ?)
+			""",
+			voteId,
+			postId,
+			userId,
+			voteType,
+			createdAt,
+			createdAt
+		);
+		return voteId;
 	}
 
 	private UUID insertUnreadNotification(UUID userId, OffsetDateTime now) {

@@ -1,6 +1,7 @@
 package com.sagongsa.backend.dev;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -43,6 +44,113 @@ class DevQaControllerIntegrationTest extends PostgreSqlContainerTest {
 	@BeforeEach
 	void setUp() {
 		jdbcTemplate.execute("truncate table users cascade");
+	}
+
+	@Test
+	void feedReadyScenarioCreatesMinePeerCommentAndVoteState() throws Exception {
+		String body = mockMvc.perform(post("/api/dev/qa/scenarios/feed-ready"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.postIds.length()").value(2))
+			.andExpect(jsonPath("$.commentIds.length()").value(1))
+			.andExpect(jsonPath("$.voteIds.length()").value(1))
+			.andExpect(jsonPath("$.paths.feed").value("/api/v1/social/posts"))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		UUID userId = UUID.fromString(objectMapper.readTree(body).get("userId").asText());
+		UUID peerUserId = UUID.fromString(objectMapper.readTree(body).get("peerUserId").asText());
+		UUID myPostId = UUID.fromString(objectMapper.readTree(body).get("myPostId").asText());
+		UUID peerPostId = UUID.fromString(objectMapper.readTree(body).get("peerPostId").asText());
+
+		mockMvc.perform(get("/api/v1/social/posts")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.posts.length()").value(2));
+
+		mockMvc.perform(get("/api/v1/social/posts/{postId}", peerPostId)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mine").value(false))
+			.andExpect(jsonPath("$.myVote").value("GO"))
+			.andExpect(jsonPath("$.goCount").value(1))
+			.andExpect(jsonPath("$.commentCount").value(1));
+
+		mockMvc.perform(post("/api/v1/social/posts/{postId}/votes", myPostId)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"voteType":"GO"}
+					"""))
+			.andExpect(status().isForbidden());
+
+		mockMvc.perform(get("/api/v1/social/posts/{postId}", myPostId)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mine").value(true))
+			.andExpect(jsonPath("$.myVote").value(nullValue()))
+			.andExpect(jsonPath("$.goCount").value(0));
+
+		mockMvc.perform(get("/api/v1/social/posts/{postId}/comments", peerPostId)
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.total").value(1))
+			.andExpect(jsonPath("$.comments[0].mine").value(true));
+
+		mockMvc.perform(get("/api/v1/users/me/posts")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.posts[0].id").value(myPostId.toString()))
+			.andExpect(jsonPath("$.posts[0].mine").value(true));
+
+		mockMvc.perform(get("/api/v1/users/me/votes")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.posts[0].id").value(peerPostId.toString()))
+			.andExpect(jsonPath("$.posts[0].myVote").value("GO"));
+
+		mockMvc.perform(delete("/api/dev/qa/users/{userId}", userId))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(delete("/api/dev/qa/users/{userId}", peerUserId))
+			.andExpect(status().isNoContent());
+
+		assertThat(queryInteger("select count(*) from users where id in (?, ?)", userId, peerUserId)).isZero();
+		assertThat(queryInteger("select count(*) from feed_posts where id in (?, ?)", myPostId, peerPostId)).isZero();
+	}
+
+	@Test
+	void mypageConsumptionScenarioSupportsStatsMonthsAndWishHistory() throws Exception {
+		String body = mockMvc.perform(post("/api/dev/qa/scenarios/mypage-consumption"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.paths.statsMonths").value("/api/v1/users/me/stats/months"))
+			.andExpect(jsonPath("$.paths.stats").exists())
+			.andExpect(jsonPath("$.paths.wishHistory").exists())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		UUID userId = UUID.fromString(objectMapper.readTree(body).get("userId").asText());
+		String yearMonth = objectMapper.readTree(body).get("yearMonth").asText();
+
+		mockMvc.perform(get("/api/v1/users/me/stats/months")
+				.header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.months").isArray())
+			.andExpect(jsonPath("$.months[0]").value(yearMonth));
+
+		mockMvc.perform(get("/api/v1/users/me/stats")
+				.header(USER_ID_HEADER, userId)
+				.param("yearMonth", yearMonth))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.yearMonth").value(yearMonth))
+			.andExpect(jsonPath("$.boughtCount").value(2))
+			.andExpect(jsonPath("$.restrainedCount").value(2));
+
+		mockMvc.perform(get("/api/v1/users/me/wishes/history")
+				.header(USER_ID_HEADER, userId)
+				.param("yearMonth", yearMonth))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.wishes.length()").value(4));
 	}
 
 	@Test
