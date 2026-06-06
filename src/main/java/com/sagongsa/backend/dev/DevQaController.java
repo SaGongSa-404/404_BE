@@ -40,6 +40,16 @@ public class DevQaController {
 		return ResponseEntity.ok(qaScenarioService.createRegretNotificationReadyScenario());
 	}
 
+	@PostMapping("/scenarios/feed-ready")
+	public ResponseEntity<QaFeedScenarioResponse> createFeedReadyScenario() {
+		return ResponseEntity.ok(qaScenarioService.createFeedReadyScenario());
+	}
+
+	@PostMapping("/scenarios/mypage-consumption")
+	public ResponseEntity<QaDecisionScenarioResponse> createMypageConsumptionScenario() {
+		return ResponseEntity.ok(qaScenarioService.createMypageConsumptionScenario());
+	}
+
 	@PostMapping("/reminders/{reminderId}/process")
 	public ResponseEntity<QaReminderProcessResponse> processDueReminder(@PathVariable UUID reminderId) {
 		return ResponseEntity.ok(qaScenarioService.processDueReminder(reminderId));
