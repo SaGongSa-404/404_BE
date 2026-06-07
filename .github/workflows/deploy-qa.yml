@@ -53,4 +53,4 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
             -o IdentitiesOnly=yes \
             ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
-            "sudo systemctl restart wigul-backend && sudo systemctl status wigul-backend --no-pager"
+            "sudo -n systemctl restart wigul-backend && sudo -n systemctl status wigul-backend --no-pager"
