@@ -1,0 +1,47 @@
+name: Deploy QA Backend
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Grant execute permission for Gradle
+        run: chmod +x ./gradlew
+
+      - name: Build bootJar
+        run: ./gradlew clean bootJar -x test --no-daemon
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_VM_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.GCP_VM_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload jar
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            build/libs/wigul-backend-0.0.1-SNAPSHOT.jar \
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }}:/home/${{ secrets.GCP_VM_USER }}/404_BE/build/libs/wigul-backend-0.0.1-SNAPSHOT.jar
+
+      - name: Restart service
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
+            "sudo systemctl restart wigul-backend && sudo systemctl status wigul-backend --no-pager"
