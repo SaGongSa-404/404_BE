@@ -69,6 +69,7 @@ public class SecurityConfig {
 				auth
 					.requestMatchers("/", "/index.html", "/login.html", "/app.html",
 						"/deliberation.html", "/test-mypage.html", "/test-nickname.html", "/test-consumption.html", "/favicon.ico", "/error").permitAll()
+					.requestMatchers("/health", "/api/health").permitAll()
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
 					.requestMatchers(HttpMethod.POST, "/api/auth/reviewer-token").permitAll()

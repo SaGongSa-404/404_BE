@@ -45,6 +45,10 @@ server:
       cookie:
         same-site: lax
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] [requestId=%X{requestId}] [userId=%X{userId}] %logger{36} - %msg%n"
+
 app:
   auth:
     issuer: 404-backend
