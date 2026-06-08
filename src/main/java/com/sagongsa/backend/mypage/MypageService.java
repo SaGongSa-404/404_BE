@@ -8,6 +8,7 @@ import com.sagongsa.backend.domain.budget.BudgetCycle;
 import com.sagongsa.backend.domain.budget.BudgetCycleRepository;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemStatus;
+import com.sagongsa.backend.domain.enums.ModerationStatus;
 import com.sagongsa.backend.domain.item.SavedItemRepository;
 import com.sagongsa.backend.domain.notification.DevicePushTokenRepository;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
@@ -86,7 +87,7 @@ class MypageService {
 		UserAccount user = findUserOrThrow(userId);
 		UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
 		SocialAccount social = socialAccountRepository.findByUserId(userId).orElse(null);
-		long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNull(userId);
+		long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNullAndModerationStatus(userId, ModerationStatus.ACTIVE);
 		return MyProfileResponse.of(user, profile, social, postCount);
 	}
 
@@ -100,7 +101,7 @@ class MypageService {
 					request.raccoonName() != null ? request.raccoonName() : "너구리")));
 		profile.updateProfile(request.nickname(), request.raccoonName());
 		SocialAccount social = socialAccountRepository.findByUserId(userId).orElse(null);
-		long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNull(userId);
+		long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNullAndModerationStatus(userId, ModerationStatus.ACTIVE);
 		return MyProfileResponse.of(user, profile, social, postCount);
 	}
 

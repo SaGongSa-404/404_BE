@@ -1,6 +1,7 @@
 package com.sagongsa.backend.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sagongsa.backend.domain.auth.SocialAccountRepository;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.DisabledException;
 
 @SpringBootTest
 class SocialAccountLinkServiceTest extends PostgreSqlContainerTest {
@@ -125,7 +127,59 @@ class SocialAccountLinkServiceTest extends PostgreSqlContainerTest {
 		assertThat(queryString("select onboarding_status from users where id = ?", secondLogin.userId())).isEqualTo("NOT_STARTED");
 	}
 
+	@Test
+	void rejectsExistingLoginWhenSuspensionIsActive() {
+		SocialUserProfile firstLogin = socialAccountLinkService.linkOrCreateUser(profile("restricted-google-123"));
+		suspendUserUntil(firstLogin.userId(), OffsetDateTime.now(ZoneOffset.UTC).plusDays(7));
+
+		assertThatThrownBy(() -> socialAccountLinkService.linkOrCreateUser(profile("restricted-google-123")))
+			.isInstanceOf(DisabledException.class);
+	}
+
+	@Test
+	void reusesExistingLoginAndRestoresUserWhenSuspensionExpired() {
+		SocialUserProfile firstLogin = socialAccountLinkService.linkOrCreateUser(profile("expired-google-123"));
+		suspendUserUntil(firstLogin.userId(), OffsetDateTime.now(ZoneOffset.UTC).minusDays(1));
+
+		SocialUserProfile secondLogin = socialAccountLinkService.linkOrCreateUser(profile("expired-google-123"));
+
+		assertThat(secondLogin.userId()).isEqualTo(firstLogin.userId());
+		assertThat(queryString("select status from users where id = ?", firstLogin.userId())).isEqualTo("ACTIVE");
+		assertThat(queryBoolean("select suspended_until is null from users where id = ?", firstLogin.userId())).isTrue();
+	}
+
+	private SocialUserProfile profile(String providerUserId) {
+		return new SocialUserProfile(
+			"google",
+			providerUserId,
+			"Google Tester",
+			providerUserId + "@test.dev",
+			"https://example.com/" + providerUserId + ".png",
+			java.util.Map.of(),
+			null
+		);
+	}
+
+	private void suspendUserUntil(java.util.UUID userId, OffsetDateTime suspendedUntil) {
+		jdbcTemplate.update(
+			"""
+			update users
+			set status = 'SUSPENDED',
+			    suspended_until = ?,
+			    updated_at = ?
+			where id = ?
+			""",
+			suspendedUntil,
+			OffsetDateTime.now(ZoneOffset.UTC),
+			userId
+		);
+	}
+
 	private String queryString(String sql, Object... args) {
 		return jdbcTemplate.queryForObject(sql, String.class, args);
+	}
+
+	private Boolean queryBoolean(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, Boolean.class, args);
 	}
 }

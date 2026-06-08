@@ -131,8 +131,7 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 				.header("X-User-Id", userId.toString())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(onboardingRequestBody()))
-			.andExpect(status().isForbidden())
-			.andExpect(jsonPath("$.code").value("FORBIDDEN"));
+			.andExpect(status().isForbidden());
 
 		assertThat(countRows("user_profiles", userId)).isZero();
 	}

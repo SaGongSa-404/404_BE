@@ -25,6 +25,9 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 	private CommentService commentService;
 
 	@Autowired
+	private SocialPostService socialPostService;
+
+	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
 	@BeforeEach
@@ -59,6 +62,59 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 			postId
 		);
 		assertThat(category).isEqualTo("ILLEGAL_INFORMATION");
+	}
+
+	@Test
+	void 게시글_신고는_피신고자와_게시글_ID를_저장() {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+
+		reportService.reportPost(reporter, postId, ReportCategory.DEFAMATION, "명예훼손 내용");
+
+		UUID reportedUserId = jdbcTemplate.queryForObject(
+			"select reported_user_id from post_reports where reporter_user_id = ? and target_id = ?",
+			UUID.class,
+			reporter,
+			postId
+		);
+		UUID storedPostId = jdbcTemplate.queryForObject(
+			"select post_id from post_reports where reporter_user_id = ? and target_id = ?",
+			UUID.class,
+			reporter,
+			postId
+		);
+		assertThat(reportedUserId).isEqualTo(author);
+		assertThat(storedPostId).isEqualTo(postId);
+	}
+
+	@Test
+	void 게시글_신고_3회면_블라인드되어_피드에서_제외() {
+		UUID viewer = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+
+		reportService.reportPost(insertUser(), postId, ReportCategory.SPAM, null);
+		reportService.reportPost(insertUser(), postId, ReportCategory.OBSCENE, null);
+		reportService.reportPost(insertUser(), postId, ReportCategory.ADVERTISING, null);
+
+		assertThat(queryString("select moderation_status from feed_posts where id = ?", postId))
+			.isEqualTo("BLINDED");
+		assertThat(socialPostService.getPosts(viewer, null, 20).posts())
+			.noneMatch(post -> post.id().equals(postId));
+	}
+
+	@Test
+	void 게시글_신고_5회면_관리자_검토대기_상태() {
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+
+		for (int i = 0; i < 5; i++) {
+			reportService.reportPost(insertUser(), postId, ReportCategory.PROFANITY, null);
+		}
+
+		assertThat(queryString("select moderation_status from feed_posts where id = ?", postId))
+			.isEqualTo("REVIEW_PENDING");
 	}
 
 	@Test
@@ -123,6 +179,48 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 		assertThatNoException().isThrownBy(() ->
 			reportService.reportComment(reporter, postId, comment.id(), ReportCategory.OBSCENE, "부적절한 내용")
 		);
+	}
+
+	@Test
+	void 댓글_신고는_피신고자와_원_게시글_ID를_저장() {
+		UUID reporter = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+		CommentResponse comment = commentService.createComment(author, postId, new CreateCommentRequest("댓글"));
+
+		reportService.reportComment(reporter, postId, comment.id(), ReportCategory.ADVERTISING, "광고 댓글");
+
+		UUID reportedUserId = jdbcTemplate.queryForObject(
+			"select reported_user_id from post_reports where reporter_user_id = ? and target_id = ?",
+			UUID.class,
+			reporter,
+			comment.id()
+		);
+		UUID storedPostId = jdbcTemplate.queryForObject(
+			"select post_id from post_reports where reporter_user_id = ? and target_id = ?",
+			UUID.class,
+			reporter,
+			comment.id()
+		);
+		assertThat(reportedUserId).isEqualTo(author);
+		assertThat(storedPostId).isEqualTo(postId);
+	}
+
+	@Test
+	void 댓글_신고_3회면_블라인드되어_댓글_목록에서_제외() {
+		UUID viewer = insertUser();
+		UUID author = insertUser();
+		UUID postId = insertPost(author);
+		CommentResponse comment = commentService.createComment(author, postId, new CreateCommentRequest("댓글"));
+
+		reportService.reportComment(insertUser(), postId, comment.id(), ReportCategory.PROFANITY, null);
+		reportService.reportComment(insertUser(), postId, comment.id(), ReportCategory.OBSCENE, null);
+		reportService.reportComment(insertUser(), postId, comment.id(), ReportCategory.SPAM, null);
+
+		assertThat(queryString("select moderation_status from post_comments where id = ?", comment.id()))
+			.isEqualTo("BLINDED");
+		assertThat(commentService.getComments(viewer, postId, 1, 20).comments()).isEmpty();
+		assertThat(socialPostService.getPost(viewer, postId).commentCount()).isZero();
 	}
 
 	@Test
@@ -242,5 +340,9 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 			"INSERT INTO feed_posts (id, user_id, title, body, go_count, stop_count, created_at, updated_at) VALUES (?, ?, '테스트 게시글', '내용', 0, 0, ?, ?)",
 			postId, userId, now, now);
 		return postId;
+	}
+
+	private String queryString(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, String.class, args);
 	}
 }

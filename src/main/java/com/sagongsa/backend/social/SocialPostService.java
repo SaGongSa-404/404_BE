@@ -85,6 +85,9 @@ class SocialPostService {
 
 	PostResponse getPost(UUID userId, UUID postId) {
 		FeedPost post = findPostOrThrow(postId);
+		if (userId != null && blockedIdsFor(userId).contains(post.getUser().getId())) {
+			throw new SocialFeedNotFoundException("게시글을 찾을 수 없습니다.");
+		}
 		long commentCount = countVisibleCommentsByPostId(postId, blockedIdsFor(userId));
 		PostVoteType myVote = resolveMyVote(userId, postId);
 		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
@@ -133,7 +136,7 @@ class SocialPostService {
 	FeedPost findPostOrThrow(UUID postId) {
 		FeedPost post = feedPostRepository.findById(postId)
 			.orElseThrow(() -> new SocialFeedNotFoundException("게시글을 찾을 수 없습니다."));
-		if (post.isDeleted()) {
+		if (!post.isVisible()) {
 			throw new SocialFeedNotFoundException("게시글을 찾을 수 없습니다.");
 		}
 		return post;

@@ -7,6 +7,7 @@ import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.enums.SocialProvider;
 import com.sagongsa.backend.domain.enums.UserStatus;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,13 +16,16 @@ public class SocialAccountLinkService {
 
 	private final SocialAccountRepository socialAccountRepository;
 	private final UserAccountRepository userAccountRepository;
+	private final UserAccessService userAccessService;
 
 	public SocialAccountLinkService(
 		SocialAccountRepository socialAccountRepository,
-		UserAccountRepository userAccountRepository
+		UserAccountRepository userAccountRepository,
+		UserAccessService userAccessService
 	) {
 		this.socialAccountRepository = socialAccountRepository;
 		this.userAccountRepository = userAccountRepository;
+		this.userAccessService = userAccessService;
 	}
 
 	@Transactional
@@ -39,6 +43,9 @@ public class SocialAccountLinkService {
 		if (linkedUser.getStatus() == UserStatus.WITHDRAWN) {
 			linkedUser = userAccountRepository.save(UserAccount.create());
 			existingAccount.relinkUser(linkedUser);
+		}
+		if (!userAccessService.isAccessible(linkedUser)) {
+			throw new DisabledException("User account is restricted");
 		}
 		return profile.withUserId(linkedUser.getId());
 	}

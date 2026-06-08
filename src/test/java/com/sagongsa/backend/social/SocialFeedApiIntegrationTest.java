@@ -1,5 +1,6 @@
 package com.sagongsa.backend.social;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -99,6 +100,38 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.posts").isEmpty())
 			.andExpect(jsonPath("$.hasMore").value(false));
+	}
+
+	@Test
+	void 정지된_유저는_피드_API_접근_403() throws Exception {
+		UUID userId = insertUser();
+		jdbcTemplate.update(
+			"UPDATE users SET status = 'SUSPENDED', suspended_until = ?, updated_at = ? WHERE id = ?",
+			OffsetDateTime.now(ZoneOffset.UTC).plusDays(7),
+			OffsetDateTime.now(ZoneOffset.UTC),
+			userId
+		);
+
+		mockMvc.perform(get("/api/v1/social/posts")
+				.header("X-User-Id", userId))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void 정지기간_만료_유저는_피드_API_접근_가능하고_ACTIVE로_복구() throws Exception {
+		UUID userId = insertUser();
+		jdbcTemplate.update(
+			"UPDATE users SET status = 'SUSPENDED', suspended_until = ?, updated_at = ? WHERE id = ?",
+			OffsetDateTime.now(ZoneOffset.UTC).minusDays(1),
+			OffsetDateTime.now(ZoneOffset.UTC),
+			userId
+		);
+
+		mockMvc.perform(get("/api/v1/social/posts")
+				.header("X-User-Id", userId))
+			.andExpect(status().isOk());
+
+		assertThat(queryString("select status from users where id = ?", userId)).isEqualTo("ACTIVE");
 	}
 
 	// ── GET /api/v1/social/posts/{postId} ────────────────────────────────────
@@ -417,5 +450,9 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 			"INSERT INTO post_comments (id, post_id, user_id, body, created_at, updated_at) VALUES (?, ?, ?, '테스트 댓글', ?, ?)",
 			commentId, postId, userId, now, now);
 		return commentId;
+	}
+
+	private String queryString(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, String.class, args);
 	}
 }

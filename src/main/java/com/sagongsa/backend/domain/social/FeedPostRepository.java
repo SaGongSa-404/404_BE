@@ -11,25 +11,25 @@ import org.springframework.data.repository.query.Param;
 
 public interface FeedPostRepository extends JpaRepository<FeedPost, UUID> {
 
-	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE ORDER BY p.createdAt DESC")
 	List<FeedPost> findAllVisible(Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
 	List<FeedPost> findAllVisibleBefore(@Param("cursor") Instant cursor, Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.user.id NOT IN :excludedIds ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE AND p.user.id NOT IN :excludedIds ORDER BY p.createdAt DESC")
 	List<FeedPost> findAllVisibleExcluding(@Param("excludedIds") List<UUID> excludedIds, Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.createdAt < :cursor AND p.user.id NOT IN :excludedIds ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.deletedAt IS NULL AND p.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE AND p.createdAt < :cursor AND p.user.id NOT IN :excludedIds ORDER BY p.createdAt DESC")
 	List<FeedPost> findAllVisibleBeforeExcluding(@Param("cursor") Instant cursor, @Param("excludedIds") List<UUID> excludedIds, Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.user.id = :userId AND p.deletedAt IS NULL ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.user.id = :userId AND p.deletedAt IS NULL AND p.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE ORDER BY p.createdAt DESC")
 	List<FeedPost> findByUserIdVisible(@Param("userId") UUID userId, Pageable pageable);
 
-	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.user.id = :userId AND p.deletedAt IS NULL AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
+	@Query("SELECT p FROM FeedPost p LEFT JOIN FETCH p.item WHERE p.user.id = :userId AND p.deletedAt IS NULL AND p.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE AND p.createdAt < :cursor ORDER BY p.createdAt DESC")
 	List<FeedPost> findByUserIdVisibleBefore(@Param("userId") UUID userId, @Param("cursor") Instant cursor, Pageable pageable);
 
-	long countByUserIdAndDeletedAtIsNull(UUID userId);
+	long countByUserIdAndDeletedAtIsNullAndModerationStatus(UUID userId, com.sagongsa.backend.domain.enums.ModerationStatus moderationStatus);
 
 	@Modifying
 	@Query("UPDATE FeedPost p SET p.deletedAt = CURRENT_TIMESTAMP WHERE p.user.id = :userId")

@@ -46,6 +46,9 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 			"feed_posts",
 			"post_votes",
 			"post_comments",
+			"post_reports",
+			"user_blocks",
+			"user_sanctions",
 			"share_tokens",
 			"terms_versions",
 			"user_terms_agreements",
@@ -88,10 +91,28 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 			"cancel_reason"
 		);
 		assertColumns(
+			"users",
+			"suspended_until",
+			"banned_at"
+		);
+		assertColumns(
 			"feed_posts",
 			"go_count",
 			"stop_count",
-			"deleted_at"
+			"deleted_at",
+			"moderation_status",
+			"moderation_status_updated_at"
+		);
+		assertColumns(
+			"post_comments",
+			"moderation_status",
+			"moderation_status_updated_at"
+		);
+		assertColumns(
+			"post_reports",
+			"reported_user_id",
+			"post_id",
+			"report_category"
 		);
 		assertColumns(
 			"share_tokens",
@@ -125,6 +146,8 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 		assertPartialIndex("uk_post_votes_post_user_active", "canceled_at is null");
 		assertPartialIndex("idx_post_votes_post_type_active", "canceled_at is null");
 		assertPartialIndex("idx_post_comments_post_created_visible", "deleted_at is null");
+		assertPartialIndex("idx_feed_posts_active_created", "moderation_status", "'active'");
+		assertPartialIndex("idx_post_comments_active_post_created", "moderation_status", "'active'");
 		assertTrigger("trg_post_votes_sync_feed_counts", "post_votes");
 		assertTrigger("trg_self_check_matches_decision", "self_check_response_sets");
 		assertNoTrigger("trg_prevent_self_check_response_set_delete", "self_check_response_sets");
@@ -135,6 +158,14 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 
 	@Test
 	void includesPlanningDrivenConstraints() {
+		assertConstraint(
+			"users",
+			"chk_users_status",
+			"active",
+			"suspended",
+			"banned",
+			"withdrawn"
+		);
 		assertConstraint(
 			"users",
 			"chk_users_withdrawn_state",
@@ -276,6 +307,25 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 			"is null"
 		);
 		assertConstraint("feed_posts", "chk_feed_posts_vote_counts", "go_count", "stop_count", ">= 0");
+		assertConstraint(
+			"feed_posts",
+			"chk_feed_posts_moderation_status",
+			"active",
+			"blinded",
+			"review_pending",
+			"removed"
+		);
+		assertConstraint(
+			"post_comments",
+			"chk_post_comments_moderation_status",
+			"active",
+			"blinded",
+			"review_pending",
+			"removed"
+		);
+		assertConstraint("post_reports", "chk_post_reports_target_type", "post", "comment", "user");
+		assertConstraint("post_reports", "chk_post_reports_content_post_id", "target_type", "post_id", "user");
+		assertConstraint("user_sanctions", "chk_user_sanctions_period", "suspension", "ends_at");
 	}
 
 	@Test
