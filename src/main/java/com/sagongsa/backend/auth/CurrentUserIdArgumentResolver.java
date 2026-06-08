@@ -22,14 +22,17 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 
 	private final boolean trustedHeaderEnabled;
 	private final String trustedHeaderName;
+	private final UserAccessService userAccessService;
 
 	CurrentUserIdArgumentResolver(
 		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedHeaderEnabled,
 		@Value("${app.auth.trusted-user-id-header.name:X-User-Id}") String trustedHeaderName,
-		Environment environment
+		Environment environment,
+		UserAccessService userAccessService
 	) {
 		this.trustedHeaderEnabled = trustedHeaderEnabled || !environment.acceptsProfiles(Profiles.of("prod"));
 		this.trustedHeaderName = trustedHeaderName;
+		this.userAccessService = userAccessService;
 	}
 
 	@Override
@@ -48,12 +51,12 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 		Principal principal = webRequest.getUserPrincipal();
 		UUID principalUserId = resolvePrincipalUserId(principal);
 		if (principalUserId != null) {
-			return principalUserId;
+			return validateAccessibleUser(principalUserId);
 		}
 
 		String rawUserId = webRequest.getHeader(trustedHeaderName);
 		if (trustedHeaderEnabled && StringUtils.hasText(rawUserId)) {
-			return parseUserId(rawUserId, trustedHeaderName + " header");
+			return validateAccessibleUser(parseUserId(rawUserId, trustedHeaderName + " header"));
 		}
 
 		if (trustedHeaderEnabled) {
@@ -88,5 +91,10 @@ class CurrentUserIdArgumentResolver implements HandlerMethodArgumentResolver {
 			return parseUserId(principal.getName(), "authenticated principal");
 		}
 		return null;
+	}
+
+	private UUID validateAccessibleUser(UUID userId) {
+		userAccessService.assertApiAccessible(userId);
+		return userId;
 	}
 }

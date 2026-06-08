@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PostReportRepository extends JpaRepository<PostReport, UUID> {
 
-    boolean existsByReporterIdAndTargetTypeAndTargetId(
-        UUID reporterId, ReportTargetType targetType, UUID targetId);
+	boolean existsByReporterIdAndTargetTypeAndTargetId(
+	    UUID reporterId, ReportTargetType targetType, UUID targetId);
+
+	long countByTargetTypeAndTargetId(ReportTargetType targetType, UUID targetId);
 }

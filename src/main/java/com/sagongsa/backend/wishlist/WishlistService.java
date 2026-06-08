@@ -455,6 +455,7 @@ public class WishlistService {
 					where fp.item_id = si.id
 					  and fp.user_id = si.user_id
 					  and fp.deleted_at is null
+					  and fp.moderation_status = 'ACTIVE'
 				) as selected,
 				si.status,
 				si.created_at,

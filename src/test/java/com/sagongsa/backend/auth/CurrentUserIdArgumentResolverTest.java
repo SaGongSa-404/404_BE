@@ -97,7 +97,7 @@ class CurrentUserIdArgumentResolverTest {
 	private static CurrentUserIdArgumentResolver resolver(boolean trustedHeaderEnabled, String activeProfile) {
 		MockEnvironment environment = new MockEnvironment();
 		environment.setActiveProfiles(activeProfile);
-		return new CurrentUserIdArgumentResolver(trustedHeaderEnabled, "X-User-Id", environment);
+		return new CurrentUserIdArgumentResolver(trustedHeaderEnabled, "X-User-Id", environment, mock(UserAccessService.class));
 	}
 
 	private static NativeWebRequest request(Principal principal, String headerValue) {

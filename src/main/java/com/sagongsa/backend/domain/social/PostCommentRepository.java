@@ -11,21 +11,21 @@ import org.springframework.data.repository.query.Param;
 
 public interface PostCommentRepository extends JpaRepository<PostComment, UUID> {
 
-	@Query("SELECT c FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL ORDER BY c.createdAt ASC")
+	@Query("SELECT c FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL AND c.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE ORDER BY c.createdAt ASC")
 	Page<PostComment> findVisibleByPostId(@Param("postId") UUID postId, Pageable pageable);
 
-	@Query("SELECT c FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL AND c.user.id NOT IN :blockedIds ORDER BY c.createdAt ASC")
+	@Query("SELECT c FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL AND c.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE AND c.user.id NOT IN :blockedIds ORDER BY c.createdAt ASC")
 	Page<PostComment> findVisibleByPostIdExcludingBlockers(@Param("postId") UUID postId, @Param("blockedIds") List<UUID> blockedIds, Pageable pageable);
 
 	long countByPostIdAndDeletedAtIsNull(UUID postId);
 
-	@Query("SELECT new com.sagongsa.backend.domain.social.PostCommentCount(c.post.id, COUNT(c)) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL GROUP BY c.post.id")
+	@Query("SELECT new com.sagongsa.backend.domain.social.PostCommentCount(c.post.id, COUNT(c)) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL AND c.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE GROUP BY c.post.id")
 	List<PostCommentCount> countVisibleByPostIds(@Param("postIds") List<UUID> postIds);
 
-	@Query("SELECT new com.sagongsa.backend.domain.social.PostCommentCount(c.post.id, COUNT(c)) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL AND c.user.id NOT IN :blockedIds GROUP BY c.post.id")
+	@Query("SELECT new com.sagongsa.backend.domain.social.PostCommentCount(c.post.id, COUNT(c)) FROM PostComment c WHERE c.post.id IN :postIds AND c.deletedAt IS NULL AND c.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE AND c.user.id NOT IN :blockedIds GROUP BY c.post.id")
 	List<PostCommentCount> countVisibleByPostIdsExcludingBlockers(@Param("postIds") List<UUID> postIds, @Param("blockedIds") List<UUID> blockedIds);
 
-	@Query("SELECT c.user.id FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL GROUP BY c.user.id ORDER BY MIN(c.createdAt) ASC")
+	@Query("SELECT c.user.id FROM PostComment c WHERE c.post.id = :postId AND c.deletedAt IS NULL AND c.moderationStatus = com.sagongsa.backend.domain.enums.ModerationStatus.ACTIVE GROUP BY c.user.id ORDER BY MIN(c.createdAt) ASC")
 	List<UUID> findCommenterIdsByPostIdOrderedByFirstComment(@Param("postId") UUID postId);
 
 	@Modifying

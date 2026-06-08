@@ -63,6 +63,48 @@ class JwtTokenServiceTest extends PostgreSqlContainerTest {
 			.isInstanceOf(BadCredentialsException.class);
 	}
 
+	@Test
+	void issueTokenPairRejectsRestrictedUser() {
+		UUID userId = UUID.fromString("10000000-0000-0000-0000-000000000003");
+		insertUser(userId);
+		suspendUser(userId);
+
+		assertThatThrownBy(() -> jwtTokenService.issueTokenPair(
+			profile(userId),
+			List.of(new SimpleGrantedAuthority("ROLE_USER"))
+		)).isInstanceOf(BadCredentialsException.class);
+	}
+
+	@Test
+	void refreshRejectsRestrictedUser() {
+		UUID userId = UUID.fromString("10000000-0000-0000-0000-000000000004");
+		insertUser(userId);
+		JwtTokenService.TokenPair issued = jwtTokenService.issueTokenPair(
+			profile(userId),
+			List.of(new SimpleGrantedAuthority("ROLE_USER"))
+		);
+		suspendUser(userId);
+
+		assertThatThrownBy(() -> jwtTokenService.refresh(issued.refreshToken()))
+			.isInstanceOf(BadCredentialsException.class);
+	}
+
+	@Test
+	void issueTokenPairRestoresExpiredSuspension() {
+		UUID userId = UUID.fromString("10000000-0000-0000-0000-000000000005");
+		insertUser(userId);
+		suspendUserUntil(userId, OffsetDateTime.now(ZoneOffset.UTC).minusDays(1));
+
+		JwtTokenService.TokenPair issued = jwtTokenService.issueTokenPair(
+			profile(userId),
+			List.of(new SimpleGrantedAuthority("ROLE_USER"))
+		);
+
+		assertThat(issued.profile().userId()).isEqualTo(userId);
+		assertThat(queryString("select status from users where id = ?", userId)).isEqualTo("ACTIVE");
+		assertThat(queryBoolean("select suspended_until is null from users where id = ?", userId)).isTrue();
+	}
+
 	private void insertUser(UUID userId) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		jdbcTemplate.update(
@@ -74,6 +116,33 @@ class JwtTokenServiceTest extends PostgreSqlContainerTest {
 			now,
 			now
 		);
+	}
+
+	private void suspendUser(UUID userId) {
+		suspendUserUntil(userId, OffsetDateTime.now(ZoneOffset.UTC).plusDays(7));
+	}
+
+	private void suspendUserUntil(UUID userId, OffsetDateTime suspendedUntil) {
+		jdbcTemplate.update(
+			"""
+			update users
+			set status = 'SUSPENDED',
+			    suspended_until = ?,
+			    updated_at = ?
+			where id = ?
+			""",
+			suspendedUntil,
+			OffsetDateTime.now(ZoneOffset.UTC),
+			userId
+		);
+	}
+
+	private String queryString(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, String.class, args);
+	}
+
+	private Boolean queryBoolean(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, Boolean.class, args);
 	}
 
 	private SocialUserProfile profile(UUID userId) {

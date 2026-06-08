@@ -35,10 +35,14 @@ public class AuthApiController {
 
 	private final JwtTokenService jwtTokenService;
 	private final UserAccountRepository userAccountRepository;
+	private final UserAccessService userAccessService;
 
-	public AuthApiController(JwtTokenService jwtTokenService, UserAccountRepository userAccountRepository) {
+	public AuthApiController(JwtTokenService jwtTokenService,
+		UserAccountRepository userAccountRepository,
+		UserAccessService userAccessService) {
 		this.jwtTokenService = jwtTokenService;
 		this.userAccountRepository = userAccountRepository;
+		this.userAccessService = userAccessService;
 	}
 
 	@GetMapping("/me")
@@ -52,6 +56,7 @@ public class AuthApiController {
 	)
 	public AuthenticatedUserResponse me(Authentication authentication) {
 		SocialUserProfile profile = extractProfile(authentication);
+		userAccessService.assertApiAccessible(profile.userId());
 		List<String> authorities = authentication.getAuthorities().stream()
 			.map(GrantedAuthority::getAuthority)
 			.sorted()

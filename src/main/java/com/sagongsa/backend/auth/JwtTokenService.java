@@ -35,20 +35,24 @@ public class JwtTokenService {
 	private final JwtDecoder jwtDecoder;
 	private final AppAuthProperties properties;
 	private final JdbcTemplate jdbcTemplate;
+	private final UserAccessService userAccessService;
 
 	public JwtTokenService(
 		JwtEncoder jwtEncoder,
 		JwtDecoder jwtDecoder,
 		AppAuthProperties properties,
-		JdbcTemplate jdbcTemplate
+		JdbcTemplate jdbcTemplate,
+		UserAccessService userAccessService
 	) {
 		this.jwtEncoder = jwtEncoder;
 		this.jwtDecoder = jwtDecoder;
 		this.properties = properties;
 		this.jdbcTemplate = jdbcTemplate;
+		this.userAccessService = userAccessService;
 	}
 
 	public TokenPair issueTokenPair(SocialUserProfile profile, Collection<? extends GrantedAuthority> authorities) {
+		userAccessService.assertTokenIssueAllowed(profile.userId());
 		Instant issuedAt = Instant.now();
 		List<String> authorityNames = normalizeAuthorities(authorities);
 
@@ -79,9 +83,9 @@ public class JwtTokenService {
 		if (!"refresh".equals(tokenType)) {
 			throw new BadCredentialsException("Invalid refresh token");
 		}
-		consumeRefreshToken(refreshToken);
-
 		SocialUserProfile profile = SocialUserProfile.fromTokenClaims(jwt.getClaims());
+		userAccessService.assertTokenIssueAllowed(profile.userId());
+		consumeRefreshToken(refreshToken);
 		List<String> authorityNames = jwt.getClaimAsStringList("authorities");
 		List<GrantedAuthority> authorities = authorityNames == null
 			? List.of(new SimpleGrantedAuthority("ROLE_USER"))

@@ -25,6 +25,12 @@ public class UserAccount extends BaseEntity {
 	@Column
 	private Instant withdrawnAt;
 
+	@Column
+	private Instant suspendedUntil;
+
+	@Column
+	private Instant bannedAt;
+
 	protected UserAccount() {
 	}
 
@@ -44,8 +50,51 @@ public class UserAccount extends BaseEntity {
 		return withdrawnAt;
 	}
 
+	public Instant getSuspendedUntil() {
+		return suspendedUntil;
+	}
+
+	public Instant getBannedAt() {
+		return bannedAt;
+	}
+
+	public boolean canAccessAt(Instant now) {
+		if (status == UserStatus.ACTIVE) {
+			return true;
+		}
+		if (status == UserStatus.SUSPENDED) {
+			return suspendedUntil != null && !suspendedUntil.isAfter(now);
+		}
+		return false;
+	}
+
+	public boolean activateIfSuspensionExpiredAt(Instant now) {
+		if (status == UserStatus.SUSPENDED && suspendedUntil != null && !suspendedUntil.isAfter(now)) {
+			this.status = UserStatus.ACTIVE;
+			this.suspendedUntil = null;
+			return true;
+		}
+		return false;
+	}
+
+	public void suspendUntil(Instant suspendedUntil) {
+		this.status = UserStatus.SUSPENDED;
+		this.suspendedUntil = suspendedUntil;
+		this.bannedAt = null;
+		this.withdrawnAt = null;
+	}
+
+	public void banPermanently() {
+		this.status = UserStatus.BANNED;
+		this.bannedAt = Instant.now();
+		this.suspendedUntil = null;
+		this.withdrawnAt = null;
+	}
+
 	public void withdraw() {
 		this.status = UserStatus.WITHDRAWN;
 		this.withdrawnAt = Instant.now();
+		this.suspendedUntil = null;
+		this.bannedAt = null;
 	}
 }

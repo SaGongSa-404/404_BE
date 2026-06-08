@@ -17,40 +17,50 @@ import java.util.UUID;
 
 @Entity
 @Table(
-    name = "post_reports",
-    uniqueConstraints = @UniqueConstraint(
-        name = "uk_post_reports",
-        columnNames = {"reporter_user_id", "target_type", "target_id"}
-    )
+	name = "post_reports",
+	uniqueConstraints = @UniqueConstraint(
+		name = "uk_post_reports",
+		columnNames = {"reporter_user_id", "target_type", "target_id"}
+	)
 )
 public class PostReport extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "reporter_user_id", nullable = false)
-    private UserAccount reporter;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "reporter_user_id", nullable = false)
+	private UserAccount reporter;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "target_type", nullable = false, length = 10)
-    private ReportTargetType targetType;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "reported_user_id", nullable = false)
+	private UserAccount reportedUser;
 
-    @Column(name = "target_id", nullable = false)
-    private UUID targetId;
+	@Enumerated(EnumType.STRING)
+	@Column(name = "target_type", nullable = false, length = 10)
+	private ReportTargetType targetType;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "report_category", nullable = false, length = 20)
-    private ReportCategory reportCategory;
+	@Column(name = "target_id", nullable = false)
+	private UUID targetId;
 
-    @Column(length = 100)
-    private String reason;
+	@Column(name = "post_id")
+	private UUID postId;
 
-    protected PostReport() {}
+	@Enumerated(EnumType.STRING)
+	@Column(name = "report_category", nullable = false, length = 30)
+	private ReportCategory reportCategory;
 
-    public PostReport(UserAccount reporter, ReportTargetType targetType, UUID targetId,
-        ReportCategory reportCategory, String reason) {
-        this.reporter = reporter;
-        this.targetType = targetType;
-        this.targetId = targetId;
-        this.reportCategory = reportCategory;
-        this.reason = reason;
-    }
+	@Column(length = 100)
+	private String reason;
+
+	protected PostReport() {
+	}
+
+	public PostReport(UserAccount reporter, UserAccount reportedUser, ReportTargetType targetType, UUID targetId, UUID postId,
+		ReportCategory reportCategory, String reason) {
+		this.reporter = reporter;
+		this.reportedUser = reportedUser;
+		this.targetType = targetType;
+		this.targetId = targetId;
+		this.postId = postId;
+		this.reportCategory = reportCategory;
+		this.reason = reason;
+	}
 }
