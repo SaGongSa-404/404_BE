@@ -94,18 +94,19 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void deletesNotificationsOlderThanRetentionWindow() {
+	void retainsOldDedupeNotificationsToPreventRepublish() {
 		OffsetDateTime now = OffsetDateTime.of(2026, 6, 10, 12, 0, 0, 0, ZoneOffset.UTC);
 		UUID userId = createReadyUser(now.minusDays(40));
-		insertNotification(userId, "WISHLIST_REMINDER", "오래된 알림", "만료", null,
-			null, null, "/wishlist", null, now.minusMonths(1).minusDays(1));
-		insertNotification(userId, "SOCIAL_FIRST_VOTE", "최근 알림", "유지", null,
-			null, null, "/social/posts/1", null, now.minusDays(1));
+		UUID itemId = insertSavedItem(userId, "오래된 위시", "SAVED", now.minusDays(40));
+		insertNotification(userId, "WISHLIST_REMINDER", "오래된 알림", "만료", itemId,
+			null, null, "/wishlist/items/" + itemId, "item:" + itemId, now.minusMonths(1).minusDays(1));
 
-		notificationTriggerWorker.processDueNotifications(now);
+		int createdCount = notificationTriggerWorker.processDueNotifications(now);
 
-		assertThat(queryInteger("select count(*) from notifications where title = '오래된 알림'")).isZero();
-		assertThat(queryInteger("select count(*) from notifications where title = '최근 알림'")).isEqualTo(1);
+		assertThat(createdCount).isZero();
+		assertThat(queryInteger("select count(*) from notifications where notification_type = 'WISHLIST_REMINDER'"))
+			.isEqualTo(1);
+		verify(pushNotificationService, times(0)).send(any(NotificationPushMessage.class));
 	}
 
 	@Test

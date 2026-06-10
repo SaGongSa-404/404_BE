@@ -7,6 +7,12 @@ import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +60,35 @@ class SocialPostServiceTest extends PostgreSqlContainerTest {
 			Integer.class,
 			userId
 		)).isEqualTo(1);
+	}
+
+	@Test
+	void 같은_게시글_동시_등록도_기존_게시글을_반환() throws Exception {
+		UUID userId = insertUser();
+		CreatePostRequest request = new CreatePostRequest("제목", "내용", null, null, null);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		CountDownLatch start = new CountDownLatch(1);
+		Callable<PostResponse> task = () -> {
+			start.await();
+			return socialPostService.createPost(userId, request);
+		};
+
+		try {
+			Future<PostResponse> firstFuture = executor.submit(task);
+			Future<PostResponse> secondFuture = executor.submit(task);
+			start.countDown();
+			PostResponse first = firstFuture.get(5, TimeUnit.SECONDS);
+			PostResponse second = secondFuture.get(5, TimeUnit.SECONDS);
+
+			assertThat(second.id()).isEqualTo(first.id());
+			assertThat(jdbcTemplate.queryForObject(
+				"select count(*) from feed_posts where user_id = ?",
+				Integer.class,
+				userId
+			)).isEqualTo(1);
+		} finally {
+			executor.shutdownNow();
+		}
 	}
 
 	@Test

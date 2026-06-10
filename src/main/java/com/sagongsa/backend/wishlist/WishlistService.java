@@ -7,9 +7,13 @@ import com.sagongsa.backend.domain.enums.ItemInputSource;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -67,25 +71,37 @@ public class WishlistService {
 		boolean categoryLockedByUser = Boolean.TRUE.equals(request.categoryLockedByUser());
 		MetadataFields metadata = metadataFields(request);
 
-			Optional<WishlistItemResponse> existingItem = findExistingSavedNormalizedUrl(userId, normalizedUrl);
-			if (existingItem.isPresent()) {
-				throw new DuplicateSavedItemException(
-					"Saved wishlist item already exists for the normalized URL.",
-					existingItem.get()
-				);
-			}
+		Optional<WishlistItemResponse> existingItem = findExistingSavedNormalizedUrl(userId, normalizedUrl);
+		if (existingItem.isPresent()) {
+			throw new DuplicateSavedItemException(
+				"Saved wishlist item already exists for the normalized URL.",
+				existingItem.get()
+			);
+		}
 
-			UUID itemId = UUID.randomUUID();
-			OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-			findRecentDuplicateDirectInput(userId, inputSource, normalizedUrl, title, imageUrl, listedPrice, currencyCode, category, now)
-				.ifPresent(duplicateItem -> {
-					throw new DuplicateSavedItemException(
-						"Saved wishlist item already exists for the same direct input.",
-						duplicateItem
-					);
-				});
-			try {
-				jdbcTemplate.update(
+		if (requiresDirectInputDuplicateGuard(inputSource, normalizedUrl)) {
+			acquireDuplicateLock(directInputDuplicateLockKey(userId, title, imageUrl, listedPrice, currencyCode, category));
+		}
+
+		UUID itemId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		Optional<WishlistItemResponse> recentDuplicate = findRecentDuplicateDirectInput(
+			userId,
+			inputSource,
+			normalizedUrl,
+			title,
+			imageUrl,
+			listedPrice,
+			currencyCode,
+			category,
+			now
+		);
+		if (recentDuplicate.isPresent()) {
+			return recentDuplicate.get();
+		}
+
+		try {
+			jdbcTemplate.update(
 				"""
 				insert into saved_items (
 					id, user_id, input_source, original_url, normalized_url, title, image_url,
@@ -453,6 +469,53 @@ public class WishlistService {
 			now.minus(DIRECT_INPUT_DUPLICATE_WINDOW)
 		);
 		return items.stream().findFirst();
+	}
+
+	private boolean requiresDirectInputDuplicateGuard(ItemInputSource inputSource, String normalizedUrl) {
+		return inputSource == ItemInputSource.DIRECT_INPUT && !StringUtils.hasText(normalizedUrl);
+	}
+
+	private void acquireDuplicateLock(long lockKey) {
+		jdbcTemplate.query("select pg_advisory_xact_lock(?)", resultSet -> {
+		}, lockKey);
+	}
+
+	private long directInputDuplicateLockKey(
+		UUID userId,
+		String title,
+		String imageUrl,
+		Integer listedPrice,
+		String currencyCode,
+		ItemCategory category
+	) {
+		return lockKey(
+			"wishlist-direct-input",
+			userId,
+			title,
+			imageUrl,
+			listedPrice,
+			currencyCode,
+			category.name()
+		);
+	}
+
+	private long lockKey(String namespace, Object... values) {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			updateDigest(digest, namespace);
+			for (Object value : values) {
+				updateDigest(digest, value == null ? null : value.toString());
+			}
+			return ByteBuffer.wrap(digest.digest()).getLong();
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("SHA-256 digest is not available", exception);
+		}
+	}
+
+	private void updateDigest(MessageDigest digest, String value) {
+		byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
+		digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
+		digest.update(bytes);
 	}
 
 	private String baseSelect() {

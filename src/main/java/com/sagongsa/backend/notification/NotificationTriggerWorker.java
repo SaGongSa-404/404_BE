@@ -17,7 +17,6 @@ public class NotificationTriggerWorker {
 
 	private static final int BATCH_SIZE = 50;
 	private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
-	private static final int RETENTION_MONTHS = 1;
 
 	private final JdbcTemplate jdbcTemplate;
 	private final NotificationPublisher notificationPublisher;
@@ -32,7 +31,6 @@ public class NotificationTriggerWorker {
 	}
 
 	int processDueNotifications(OffsetDateTime now) {
-		deleteExpiredNotifications(now);
 		int createdCount = 0;
 		createdCount += publishVoteSummaries(now);
 		createdCount += publishDecisionNudges(now);
@@ -40,13 +38,6 @@ public class NotificationTriggerWorker {
 		createdCount += publishWishlistReminders(now.minusDays(3));
 		createdCount += publishBudgetResetIfDue(now);
 		return createdCount;
-	}
-
-	private void deleteExpiredNotifications(OffsetDateTime now) {
-		jdbcTemplate.update(
-			"delete from notifications where created_at < ?",
-			now.minusMonths(RETENTION_MONTHS)
-		);
 	}
 
 	private int publishVoteSummaries(OffsetDateTime now) {
