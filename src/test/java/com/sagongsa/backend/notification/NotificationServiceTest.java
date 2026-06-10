@@ -45,6 +45,18 @@ class NotificationServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void excludesNotificationsOlderThanOneMonth() {
+		UUID userId = createUser("ACTIVE", "COMPLETED");
+		insertNotification(userId, "WISHLIST_REMINDER", false, OffsetDateTime.now(ZoneOffset.UTC).minusMonths(1).minusDays(1));
+		UUID recentId = insertNotification(userId, "SOCIAL_VOTE", false, OffsetDateTime.now(ZoneOffset.UTC).minusDays(1));
+
+		List<NotificationResponse> responses = notificationService.list(userId, false);
+
+		assertThat(responses).extracting(NotificationResponse::id)
+			.containsExactly(recentId);
+	}
+
+	@Test
 	void markAsReadSetsReadAtOnlyOnce() {
 		UUID userId = createUser("ACTIVE", "COMPLETED");
 		UUID notificationId = insertNotification(userId, "REGRET_CHECK_READY", false, OffsetDateTime.now(ZoneOffset.UTC));
@@ -75,6 +87,17 @@ class NotificationServiceTest extends PostgreSqlContainerTest {
 		UUID notificationId = insertNotification(ownerId, "WISHLIST_REMINDER", false, OffsetDateTime.now(ZoneOffset.UTC));
 
 		assertThatThrownBy(() -> notificationService.markAsRead(otherUserId, notificationId))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.NOT_FOUND));
+	}
+
+	@Test
+	void throwsNotFoundWhenMarkingExpiredNotification() {
+		UUID userId = createUser("ACTIVE", "COMPLETED");
+		UUID notificationId = insertNotification(userId, "WISHLIST_REMINDER", false, OffsetDateTime.now(ZoneOffset.UTC).minusMonths(1).minusDays(1));
+
+		assertThatThrownBy(() -> notificationService.markAsRead(userId, notificationId))
 			.isInstanceOf(ResponseStatusException.class)
 			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
 				.isEqualTo(HttpStatus.NOT_FOUND));

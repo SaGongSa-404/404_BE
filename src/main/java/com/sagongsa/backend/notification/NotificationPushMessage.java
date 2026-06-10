@@ -8,6 +8,7 @@ public record NotificationPushMessage(
 	String notificationType,
 	String title,
 	String body,
-	String targetPath
+	String targetPath,
+	String channelId
 ) {
 }

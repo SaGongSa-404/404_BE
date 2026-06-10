@@ -46,6 +46,11 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 		assertThat(queryString("select status from reminder_schedules where id = ?", reminderId)).isEqualTo("SENT");
 		assertThat(queryInteger("select count(*) from notifications where reminder_id = ?", reminderId)).isEqualTo(1);
 		assertThat(queryString("select notification_type from notifications where reminder_id = ?", reminderId)).isEqualTo("REGRET_CHECK_READY");
+		assertThat(queryString("select title from notifications where reminder_id = ?", reminderId)).isEqualTo("위시 돌아보기");
+		assertThat(queryString("select body from notifications where reminder_id = ?", reminderId))
+			.isEqualTo("'만족도 확인 상품' 구매한 지 일주일이 지났어요. 만족스러우신가요?");
+		assertThat(queryString("select channel_id from notifications where reminder_id = ?", reminderId))
+			.isEqualTo("consumption_management");
 		assertThat(queryString("select target_path from notifications where reminder_id = ?", reminderId))
 			.isEqualTo("/reflections?decisionId=" + decisionId);
 		UUID notificationId = queryUuid("select id from notifications where reminder_id = ?", reminderId);
@@ -54,6 +59,7 @@ class ReminderNotificationWorkerIntegrationTest extends PostgreSqlContainerTest 
 				&& message.notificationId().equals(notificationId)
 				&& message.notificationType().equals("REGRET_CHECK_READY")
 				&& message.targetPath().equals("/reflections?decisionId=" + decisionId)
+				&& message.channelId().equals("consumption_management")
 		));
 	}
 

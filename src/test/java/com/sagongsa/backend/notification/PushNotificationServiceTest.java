@@ -43,6 +43,8 @@ class PushNotificationServiceTest extends PostgreSqlContainerTest {
 		assertThat(request.token()).isEqualTo("active-token");
 		assertThat(request.data()).containsEntry("notificationId", notificationId.toString());
 		assertThat(request.data()).containsEntry("notificationType", "REGRET_CHECK_READY");
+		assertThat(request.data()).containsEntry("channelId", "consumption_management");
+		assertThat(request.channelId()).isEqualTo("consumption_management");
 	}
 
 	@Test
@@ -76,7 +78,8 @@ class PushNotificationServiceTest extends PostgreSqlContainerTest {
 			"REGRET_CHECK_READY",
 			"구매 후 7일이 지났어요",
 			"[상품] 지금도 잘 샀다고 생각하나요?",
-			"/reflections?decisionId=" + UUID.randomUUID()
+			"/reflections?decisionId=" + UUID.randomUUID(),
+			"consumption_management"
 		);
 	}
 

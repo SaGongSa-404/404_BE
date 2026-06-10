@@ -2,6 +2,7 @@ package com.sagongsa.backend.notification;
 
 import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidNotification;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
@@ -22,6 +23,13 @@ public class FirebaseFcmMessageSender implements FcmMessageSender {
 
 	@Override
 	public FcmSendResult send(FcmSendRequest request) {
+		AndroidConfig.Builder androidConfigBuilder = AndroidConfig.builder()
+			.setPriority(AndroidConfig.Priority.HIGH);
+		if (request.channelId() != null && !request.channelId().isBlank()) {
+			androidConfigBuilder.setNotification(AndroidNotification.builder()
+				.setChannelId(request.channelId())
+				.build());
+		}
 		Message message = Message.builder()
 			.setToken(request.token())
 			.setNotification(Notification.builder()
@@ -29,9 +37,7 @@ public class FirebaseFcmMessageSender implements FcmMessageSender {
 				.setBody(request.body())
 				.build())
 			.putAllData(request.data())
-			.setAndroidConfig(AndroidConfig.builder()
-				.setPriority(AndroidConfig.Priority.HIGH)
-				.build())
+			.setAndroidConfig(androidConfigBuilder.build())
 			.build();
 		try {
 			firebaseMessaging.send(message);

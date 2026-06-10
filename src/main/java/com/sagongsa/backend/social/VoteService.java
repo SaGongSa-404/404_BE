@@ -6,6 +6,8 @@ import com.sagongsa.backend.domain.enums.PostVoteType;
 import com.sagongsa.backend.domain.social.FeedPost;
 import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
+import com.sagongsa.backend.notification.NotificationPublishRequest;
+import com.sagongsa.backend.notification.NotificationPublisher;
 import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,15 +22,18 @@ class VoteService {
 	private final SocialPostService socialPostService;
 	private final UserAccountRepository userAccountRepository;
 	private final EntityManager em;
+	private final NotificationPublisher notificationPublisher;
 
 	VoteService(PostVoteRepository postVoteRepository,
 		SocialPostService socialPostService,
 		UserAccountRepository userAccountRepository,
-		EntityManager em) {
+		EntityManager em,
+		NotificationPublisher notificationPublisher) {
 		this.postVoteRepository = postVoteRepository;
 		this.socialPostService = socialPostService;
 		this.userAccountRepository = userAccountRepository;
 		this.em = em;
+		this.notificationPublisher = notificationPublisher;
 	}
 
 	VoteResponse vote(UUID userId, UUID postId, PostVoteType voteType) {
@@ -65,6 +70,26 @@ class VoteService {
 		postVoteRepository.flush();
 		em.refresh(post);
 
+		maybePublishFirstVoteNotification(post, resultVote);
+
 		return new VoteResponse(resultVote, post.getGoCount(), post.getStopCount());
+	}
+
+	private void maybePublishFirstVoteNotification(FeedPost post, PostVoteType resultVote) {
+		if (resultVote == null || post.getGoCount() + post.getStopCount() != 1) {
+			return;
+		}
+		notificationPublisher.publish(new NotificationPublishRequest(
+			post.getUser().getId(),
+			"SOCIAL_FIRST_VOTE",
+			"첫 투표",
+			"🗳️내 위시템에 첫 투표가 들어왔어요!",
+			post.getItem() == null ? null : post.getItem().getId(),
+			null,
+			null,
+			"/social/posts/" + post.getId(),
+			"post:" + post.getId(),
+			null
+		));
 	}
 }

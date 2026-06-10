@@ -6,6 +6,7 @@ public record FcmSendRequest(
 	String token,
 	String title,
 	String body,
-	Map<String, String> data
+	Map<String, String> data,
+	String channelId
 ) {
 }

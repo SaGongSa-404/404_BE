@@ -19,6 +19,8 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class NotificationService {
 
+	private static final int RETENTION_MONTHS = 1;
+
 	private final JdbcTemplate jdbcTemplate;
 
 	public NotificationService(JdbcTemplate jdbcTemplate) {
@@ -29,17 +31,20 @@ public class NotificationService {
 	public List<NotificationResponse> list(UUID userId, boolean unreadOnly) {
 		requireUsableUser(userId);
 		String unreadFilter = unreadOnly ? "and is_read = false" : "";
+		OffsetDateTime cutoff = retentionCutoff();
 		return jdbcTemplate.query(
 			"""
 			select id, notification_type, title, body, item_id, decision_id, reminder_id,
 			       target_path, is_read, read_at, created_at
 			from notifications
 			where user_id = ?
+			  and created_at >= ?
 			%s
 			order by created_at desc, id desc
 			""".formatted(unreadFilter),
 			this::mapNotification,
-			userId
+			userId,
+			cutoff
 		);
 	}
 
@@ -55,11 +60,13 @@ public class NotificationService {
 				updated_at = ?
 			where user_id = ?
 			  and id = ?
+			  and created_at >= ?
 			""",
 			now,
 			now,
 			userId,
-			notificationId
+			notificationId,
+			retentionCutoff()
 		);
 		if (updated == 0) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification was not found.");
@@ -76,10 +83,12 @@ public class NotificationService {
 				from notifications
 				where user_id = ?
 				  and id = ?
+				  and created_at >= ?
 				""",
 				this::mapNotification,
 				userId,
-				notificationId
+				notificationId,
+				retentionCutoff()
 			);
 		}
 		catch (EmptyResultDataAccessException exception) {
@@ -122,6 +131,10 @@ public class NotificationService {
 	private Instant readInstant(ResultSet rs, String columnName) throws SQLException {
 		Timestamp timestamp = rs.getTimestamp(columnName);
 		return timestamp == null ? null : timestamp.toInstant();
+	}
+
+	private OffsetDateTime retentionCutoff() {
+		return OffsetDateTime.now(ZoneOffset.UTC).minusMonths(RETENTION_MONTHS);
 	}
 
 	private record UserState(String status, String onboardingStatus) {

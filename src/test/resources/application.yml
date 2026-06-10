@@ -38,3 +38,8 @@ app:
     allowed-redirect-uri-prefixes: sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://localhost/auth/callback,https://127.0.0.1/auth/callback
     trusted-user-id-header:
       enabled: true
+  notification:
+    reminder-worker:
+      enabled: false
+    trigger-worker:
+      enabled: false
