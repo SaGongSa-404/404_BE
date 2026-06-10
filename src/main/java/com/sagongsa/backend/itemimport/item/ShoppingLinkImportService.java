@@ -241,38 +241,38 @@ public class ShoppingLinkImportService {
 		);
 
 		Integer price = firstNonNull(
-				parsePrice(metaContent(document, "meta[property=product:price:amount]")),
-				parsePrice(metaContent(document, "meta[property=og:price:amount]")),
-				parsePrice(jsonLdText(document, "offers.price")),
-				parsePrice(jsonLdText(document, "price")),
-				parsePrice(embeddedMetadata.priceText()),
-				parsePrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
-			);
-			String rawPriceText = firstNonBlank(
-				metaContent(document, "meta[property=product:price:amount]"),
-				metaContent(document, "meta[property=og:price:amount]"),
-				jsonLdText(document, "offers.price"),
-				jsonLdText(document, "price"),
-				embeddedMetadata.priceText(),
-				findByRegex(html, PRICE_WITH_CURRENCY_PATTERN)
-			);
+			parsePrice(metaContent(document, "meta[property=product:price:amount]")),
+			parsePrice(metaContent(document, "meta[property=og:price:amount]")),
+			parsePrice(jsonLdText(document, "offers.price")),
+			parsePrice(jsonLdText(document, "price")),
+			parsePrice(embeddedMetadata.priceText()),
+			parsePrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
+		);
+		String rawPriceText = firstNonBlank(
+			metaContent(document, "meta[property=product:price:amount]"),
+			metaContent(document, "meta[property=og:price:amount]"),
+			jsonLdText(document, "offers.price"),
+			jsonLdText(document, "price"),
+			embeddedMetadata.priceText(),
+			findByRegex(html, PRICE_WITH_CURRENCY_PATTERN)
+		);
 
-			String imageUrl = firstNonBlank(
-				normalizeImageUrl(metaContent(document, "meta[property=og:image]")),
-				normalizeImageUrl(metaContent(document, "meta[name=twitter:image]")),
-				normalizeImageUrl(jsonLdText(document, "image")),
-				normalizeImageUrl(embeddedMetadata.imageUrl()),
-				bestImage(document)
-			);
+		String imageUrl = firstNonBlank(
+			normalizeImageUrl(metaContent(document, "meta[property=og:image]")),
+			normalizeImageUrl(metaContent(document, "meta[name=twitter:image]")),
+			normalizeImageUrl(jsonLdText(document, "image")),
+			normalizeImageUrl(embeddedMetadata.imageUrl()),
+			bestImage(document)
+		);
 
-			String method = "OPEN_GRAPH";
-			if (!isBlank(jsonLdText(document, "name")) || !isBlank(jsonLdText(document, "offers.price"))) {
-				method = "JSON_LD";
-			} else if (embeddedMetadata.hasAnyValue()) {
-				method = "EMBEDDED_JSON";
-			} else if (title != null || price != null || imageUrl != null) {
-				method = "HTML_META";
-			}
+		String method = "OPEN_GRAPH";
+		if (!isBlank(jsonLdText(document, "name")) || !isBlank(jsonLdText(document, "offers.price"))) {
+			method = "JSON_LD";
+		} else if (embeddedMetadata.hasAnyValue()) {
+			method = "EMBEDDED_JSON";
+		} else if (title != null || price != null || imageUrl != null) {
+			method = "HTML_META";
+		}
 
 		Map<String, Object> rawPayloadJson = new LinkedHashMap<>();
 		rawPayloadJson.put("requestedUrl", page.requestedUri().toString());
