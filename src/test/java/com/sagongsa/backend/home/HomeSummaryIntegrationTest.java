@@ -1,5 +1,6 @@
 package com.sagongsa.backend.home;
 
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -71,6 +72,10 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.userProfile.timezone").value("Asia/Seoul"))
 			.andExpect(jsonPath("$.mascot.state").value("SMILE"))
 			.andExpect(jsonPath("$.mascot.lastReactionMessage").value("Nice choice"))
+			.andExpect(jsonPath("$.bubble.type").value("DECISION_REACTION"))
+			.andExpect(jsonPath("$.bubble.message").value("Nice choice"))
+			.andExpect(jsonPath("$.bubble.priority").value(80))
+			.andExpect(jsonPath("$.bubble.shouldShow").value(true))
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(500_000))
 			.andExpect(jsonPath("$.budget.spentAmount").value(125_000))
@@ -100,6 +105,9 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.userProfile.timezone").value(nullValue()))
 			.andExpect(jsonPath("$.mascot.state").value("DEFAULT"))
 			.andExpect(jsonPath("$.mascot.lastReactionMessage").value(nullValue()))
+			.andExpect(jsonPath("$.bubble.type").value("DEFAULT"))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.DEFAULT_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.priority").value(10))
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(0))
 			.andExpect(jsonPath("$.budget.spentAmount").value(0))
@@ -145,7 +153,10 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.spentAmount").value(100_000))
 			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
 			.andExpect(jsonPath("$.budget.exhausted").value(true))
-			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true));
+			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true))
+			.andExpect(jsonPath("$.bubble.type").value("BUDGET_ZERO"))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.BUDGET_ZERO_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.priority").value(90));
 	}
 
 	@Test
@@ -159,7 +170,10 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
-			.andExpect(jsonPath("$.budget.exhausted").value(true));
+			.andExpect(jsonPath("$.budget.exhausted").value(true))
+			.andExpect(jsonPath("$.bubble.type").value("BUDGET_NEGATIVE"))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.BUDGET_NEGATIVE_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.priority").value(100));
 	}
 
 	@Test
@@ -213,6 +227,122 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.mascot.state").value("DEFAULT"))
 			.andExpect(jsonPath("$.mascot.lastReactionMessage").value(nullValue()));
+	}
+
+	@Test
+	void returnsWelcomeBubbleUntilMarkedSeen() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000120");
+		insertUser(userId);
+		insertMascotProfile(userId, "DEFAULT", null, BASE_TIME, null);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.bubble.type").value("WELCOME"))
+			.andExpect(jsonPath("$.bubble.message").value("반가워요! 같이 현명한 소비해봐요"))
+			.andExpect(jsonPath("$.bubble.priority").value(70))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value("/api/v1/home/bubbles/WELCOME/seen"));
+
+		mockMvc.perform(post("/api/v1/home/bubbles/WELCOME/seen").header("X-User-Id", userId))
+			.andExpect(status().isNoContent());
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.bubble.type").value("DEFAULT"))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.DEFAULT_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.priority").value(10));
+	}
+
+	@Test
+	void returnsDecisionReactionBubbleAndClearsMessageWhenSeen() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000121");
+		insertUser(userId);
+		insertMascotProfile(userId, "SMILE", "합리적으로 잘 결정했어요", BASE_TIME.plusSeconds(10), null);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.bubble.type").value("DECISION_REACTION"))
+			.andExpect(jsonPath("$.bubble.message").value("합리적으로 잘 결정했어요"));
+
+		mockMvc.perform(post("/api/v1/home/bubbles/DECISION_REACTION/seen").header("X-User-Id", userId))
+			.andExpect(status().isNoContent());
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.mascot.state").value("SMILE"))
+			.andExpect(jsonPath("$.mascot.lastReactionMessage").value(nullValue()))
+			.andExpect(jsonPath("$.bubble.type").value("WELCOME"));
+	}
+
+	@Test
+	void returnsBudgetNegativeBubbleBeforePendingWishlist() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000122");
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+
+		insertUser(userId);
+		insertBudgetCycle(userId, yearMonth, 100_000, 120_000, new BigDecimal("80.00"));
+		insertSavedItem(userId, "마이너스보다 낮은 우선순위 위시", "SAVED");
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.bubble.type").value("BUDGET_NEGATIVE"))
+			.andExpect(jsonPath("$.bubble.priority").value(100));
+	}
+
+	@Test
+	void returnsBudgetZeroBubbleBeforeVoteWaiting() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000123");
+		UUID voterId = UUID.fromString("00000000-0000-0000-0000-000000000124");
+		String yearMonth = YearMonth.now(SEOUL_ZONE).toString();
+
+		insertUser(userId);
+		insertUser(voterId);
+		insertBudgetCycle(userId, yearMonth, 100_000, 100_000, new BigDecimal("80.00"));
+		UUID postId = insertFeedPost(userId);
+		insertPostVote(postId, voterId);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.bubble.type").value("BUDGET_ZERO"))
+			.andExpect(jsonPath("$.bubble.priority").value(90));
+	}
+
+	@Test
+	void returnsPendingWishlistBubbleBeforeVoteWaitingAndDefault() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000125");
+		UUID voterId = UUID.fromString("00000000-0000-0000-0000-000000000126");
+
+		insertUser(userId);
+		insertUser(voterId);
+		insertMascotProfile(userId, "DEFAULT", null, BASE_TIME, null);
+		markWelcomeSeen(userId);
+		insertSavedItem(userId, "결정 대기 위시", "SAVED");
+		UUID postId = insertFeedPost(userId);
+		insertPostVote(postId, voterId);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.bubble.type").value("PENDING_WISHLIST"))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.PENDING_WISHLIST_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.priority").value(50));
+	}
+
+	@Test
+	void returnsVoteWaitingBubbleWhenNoHigherPriorityBubbleExists() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000127");
+		UUID voterId = UUID.fromString("00000000-0000-0000-0000-000000000128");
+
+		insertUser(userId);
+		insertUser(voterId);
+		insertMascotProfile(userId, "DEFAULT", null, BASE_TIME, null);
+		markWelcomeSeen(userId);
+		UUID postId = insertFeedPost(userId);
+		insertPostVote(postId, voterId);
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.bubble.type").value("VOTE_WAITING"))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.VOTE_WAITING_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.priority").value(40));
 	}
 
 	@Test
@@ -433,6 +563,85 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			timestamp(readAt),
 			timestamp(createdAt),
 			timestamp(createdAt)
+		);
+	}
+
+	private void markWelcomeSeen(UUID userId) {
+		jdbcTemplate.update(
+			"update mascot_profiles set welcome_bubble_seen = true where user_id = ?",
+			userId
+		);
+	}
+
+	private UUID insertSavedItem(UUID userId, String title, String status) {
+		UUID itemId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into saved_items (
+				id,
+				user_id,
+				input_source,
+				title,
+				category,
+				category_locked_by_user,
+				status,
+				created_at,
+				updated_at
+			)
+			values (?, ?, 'DIRECT_INPUT', ?, 'ETC', false, ?, ?, ?)
+			""",
+			itemId,
+			userId,
+			title,
+			status,
+			timestamp(BASE_TIME),
+			timestamp(BASE_TIME)
+		);
+		return itemId;
+	}
+
+	private UUID insertFeedPost(UUID userId) {
+		UUID postId = UUID.randomUUID();
+		jdbcTemplate.update(
+			"""
+			insert into feed_posts (
+				id,
+				user_id,
+				title,
+				body,
+				go_count,
+				stop_count,
+				created_at,
+				updated_at
+			)
+			values (?, ?, '투표 대기 게시글', '본문', 0, 0, ?, ?)
+			""",
+			postId,
+			userId,
+			timestamp(BASE_TIME),
+			timestamp(BASE_TIME)
+		);
+		return postId;
+	}
+
+	private void insertPostVote(UUID postId, UUID voterId) {
+		jdbcTemplate.update(
+			"""
+			insert into post_votes (
+				id,
+				post_id,
+				user_id,
+				vote_type,
+				created_at,
+				updated_at
+			)
+			values (?, ?, ?, 'GO', ?, ?)
+			""",
+			UUID.randomUUID(),
+			postId,
+			voterId,
+			timestamp(BASE_TIME),
+			timestamp(BASE_TIME)
 		);
 	}
 

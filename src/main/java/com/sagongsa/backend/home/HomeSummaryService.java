@@ -1,6 +1,7 @@
 package com.sagongsa.backend.home;
 
 import com.sagongsa.backend.home.HomeSummaryResponse.BudgetSummary;
+import com.sagongsa.backend.home.HomeSummaryResponse.BubbleSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.MascotSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.NotificationSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.NotificationsSummary;
@@ -18,6 +19,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +29,31 @@ public class HomeSummaryService {
 	private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Seoul");
 	private static final int LATEST_NOTIFICATION_LIMIT = 3;
 	private static final int NOTIFICATION_RETENTION_MONTHS = 1;
+	static final List<String> BUDGET_NEGATIVE_BUBBLE_MESSAGES = List.of(
+		"이번 달 예산을 넘었어요. 잠깐 멈춰볼까요?",
+		"예산보다 더 썼어요. 오늘은 소비를 쉬어가도 좋아요.",
+		"예산이 마이너스예요. 다음 위시는 조금만 더 고민해봐요."
+	);
+	static final List<String> BUDGET_ZERO_BUBBLE_MESSAGES = List.of(
+		"이번 달 예산을 다 썼어요. 남은 기간은 신중하게 가봐요.",
+		"예산이 0원이 되었어요. 오늘은 장바구니를 잠시 닫아볼까요?",
+		"남은 예산이 없어요. 다음 소비는 한 번 더 생각해봐요."
+	);
+	static final List<String> PENDING_WISHLIST_BUBBLE_MESSAGES = List.of(
+		"아직 결정하지 않은 위시템이 있어요.",
+		"담아둔 위시템을 다시 한번 살펴볼까요?",
+		"고민 중인 위시템을 하나 골라 결정해봐요."
+	);
+	static final List<String> VOTE_WAITING_BUBBLE_MESSAGES = List.of(
+		"내 위시템에 투표가 들어왔어요.",
+		"친구들의 투표 결과를 확인해볼까요?",
+		"투표가 모였어요. 이제 결정할 차례예요."
+	);
+	static final List<String> DEFAULT_BUBBLE_MESSAGES = List.of(
+		"오늘도 현명한 소비를 도와드릴게요.",
+		"갖고 싶은 게 생기면 같이 천천히 고민해봐요.",
+		"소비하기 전 한 번 더 생각하면 좋아요."
+	);
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -46,11 +73,14 @@ public class HomeSummaryService {
 			.orElseGet(() -> new UserProfileSummary(null, null, null));
 		ZoneId zoneId = resolveZoneId(userProfile.timezone());
 		String currentYearMonth = YearMonth.now(zoneId).toString();
+		MascotSummary mascot = findMascotSummary(userId).orElseGet(HomeSummaryService::defaultMascotSummary);
+		BudgetSummary budget = findBudgetSummary(userId, currentYearMonth).orElseGet(() -> defaultBudgetSummary(currentYearMonth));
 
 		return new HomeSummaryResponse(
 			userProfile,
-			findMascotSummary(userId).orElseGet(HomeSummaryService::defaultMascotSummary),
-			findBudgetSummary(userId, currentYearMonth).orElseGet(() -> defaultBudgetSummary(currentYearMonth)),
+			mascot,
+			budget,
+			homeBubble(userId, mascot, budget),
 			new NotificationsSummary(countUnreadNotifications(userId), findLatestNotifications(userId)),
 			findRationalChoiceRate(userId, currentYearMonth, zoneId)
 		);
@@ -153,6 +183,24 @@ public class HomeSummaryService {
 
 	@org.springframework.transaction.annotation.Transactional
 	public void markBubbleSeen(UUID userId) {
+		markBudgetExhaustionBubbleSeen(userId);
+	}
+
+	@org.springframework.transaction.annotation.Transactional
+	public void markBubbleSeen(UUID userId, String type) {
+		if (type == null || type.isBlank()) {
+			return;
+		}
+		switch (type.toUpperCase(java.util.Locale.ROOT)) {
+			case "WELCOME" -> markWelcomeBubbleSeen(userId);
+			case "BUDGET_NEGATIVE", "BUDGET_ZERO" -> markBudgetExhaustionBubbleSeen(userId);
+			case "DECISION_REACTION" -> clearDecisionReactionBubble(userId);
+			default -> {
+			}
+		}
+	}
+
+	private void markBudgetExhaustionBubbleSeen(UUID userId) {
 		String timezone = jdbcTemplate.query(
 				"select timezone from user_profiles where user_id = ?",
 				(rs, rowNum) -> rs.getString("timezone"),
@@ -173,6 +221,112 @@ public class HomeSummaryService {
 			userId,
 			currentYearMonth
 		);
+	}
+
+	private void markWelcomeBubbleSeen(UUID userId) {
+		jdbcTemplate.update(
+			"""
+			update mascot_profiles
+			   set welcome_bubble_seen = true,
+			       updated_at = now()
+			 where user_id = ?
+			""",
+			userId
+		);
+	}
+
+	private void clearDecisionReactionBubble(UUID userId) {
+		jdbcTemplate.update(
+			"""
+			update mascot_profiles
+			   set last_reaction_message = null,
+			       reaction_expires_at = null,
+			       updated_at = now()
+			 where user_id = ?
+			""",
+			userId
+		);
+	}
+
+	private BubbleSummary homeBubble(UUID userId, MascotSummary mascot, BudgetSummary budget) {
+		if (budget.showBudgetExhaustionBubble()) {
+			if (budget.spentAmount() > budget.monthlyBudgetAmount()) {
+				return bubble("BUDGET_NEGATIVE", randomValue(BUDGET_NEGATIVE_BUBBLE_MESSAGES), 100);
+			}
+			return bubble("BUDGET_ZERO", randomValue(BUDGET_ZERO_BUBBLE_MESSAGES), 90);
+		}
+		if (mascot.lastReactionMessage() != null && !mascot.lastReactionMessage().isBlank()) {
+			return bubble("DECISION_REACTION", mascot.lastReactionMessage(), 80);
+		}
+		if (welcomeBubblePending(userId)) {
+			return bubble("WELCOME", "반가워요! 같이 현명한 소비해봐요", 70);
+		}
+		if (hasPendingWishlist(userId)) {
+			return bubble("PENDING_WISHLIST", randomValue(PENDING_WISHLIST_BUBBLE_MESSAGES), 50);
+		}
+		if (hasVoteWaiting(userId)) {
+			return bubble("VOTE_WAITING", randomValue(VOTE_WAITING_BUBBLE_MESSAGES), 40);
+		}
+		return bubble("DEFAULT", randomValue(DEFAULT_BUBBLE_MESSAGES), 10);
+	}
+
+	private BubbleSummary bubble(String type, String message, int priority) {
+		return new BubbleSummary(type, message, priority, true, "/api/v1/home/bubbles/" + type + "/seen");
+	}
+
+	private String randomValue(List<String> values) {
+		return values.get(ThreadLocalRandom.current().nextInt(values.size()));
+	}
+
+	private boolean welcomeBubblePending(UUID userId) {
+		Boolean pending = jdbcTemplate.queryForObject(
+			"""
+			select exists(
+				select 1
+				from mascot_profiles
+				where user_id = ?
+				  and welcome_bubble_seen = false
+			)
+			""",
+			Boolean.class,
+			userId
+		);
+		return Boolean.TRUE.equals(pending);
+	}
+
+	private boolean hasPendingWishlist(UUID userId) {
+		Boolean exists = jdbcTemplate.queryForObject(
+			"""
+			select exists(
+				select 1
+				from saved_items
+				where user_id = ?
+				  and status = 'SAVED'
+			)
+			""",
+			Boolean.class,
+			userId
+		);
+		return Boolean.TRUE.equals(exists);
+	}
+
+	private boolean hasVoteWaiting(UUID userId) {
+		Boolean exists = jdbcTemplate.queryForObject(
+			"""
+			select exists(
+				select 1
+				from feed_posts fp
+				join post_votes pv on pv.post_id = fp.id
+				where fp.user_id = ?
+				  and fp.deleted_at is null
+				  and fp.moderation_status = 'ACTIVE'
+				  and pv.canceled_at is null
+			)
+			""",
+			Boolean.class,
+			userId
+		);
+		return Boolean.TRUE.equals(exists);
 	}
 
 	private long countUnreadNotifications(UUID userId) {

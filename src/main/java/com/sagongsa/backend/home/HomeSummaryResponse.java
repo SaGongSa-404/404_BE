@@ -9,6 +9,7 @@ public record HomeSummaryResponse(
 	UserProfileSummary userProfile,
 	MascotSummary mascot,
 	BudgetSummary budget,
+	BubbleSummary bubble,
 	NotificationsSummary notifications,
 	BigDecimal rationalChoiceRate
 ) {
@@ -36,6 +37,15 @@ public record HomeSummaryResponse(
 		BigDecimal warningThresholdRate,
 		boolean exhausted,
 		boolean showBudgetExhaustionBubble
+	) {
+	}
+
+	public record BubbleSummary(
+		String type,
+		String message,
+		int priority,
+		boolean shouldShow,
+		String seenEndpoint
 	) {
 	}
 
