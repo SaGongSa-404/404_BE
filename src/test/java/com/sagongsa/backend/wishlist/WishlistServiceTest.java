@@ -85,6 +85,26 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void rejectsRecentDuplicateDirectInputWithoutUrl() {
+		UUID userId = createActiveUser();
+		WishlistItemCreateRequest request = new WishlistItemCreateRequest(
+			"DIRECT_INPUT", null, null, "직접 입력 상품", null,
+			29000, "KRW", "FASHION", null, false,
+			null, null, null, null, null
+		);
+
+		wishlistService.create(userId, request);
+
+		assertThatThrownBy(() -> wishlistService.create(userId, request))
+			.isInstanceOf(DuplicateSavedItemException.class);
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from saved_items where user_id = ?",
+			Integer.class,
+			userId
+		)).isEqualTo(1);
+	}
+
+	@Test
 	void rejectsNonHttpScheme() {
 		UUID userId = createActiveUser();
 

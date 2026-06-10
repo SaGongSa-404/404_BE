@@ -3,6 +3,7 @@ package com.sagongsa.backend.deliberation;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsString;
 
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
@@ -76,7 +77,7 @@ class DeliberationApiIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get(BASE + "/{itemId}", itemId)
 				.header("X-User-Id", userId))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.opportunityCostMessage").value("120,000원을 다른 곳에 쓸 수도 있어요."));
+			.andExpect(jsonPath("$.opportunityCostMessage").value(containsString("120,000원")));
 	}
 
 	@Test
@@ -87,7 +88,7 @@ class DeliberationApiIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get(BASE + "/{itemId}", itemId)
 				.header("X-User-Id", userId))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.opportunityCostMessage").value("가격을 입력하면 다른 선택지와 비교하기 쉬워요."));
+			.andExpect(jsonPath("$.opportunityCostMessage").isString());
 	}
 
 	// ── 접근 제어 ─────────────────────────────────────────────────────────

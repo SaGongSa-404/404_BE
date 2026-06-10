@@ -41,6 +41,22 @@ class SocialPostServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 같은_게시글_연속_등록은_기존_게시글을_반환() {
+		UUID userId = insertUser();
+		CreatePostRequest request = new CreatePostRequest("제목", "내용", null, null, null);
+
+		PostResponse first = socialPostService.createPost(userId, request);
+		PostResponse second = socialPostService.createPost(userId, request);
+
+		assertThat(second.id()).isEqualTo(first.id());
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from feed_posts where user_id = ?",
+			Integer.class,
+			userId
+		)).isEqualTo(1);
+	}
+
+	@Test
 	void 존재하지_않는_유저가_게시글_생성하면_예외() {
 		assertThatThrownBy(() ->
 			socialPostService.createPost(UUID.randomUUID(), new CreatePostRequest("제목", "내용", null, null, null))

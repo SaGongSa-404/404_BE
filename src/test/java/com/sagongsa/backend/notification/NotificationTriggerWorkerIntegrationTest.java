@@ -94,6 +94,21 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void deletesNotificationsOlderThanRetentionWindow() {
+		OffsetDateTime now = OffsetDateTime.of(2026, 6, 10, 12, 0, 0, 0, ZoneOffset.UTC);
+		UUID userId = createReadyUser(now.minusDays(40));
+		insertNotification(userId, "WISHLIST_REMINDER", "오래된 알림", "만료", null,
+			null, null, "/wishlist", null, now.minusMonths(1).minusDays(1));
+		insertNotification(userId, "SOCIAL_FIRST_VOTE", "최근 알림", "유지", null,
+			null, null, "/social/posts/1", null, now.minusDays(1));
+
+		notificationTriggerWorker.processDueNotifications(now);
+
+		assertThat(queryInteger("select count(*) from notifications where title = '오래된 알림'")).isZero();
+		assertThat(queryInteger("select count(*) from notifications where title = '최근 알림'")).isEqualTo(1);
+	}
+
+	@Test
 	void createsBudgetResetOnlyAfterFirstDayNineAmInKorea() {
 		OffsetDateTime dueAt = OffsetDateTime.of(2026, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		UUID firstUserId = createReadyUserWithBudgetCycle(

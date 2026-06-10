@@ -240,9 +240,6 @@ public class OnboardingService {
 	private static final int NICKNAME_MAX_LENGTH = 8;
 
 	private String requireNicknameText(String value) {
-		if (!value.equals(value.trim())) {
-			throw new OnboardingBadRequestException("nickname must not have leading or trailing whitespace.");
-		}
 		String trimmed = value.trim();
 		if (trimmed.length() < NICKNAME_MIN_LENGTH || trimmed.length() > NICKNAME_MAX_LENGTH) {
 			throw new OnboardingBadRequestException("nickname must be between 2 and 8 characters.");
