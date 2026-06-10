@@ -262,16 +262,20 @@ public class HomeSummaryService {
 			return bubble("WELCOME", "반가워요! 같이 현명한 소비해봐요", 70);
 		}
 		if (hasPendingWishlist(userId)) {
-			return bubble("PENDING_WISHLIST", randomValue(PENDING_WISHLIST_BUBBLE_MESSAGES), 50);
+			return passiveBubble("PENDING_WISHLIST", randomValue(PENDING_WISHLIST_BUBBLE_MESSAGES), 50);
 		}
 		if (hasVoteWaiting(userId)) {
-			return bubble("VOTE_WAITING", randomValue(VOTE_WAITING_BUBBLE_MESSAGES), 40);
+			return passiveBubble("VOTE_WAITING", randomValue(VOTE_WAITING_BUBBLE_MESSAGES), 40);
 		}
-		return bubble("DEFAULT", randomValue(DEFAULT_BUBBLE_MESSAGES), 10);
+		return passiveBubble("DEFAULT", randomValue(DEFAULT_BUBBLE_MESSAGES), 10);
 	}
 
 	private BubbleSummary bubble(String type, String message, int priority) {
 		return new BubbleSummary(type, message, priority, true, "/api/v1/home/bubbles/" + type + "/seen");
+	}
+
+	private BubbleSummary passiveBubble(String type, String message, int priority) {
+		return new BubbleSummary(type, message, priority, true, null);
 	}
 
 	private String randomValue(List<String> values) {

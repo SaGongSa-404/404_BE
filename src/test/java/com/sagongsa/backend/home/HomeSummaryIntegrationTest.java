@@ -76,6 +76,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.bubble.message").value("Nice choice"))
 			.andExpect(jsonPath("$.bubble.priority").value(80))
 			.andExpect(jsonPath("$.bubble.shouldShow").value(true))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value("/api/v1/home/bubbles/DECISION_REACTION/seen"))
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(500_000))
 			.andExpect(jsonPath("$.budget.spentAmount").value(125_000))
@@ -108,6 +109,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.bubble.type").value("DEFAULT"))
 			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.DEFAULT_BUBBLE_MESSAGES)))
 			.andExpect(jsonPath("$.bubble.priority").value(10))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()))
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
 			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(0))
 			.andExpect(jsonPath("$.budget.spentAmount").value(0))
@@ -156,7 +158,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true))
 			.andExpect(jsonPath("$.bubble.type").value("BUDGET_ZERO"))
 			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.BUDGET_ZERO_BUBBLE_MESSAGES)))
-			.andExpect(jsonPath("$.bubble.priority").value(90));
+			.andExpect(jsonPath("$.bubble.priority").value(90))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value("/api/v1/home/bubbles/BUDGET_ZERO/seen"));
 	}
 
 	@Test
@@ -173,7 +176,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.exhausted").value(true))
 			.andExpect(jsonPath("$.bubble.type").value("BUDGET_NEGATIVE"))
 			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.BUDGET_NEGATIVE_BUBBLE_MESSAGES)))
-			.andExpect(jsonPath("$.bubble.priority").value(100));
+			.andExpect(jsonPath("$.bubble.priority").value(100))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value("/api/v1/home/bubbles/BUDGET_NEGATIVE/seen"));
 	}
 
 	@Test
@@ -249,7 +253,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bubble.type").value("DEFAULT"))
 			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.DEFAULT_BUBBLE_MESSAGES)))
-			.andExpect(jsonPath("$.bubble.priority").value(10));
+			.andExpect(jsonPath("$.bubble.priority").value(10))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()));
 	}
 
 	@Test
@@ -261,7 +266,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bubble.type").value("DECISION_REACTION"))
-			.andExpect(jsonPath("$.bubble.message").value("합리적으로 잘 결정했어요"));
+			.andExpect(jsonPath("$.bubble.message").value("합리적으로 잘 결정했어요"))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value("/api/v1/home/bubbles/DECISION_REACTION/seen"));
 
 		mockMvc.perform(post("/api/v1/home/bubbles/DECISION_REACTION/seen").header("X-User-Id", userId))
 			.andExpect(status().isNoContent());
@@ -323,7 +329,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bubble.type").value("PENDING_WISHLIST"))
 			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.PENDING_WISHLIST_BUBBLE_MESSAGES)))
-			.andExpect(jsonPath("$.bubble.priority").value(50));
+			.andExpect(jsonPath("$.bubble.priority").value(50))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()));
 	}
 
 	@Test
@@ -342,7 +349,8 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bubble.type").value("VOTE_WAITING"))
 			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.VOTE_WAITING_BUBBLE_MESSAGES)))
-			.andExpect(jsonPath("$.bubble.priority").value(40));
+			.andExpect(jsonPath("$.bubble.priority").value(40))
+			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()));
 	}
 
 	@Test
