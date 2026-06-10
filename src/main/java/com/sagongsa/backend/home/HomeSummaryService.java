@@ -26,6 +26,7 @@ public class HomeSummaryService {
 
 	private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Seoul");
 	private static final int LATEST_NOTIFICATION_LIMIT = 3;
+	private static final int NOTIFICATION_RETENTION_MONTHS = 1;
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -181,9 +182,11 @@ public class HomeSummaryService {
 			from notifications
 			where user_id = ?
 			  and is_read = false
+			  and created_at >= ?
 			""",
 			Long.class,
-			userId
+			userId,
+			notificationRetentionCutoff()
 		);
 		return count == null ? 0 : count;
 	}
@@ -194,6 +197,7 @@ public class HomeSummaryService {
 			select id, notification_type, title, body, target_path, is_read, created_at
 			from notifications
 			where user_id = ?
+			  and created_at >= ?
 			order by created_at desc, id desc
 			limit ?
 			""",
@@ -207,8 +211,13 @@ public class HomeSummaryService {
 				readInstant(rs, "created_at")
 			),
 			userId,
+			notificationRetentionCutoff(),
 			LATEST_NOTIFICATION_LIMIT
 		);
+	}
+
+	private OffsetDateTime notificationRetentionCutoff() {
+		return OffsetDateTime.now(java.time.ZoneOffset.UTC).minusMonths(NOTIFICATION_RETENTION_MONTHS);
 	}
 
 	private BigDecimal findRationalChoiceRate(UUID userId, String yearMonth, ZoneId zoneId) {

@@ -41,6 +41,40 @@ class CommentServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 타인이_댓글을_달면_게시글_작성자에게_알림_생성() {
+		UUID ownerId = insertUser();
+		UUID commenterId = insertUser();
+		UUID postId = insertPost(ownerId);
+
+		commentService.createComment(commenterId, postId, new CreateCommentRequest("댓글 내용"));
+
+		assertThat(queryInteger(
+			"""
+			select count(*)
+			from notifications
+			where user_id = ?
+			  and notification_type = 'SOCIAL_COMMENT'
+			  and target_path = ?
+			""",
+			ownerId,
+			"/social/posts/" + postId
+		)).isEqualTo(1);
+		assertThat(queryString("select channel_id from notifications where notification_type = 'SOCIAL_COMMENT'"))
+			.isEqualTo("social_activity");
+	}
+
+	@Test
+	void 본인_게시글에_본인이_댓글을_달면_알림_생성하지_않음() {
+		UUID ownerId = insertUser();
+		UUID postId = insertPost(ownerId);
+
+		commentService.createComment(ownerId, postId, new CreateCommentRequest("댓글 내용"));
+
+		assertThat(queryInteger("select count(*) from notifications where notification_type = 'SOCIAL_COMMENT'"))
+			.isZero();
+	}
+
+	@Test
 	void 존재하지_않는_게시글에_댓글_생성하면_예외() {
 		UUID userId = insertUser();
 
@@ -145,5 +179,13 @@ class CommentServiceTest extends PostgreSqlContainerTest {
 			"INSERT INTO feed_posts (id, user_id, title, body, go_count, stop_count, created_at, updated_at) VALUES (?, ?, '테스트 게시글', '내용', 0, 0, ?, ?)",
 			postId, userId, now, now);
 		return postId;
+	}
+
+	private Integer queryInteger(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, Integer.class, args);
+	}
+
+	private String queryString(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, String.class, args);
 	}
 }

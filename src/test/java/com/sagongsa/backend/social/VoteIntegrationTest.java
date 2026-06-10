@@ -143,6 +143,50 @@ class VoteIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.code").value("FORBIDDEN"));
 	}
 
+	@Test
+	void firstVoteCreatesSingleNotificationForPostAuthor() throws Exception {
+		UUID firstVoterId = insertUser();
+		UUID secondVoterId = insertUser();
+		UUID authorId = insertUser();
+		UUID postId = insertPost(authorId);
+
+		mockMvc.perform(post("/api/v1/social/posts/{postId}/votes", postId)
+				.header("X-User-Id", firstVoterId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"voteType":"GO"}
+					"""))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/v1/social/posts/{postId}/votes", postId)
+				.header("X-User-Id", secondVoterId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"voteType":"STOP"}
+					"""))
+			.andExpect(status().isOk());
+
+		Integer count = jdbcTemplate.queryForObject(
+			"""
+			select count(*)
+			from notifications
+			where user_id = ?
+			  and notification_type = 'SOCIAL_FIRST_VOTE'
+			  and dedupe_key = ?
+			""",
+			Integer.class,
+			authorId,
+			"post:" + postId
+		);
+		String channelId = jdbcTemplate.queryForObject(
+			"select channel_id from notifications where notification_type = 'SOCIAL_FIRST_VOTE'",
+			String.class
+		);
+
+		org.assertj.core.api.Assertions.assertThat(count).isEqualTo(1);
+		org.assertj.core.api.Assertions.assertThat(channelId).isEqualTo("social_activity");
+	}
+
 	private UUID insertUser() {
 		UUID userId = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);

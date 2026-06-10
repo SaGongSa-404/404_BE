@@ -7,6 +7,8 @@ import com.sagongsa.backend.domain.social.PostComment;
 import com.sagongsa.backend.domain.social.PostCommentRepository;
 import com.sagongsa.backend.domain.user.UserProfile;
 import com.sagongsa.backend.domain.user.UserProfileRepository;
+import com.sagongsa.backend.notification.NotificationPublishRequest;
+import com.sagongsa.backend.notification.NotificationPublisher;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,17 +29,20 @@ class CommentService {
 	private final UserAccountRepository userAccountRepository;
 	private final UserProfileRepository userProfileRepository;
 	private final BlockService blockService;
+	private final NotificationPublisher notificationPublisher;
 
 	CommentService(PostCommentRepository postCommentRepository,
 		SocialPostService socialPostService,
 		UserAccountRepository userAccountRepository,
 		UserProfileRepository userProfileRepository,
-		BlockService blockService) {
+		BlockService blockService,
+		NotificationPublisher notificationPublisher) {
 		this.postCommentRepository = postCommentRepository;
 		this.socialPostService = socialPostService;
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
 		this.blockService = blockService;
+		this.notificationPublisher = notificationPublisher;
 	}
 
 	@Transactional
@@ -48,6 +53,7 @@ class CommentService {
 
 		PostComment comment = new PostComment(post, user, request.body());
 		postCommentRepository.save(comment);
+		maybePublishCommentNotification(post, userId);
 		String authorNickname = resolveCommentNickname(postId, userId);
 		return CommentResponse.of(comment, userId, authorNickname);
 	}
@@ -88,6 +94,24 @@ class CommentService {
 
 	private String resolveCommentNickname(UUID postId, UUID userId) {
 		return buildCommentNicknameMap(postId).getOrDefault(userId, UserProfile.UNKNOWN_NICKNAME);
+	}
+
+	private void maybePublishCommentNotification(FeedPost post, UUID commenterId) {
+		if (post.getUser().getId().equals(commenterId)) {
+			return;
+		}
+		notificationPublisher.publish(new NotificationPublishRequest(
+			post.getUser().getId(),
+			"SOCIAL_COMMENT",
+			"댓글",
+			"내 위시템에 댓글이 달렸어요",
+			post.getItem() == null ? null : post.getItem().getId(),
+			null,
+			null,
+			"/social/posts/" + post.getId(),
+			null,
+			null
+		));
 	}
 
 	@Transactional

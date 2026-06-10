@@ -10,7 +10,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -34,7 +33,6 @@ import org.springframework.util.StringUtils;
 public class DecisionService {
 
 	private static final String DEFAULT_ZONE_ID = "Asia/Seoul";
-	private static final LocalTime REGRET_REMINDER_TIME = LocalTime.of(9, 0);
 	private static final int RATIONALE_TEXT_MAX_LENGTH = 1_000;
 	private static final int CHANGE_REASON_MAX_LENGTH = 1_000;
 	private static final List<String> SELF_CHECK_QUESTION_CODES = List.of("NEED", "BUDGET", "ALTERNATIVE", "DELAY");
@@ -92,7 +90,7 @@ public class DecisionService {
 		}
 
 		MascotReaction mascotReaction = updateMascotReaction(userId, item.id(), decisionId, normalized.result(), rationality.result(), now);
-		ReminderResponse reminder = maybeScheduleRegretReminder(userId, item.id(), decisionId, normalized.result(), zoneId, now);
+		ReminderResponse reminder = maybeScheduleRegretReminder(userId, item.id(), decisionId, normalized.result(), now);
 		boolean budgetExhausted = budgetCycle.monthlyBudgetAmount() > 0 && budgetAfterAmount >= budgetCycle.monthlyBudgetAmount();
 
 		return new DecisionResultResponse(
@@ -189,7 +187,6 @@ public class DecisionService {
 			decision.id(),
 			previousResult,
 			normalized.result(),
-			zoneId(user.timezone()),
 			now
 		);
 
@@ -824,7 +821,6 @@ public class DecisionService {
 		UUID itemId,
 		UUID decisionId,
 		PurchaseDecisionResult result,
-		ZoneId zoneId,
 		OffsetDateTime now
 	) {
 		if (result != PurchaseDecisionResult.GO || !regretReminderEnabled(userId)) {
@@ -832,7 +828,7 @@ public class DecisionService {
 		}
 
 		UUID reminderId = UUID.randomUUID();
-		OffsetDateTime scheduledFor = scheduledRegretReminderAt(now.toInstant(), zoneId);
+		OffsetDateTime scheduledFor = scheduledRegretReminderAt(now.toInstant());
 		jdbcTemplate.update(
 			"""
 			insert into reminder_schedules (
@@ -858,7 +854,6 @@ public class DecisionService {
 		UUID decisionId,
 		PurchaseDecisionResult previousResult,
 		PurchaseDecisionResult newResult,
-		ZoneId zoneId,
 		OffsetDateTime now
 	) {
 		if (previousResult == PurchaseDecisionResult.GO && newResult == PurchaseDecisionResult.STOP) {
@@ -866,7 +861,7 @@ public class DecisionService {
 			return;
 		}
 		if (previousResult == PurchaseDecisionResult.STOP && newResult == PurchaseDecisionResult.GO && regretReminderEnabled(userId)) {
-			upsertScheduledRegretReminder(userId, itemId, decisionId, zoneId, now);
+			upsertScheduledRegretReminder(userId, itemId, decisionId, now);
 		}
 	}
 
@@ -892,10 +887,9 @@ public class DecisionService {
 		UUID userId,
 		UUID itemId,
 		UUID decisionId,
-		ZoneId zoneId,
 		OffsetDateTime now
 	) {
-		OffsetDateTime scheduledFor = scheduledRegretReminderAt(now.toInstant(), zoneId);
+		OffsetDateTime scheduledFor = scheduledRegretReminderAt(now.toInstant());
 		jdbcTemplate.update(
 			"""
 			insert into reminder_schedules (
@@ -936,13 +930,8 @@ public class DecisionService {
 		}
 	}
 
-	private OffsetDateTime scheduledRegretReminderAt(Instant decidedAt, ZoneId zoneId) {
-		ZonedDateTime scheduledLocal = ZonedDateTime.ofInstant(decidedAt, zoneId)
-			.toLocalDate()
-			.plusDays(7)
-			.atTime(REGRET_REMINDER_TIME)
-			.atZone(zoneId);
-		return toUtc(scheduledLocal);
+	private OffsetDateTime scheduledRegretReminderAt(Instant decidedAt) {
+		return OffsetDateTime.ofInstant(decidedAt.plus(java.time.Duration.ofDays(7)), ZoneOffset.UTC);
 	}
 
 	private Optional<DecisionResult> findDecisionResult(UUID userId, UUID decisionId) {

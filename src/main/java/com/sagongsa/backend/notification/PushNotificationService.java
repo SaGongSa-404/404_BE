@@ -35,7 +35,8 @@ public class PushNotificationService {
 				token.pushToken(),
 				message.title(),
 				message.body(),
-				payload(message)
+				payload(message),
+				message.channelId()
 			));
 			if (result.invalidToken()) {
 				deactivateToken(token.pushToken());
@@ -95,6 +96,9 @@ public class PushNotificationService {
 		data.put("notificationType", message.notificationType());
 		if (message.targetPath() != null && !message.targetPath().isBlank()) {
 			data.put("targetPath", message.targetPath());
+		}
+		if (message.channelId() != null && !message.channelId().isBlank()) {
+			data.put("channelId", message.channelId());
 		}
 		return data;
 	}

@@ -35,6 +35,12 @@ public class Notification extends UserScopedEntity {
 	@Column(nullable = false, columnDefinition = "text")
 	private String body;
 
+	@Column(length = 40)
+	private String channelId;
+
+	@Column(length = 160)
+	private String dedupeKey;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "item_id")
 	private SavedItem item;

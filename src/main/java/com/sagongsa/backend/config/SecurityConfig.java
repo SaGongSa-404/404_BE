@@ -73,6 +73,7 @@ public class SecurityConfig {
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
 					.requestMatchers(HttpMethod.POST, "/api/auth/reviewer-token").permitAll()
+					.requestMatchers(HttpMethod.POST, "/api/v1/admin/notifications/**").permitAll()
 					.requestMatchers("/api/auth/me").authenticated();
 
 				if (nonProd) {

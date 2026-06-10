@@ -50,6 +50,8 @@ logging:
     console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] [requestId=%X{requestId}] [userId=%X{userId}] %logger{36} - %msg%n"
 
 app:
+  admin:
+    notification-token: ${APP_ADMIN_NOTIFICATION_TOKEN:}
   auth:
     issuer: 404-backend
     jwt-secret: ${APP_JWT_SECRET:local-development-jwt-secret-change-me}
