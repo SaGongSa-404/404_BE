@@ -259,12 +259,19 @@ public class NotificationTriggerWorker {
 		}
 
 		String yearMonth = yearMonthValue.toString();
+		OffsetDateTime dueAtUtc = dueAt.withZoneSameInstant(ZoneOffset.UTC).toOffsetDateTime();
 		List<UUID> userIds = jdbcTemplate.query(
 			"""
 			select u.id
 			from users u
 			where u.status = 'ACTIVE'
 			  and u.onboarding_status = 'COMPLETED'
+			  and exists (
+			      select 1
+			      from budget_cycles bc
+			      where bc.user_id = u.id
+			        and bc.created_at <= ?
+			  )
 			  and not exists (
 			      select 1
 			      from notifications n
@@ -276,6 +283,7 @@ public class NotificationTriggerWorker {
 			limit ?
 			""",
 			(rs, rowNumber) -> rs.getObject("id", UUID.class),
+			dueAtUtc,
 			yearMonth,
 			BATCH_SIZE
 		);

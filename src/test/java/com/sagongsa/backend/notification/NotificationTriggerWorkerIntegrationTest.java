@@ -95,8 +95,17 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 
 	@Test
 	void createsBudgetResetOnlyAfterFirstDayNineAmInKorea() {
-		UUID firstUserId = createReadyUser(OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC));
-		UUID secondUserId = createReadyUser(OffsetDateTime.of(2026, 6, 2, 0, 0, 0, 0, ZoneOffset.UTC));
+		OffsetDateTime dueAt = OffsetDateTime.of(2026, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		UUID firstUserId = createReadyUserWithBudgetCycle(
+			OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+			"2026-06",
+			dueAt.minusMinutes(2)
+		);
+		UUID secondUserId = createReadyUserWithBudgetCycle(
+			OffsetDateTime.of(2026, 6, 2, 0, 0, 0, 0, ZoneOffset.UTC),
+			"2026-06",
+			dueAt.minusMinutes(1)
+		);
 		createUser("ACTIVE", "NOT_STARTED", OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC));
 
 		int beforeNineCount = notificationTriggerWorker.processDueNotifications(
@@ -124,8 +133,17 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 
 	@Test
 	void createsBudgetResetWhenFirstDayRunWasMissed() {
-		createReadyUser(OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC));
-		createReadyUser(OffsetDateTime.of(2026, 6, 2, 0, 0, 0, 0, ZoneOffset.UTC));
+		OffsetDateTime dueAt = OffsetDateTime.of(2026, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		createReadyUserWithBudgetCycle(
+			OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+			"2026-06",
+			dueAt.minusMinutes(2)
+		);
+		createReadyUserWithBudgetCycle(
+			OffsetDateTime.of(2026, 6, 2, 0, 0, 0, 0, ZoneOffset.UTC),
+			"2026-06",
+			dueAt.minusMinutes(1)
+		);
 
 		int createdCount = notificationTriggerWorker.processDueNotifications(
 			OffsetDateTime.of(2026, 7, 2, 0, 0, 0, 0, ZoneOffset.UTC)
@@ -142,8 +160,43 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 			.isEqualTo("month:2026-07");
 	}
 
+	@Test
+	void skipsBudgetResetForUsersOnboardedAfterMonthlyDueTime() {
+		OffsetDateTime dueAt = OffsetDateTime.of(2026, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		UUID existingUserId = createReadyUserWithBudgetCycle(
+			dueAt.minusDays(1),
+			"2026-06",
+			dueAt.minusMinutes(1)
+		);
+		UUID lateUserId = createReadyUserWithBudgetCycle(
+			dueAt.plusDays(10),
+			"2026-07",
+			dueAt.plusDays(10)
+		);
+
+		int createdCount = notificationTriggerWorker.processDueNotifications(
+			OffsetDateTime.of(2026, 7, 20, 0, 0, 0, 0, ZoneOffset.UTC)
+		);
+
+		assertThat(createdCount).isEqualTo(1);
+		assertThat(queryInteger("select count(*) from notifications where user_id = ?", existingUserId))
+			.isEqualTo(1);
+		assertThat(queryInteger("select count(*) from notifications where user_id = ?", lateUserId))
+			.isZero();
+	}
+
 	private UUID createReadyUser(OffsetDateTime createdAt) {
 		return createUser("ACTIVE", "COMPLETED", createdAt);
+	}
+
+	private UUID createReadyUserWithBudgetCycle(
+		OffsetDateTime userCreatedAt,
+		String yearMonth,
+		OffsetDateTime budgetCycleCreatedAt
+	) {
+		UUID userId = createReadyUser(userCreatedAt);
+		insertBudgetCycle(userId, yearMonth, budgetCycleCreatedAt);
+		return userId;
 	}
 
 	private UUID createUser(String status, String onboardingStatus, OffsetDateTime createdAt) {
@@ -180,6 +233,23 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 			createdAt
 		);
 		return itemId;
+	}
+
+	private void insertBudgetCycle(UUID userId, String yearMonth, OffsetDateTime createdAt) {
+		jdbcTemplate.update(
+			"""
+			insert into budget_cycles (
+				id, user_id, year_month, monthly_budget_amount, spent_amount,
+				warning_threshold_rate, created_at, updated_at
+			)
+			values (?, ?, ?, 500000, 0, 80.00, ?, ?)
+			""",
+			UUID.randomUUID(),
+			userId,
+			yearMonth,
+			createdAt,
+			createdAt
+		);
 	}
 
 	private UUID insertPost(UUID userId, UUID itemId, OffsetDateTime createdAt) {
