@@ -491,8 +491,11 @@ public class ShoppingLinkImportService {
 	}
 
 	private int keyPriority(String key, boolean productContext) {
-		if (isStrongProductTitleKey(key) || isStrongPriceKey(key) || isStrongImageKey(key)) {
+		if (isStrongProductTitleKey(key) || isStrongPriceKey(key)) {
 			return 3;
+		}
+		if (isStrongImageKey(key)) {
+			return productContext ? 3 : 1;
 		}
 		return productContext ? 2 : 1;
 	}

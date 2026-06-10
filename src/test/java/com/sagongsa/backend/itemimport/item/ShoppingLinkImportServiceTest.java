@@ -316,7 +316,7 @@ class ShoppingLinkImportServiceTest {
 				        "seo": {
 				          "title": "지그재그 인기 상품",
 				          "amount": 999999,
-				          "image": "https://image.zigzag.kr/seo.jpg"
+				          "imageUrl": "https://image.zigzag.kr/seo.jpg"
 				        },
 				        "product": {
 				          "name": "오버핏 코튼 셔츠",
