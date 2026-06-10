@@ -82,7 +82,8 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 			"mascot_profiles",
 			"mascot_state",
 			"last_reaction_message",
-			"reaction_expires_at"
+			"reaction_expires_at",
+			"welcome_bubble_seen"
 		);
 		assertColumns(
 			"reminder_schedules",

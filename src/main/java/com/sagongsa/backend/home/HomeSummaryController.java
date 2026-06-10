@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -43,5 +44,11 @@ public class HomeSummaryController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void markBudgetExhaustionBubbleSeen(@CurrentUserId UUID userId) {
 		homeSummaryService.markBubbleSeen(userId);
+	}
+
+	@PostMapping("/bubbles/{type}/seen")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void markBubbleSeen(@CurrentUserId UUID userId, @PathVariable String type) {
+		homeSummaryService.markBubbleSeen(userId, type);
 	}
 }
