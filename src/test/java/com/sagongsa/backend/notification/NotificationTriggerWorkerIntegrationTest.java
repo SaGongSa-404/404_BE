@@ -38,7 +38,7 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 
 	@Test
 	void createsDueVoteRegretAndWishlistNotifications() {
-		OffsetDateTime now = OffsetDateTime.of(2026, 6, 10, 12, 0, 0, 0, ZoneOffset.UTC);
+		OffsetDateTime now = OffsetDateTime.of(2026, 6, 30, 23, 59, 0, 0, ZoneOffset.UTC);
 
 		UUID postOwnerId = createReadyUser(now.minusDays(10));
 		UUID firstVoterId = createReadyUser(now.minusDays(10));
@@ -79,6 +79,21 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void skipsVoteSummaryAndDecisionNudgeForVotesAfterPlannedWindows() {
+		OffsetDateTime now = OffsetDateTime.of(2026, 6, 10, 12, 0, 0, 0, ZoneOffset.UTC);
+		UUID postOwnerId = createReadyUser(now.minusDays(20));
+		UUID voterId = createReadyUser(now.minusDays(20));
+		UUID itemId = insertSavedItem(postOwnerId, "늦은 투표 상품", "SAVED", now.minusDays(20));
+		UUID postId = insertPost(postOwnerId, itemId, now.minusDays(10));
+		insertVote(postId, voterId, "GO", now.minusHours(1));
+
+		notificationTriggerWorker.processDueNotifications(now);
+
+		assertThat(queryCount("SOCIAL_VOTE_SUMMARY")).isZero();
+		assertThat(queryCount("SOCIAL_DECISION_NUDGE")).isZero();
+	}
+
+	@Test
 	void createsBudgetResetOnlyAfterFirstDayNineAmInKorea() {
 		UUID firstUserId = createReadyUser(OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC));
 		UUID secondUserId = createReadyUser(OffsetDateTime.of(2026, 6, 2, 0, 0, 0, 0, ZoneOffset.UTC));
@@ -105,6 +120,26 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 		);
 
 		assertThat(duplicateCount).isZero();
+	}
+
+	@Test
+	void createsBudgetResetWhenFirstDayRunWasMissed() {
+		createReadyUser(OffsetDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC));
+		createReadyUser(OffsetDateTime.of(2026, 6, 2, 0, 0, 0, 0, ZoneOffset.UTC));
+
+		int createdCount = notificationTriggerWorker.processDueNotifications(
+			OffsetDateTime.of(2026, 7, 2, 0, 0, 0, 0, ZoneOffset.UTC)
+		);
+		int duplicateCount = notificationTriggerWorker.processDueNotifications(
+			OffsetDateTime.of(2026, 7, 2, 0, 1, 0, 0, ZoneOffset.UTC)
+		);
+
+		assertThat(createdCount).isEqualTo(2);
+		assertThat(duplicateCount).isZero();
+		assertThat(queryInteger("select count(*) from notifications where notification_type = 'BUDGET_RESET'"))
+			.isEqualTo(2);
+		assertThat(queryString("select dedupe_key from notifications where notification_type = 'BUDGET_RESET' limit 1"))
+			.isEqualTo("month:2026-07");
 	}
 
 	private UUID createReadyUser(OffsetDateTime createdAt) {

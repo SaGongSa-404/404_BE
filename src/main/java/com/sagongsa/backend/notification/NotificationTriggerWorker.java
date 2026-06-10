@@ -2,7 +2,9 @@ package com.sagongsa.backend.notification;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -30,15 +32,15 @@ public class NotificationTriggerWorker {
 
 	int processDueNotifications(OffsetDateTime now) {
 		int createdCount = 0;
-		createdCount += publishVoteSummaries(now.minusHours(24));
-		createdCount += publishDecisionNudges(now.minusDays(7));
+		createdCount += publishVoteSummaries(now);
+		createdCount += publishDecisionNudges(now);
 		createdCount += publishRegretFollowUps(now.minusDays(2));
 		createdCount += publishWishlistReminders(now.minusDays(3));
 		createdCount += publishBudgetResetIfDue(now);
 		return createdCount;
 	}
 
-	private int publishVoteSummaries(OffsetDateTime cutoff) {
+	private int publishVoteSummaries(OffsetDateTime now) {
 		List<VotePostTarget> targets = jdbcTemplate.query(
 			"""
 			select fp.id as post_id,
@@ -49,9 +51,10 @@ public class NotificationTriggerWorker {
 			join users u on u.id = fp.user_id
 			join post_votes pv on pv.post_id = fp.id
 			                  and pv.canceled_at is null
+			                  and pv.created_at <= fp.created_at + interval '24 hours'
 			where fp.deleted_at is null
 			  and fp.moderation_status = 'ACTIVE'
-			  and fp.created_at <= ?
+			  and fp.created_at + interval '24 hours' <= ?
 			  and u.status = 'ACTIVE'
 			  and u.onboarding_status = 'COMPLETED'
 			  and not exists (
@@ -66,7 +69,7 @@ public class NotificationTriggerWorker {
 			limit ?
 			""",
 			this::mapVotePostTarget,
-			cutoff,
+			now,
 			BATCH_SIZE
 		);
 
@@ -90,7 +93,7 @@ public class NotificationTriggerWorker {
 		return createdCount;
 	}
 
-	private int publishDecisionNudges(OffsetDateTime cutoff) {
+	private int publishDecisionNudges(OffsetDateTime now) {
 		List<VotePostTarget> targets = jdbcTemplate.query(
 			"""
 			select fp.id as post_id,
@@ -103,9 +106,10 @@ public class NotificationTriggerWorker {
 			                   and si.status = 'SAVED'
 			join post_votes pv on pv.post_id = fp.id
 			                  and pv.canceled_at is null
+			                  and pv.created_at <= fp.created_at + interval '7 days'
 			where fp.deleted_at is null
 			  and fp.moderation_status = 'ACTIVE'
-			  and fp.created_at <= ?
+			  and fp.created_at + interval '7 days' <= ?
 			  and u.status = 'ACTIVE'
 			  and u.onboarding_status = 'COMPLETED'
 			  and not exists (
@@ -120,7 +124,7 @@ public class NotificationTriggerWorker {
 			limit ?
 			""",
 			this::mapVotePostTarget,
-			cutoff,
+			now,
 			BATCH_SIZE
 		);
 
@@ -248,11 +252,13 @@ public class NotificationTriggerWorker {
 
 	private int publishBudgetResetIfDue(OffsetDateTime now) {
 		var koreaNow = now.atZoneSameInstant(KOREA_ZONE_ID);
-		if (koreaNow.getDayOfMonth() != 1 || koreaNow.toLocalTime().isBefore(java.time.LocalTime.of(9, 0))) {
+		YearMonth yearMonthValue = YearMonth.from(koreaNow);
+		var dueAt = yearMonthValue.atDay(1).atTime(LocalTime.of(9, 0)).atZone(KOREA_ZONE_ID);
+		if (koreaNow.isBefore(dueAt)) {
 			return 0;
 		}
 
-		String yearMonth = java.time.YearMonth.from(koreaNow).toString();
+		String yearMonth = yearMonthValue.toString();
 		List<UUID> userIds = jdbcTemplate.query(
 			"""
 			select u.id
