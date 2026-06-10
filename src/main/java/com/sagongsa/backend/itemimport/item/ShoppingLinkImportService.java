@@ -216,17 +216,20 @@ public class ShoppingLinkImportService {
 	private ExtractionResult extractFromPage(Document document, FetchedPage page) {
 		String html = page.body();
 		String sourceDomain = sourceDomain(page.finalUri());
+		EmbeddedMetadata embeddedMetadata = embeddedMetadata(document);
 		String summary = firstNonBlank(
 			metaContent(document, "meta[property=og:description]"),
 			metaContent(document, "meta[name=description]"),
 			metaContent(document, "meta[name=twitter:description]"),
-			jsonLdText(document, "description")
+			jsonLdText(document, "description"),
+			embeddedMetadata.description()
 		);
 		String title = firstProductTitle(
 			sourceDomain,
 			metaContent(document, "meta[property=og:title]"),
 			metaContent(document, "meta[name=twitter:title]"),
 			jsonLdText(document, "name"),
+			embeddedMetadata.title(),
 			normalizeWhitespace(document.title()),
 			firstText(document, "h1", "[data-testid=productName]", ".prod-buy-header__title")
 		);
@@ -242,6 +245,7 @@ public class ShoppingLinkImportService {
 			parsePrice(metaContent(document, "meta[property=og:price:amount]")),
 			parsePrice(jsonLdText(document, "offers.price")),
 			parsePrice(jsonLdText(document, "price")),
+			parsePrice(embeddedMetadata.priceText()),
 			parsePrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
 		);
 		String rawPriceText = firstNonBlank(
@@ -249,6 +253,7 @@ public class ShoppingLinkImportService {
 			metaContent(document, "meta[property=og:price:amount]"),
 			jsonLdText(document, "offers.price"),
 			jsonLdText(document, "price"),
+			embeddedMetadata.priceText(),
 			findByRegex(html, PRICE_WITH_CURRENCY_PATTERN)
 		);
 
@@ -256,12 +261,15 @@ public class ShoppingLinkImportService {
 			normalizeImageUrl(metaContent(document, "meta[property=og:image]")),
 			normalizeImageUrl(metaContent(document, "meta[name=twitter:image]")),
 			normalizeImageUrl(jsonLdText(document, "image")),
+			normalizeImageUrl(embeddedMetadata.imageUrl()),
 			bestImage(document)
 		);
 
 		String method = "OPEN_GRAPH";
 		if (!isBlank(jsonLdText(document, "name")) || !isBlank(jsonLdText(document, "offers.price"))) {
 			method = "JSON_LD";
+		} else if (embeddedMetadata.hasAnyValue()) {
+			method = "EMBEDDED_JSON";
 		} else if (title != null || price != null || imageUrl != null) {
 			method = "HTML_META";
 		}
@@ -357,6 +365,139 @@ public class ShoppingLinkImportService {
 		} catch (JsonProcessingException exception) {
 			return null;
 		}
+	}
+
+	private EmbeddedMetadata embeddedMetadata(Document document) {
+		EmbeddedMetadata metadata = EmbeddedMetadata.empty();
+		for (Element scriptElement : document.select("script")) {
+			String rawScript = firstNonBlank(scriptElement.data(), scriptElement.html());
+			String json = jsonCandidate(rawScript);
+			if (json == null) {
+				continue;
+			}
+			try {
+				metadata = metadata.merge(embeddedMetadata(objectMapper.readTree(json)));
+				if (metadata.hasAllProductValues()) {
+					return metadata;
+				}
+			} catch (JsonProcessingException ignored) {
+				// Third-party commerce pages often include non-JSON scripts; skip those safely.
+			}
+		}
+		return metadata;
+	}
+
+	private EmbeddedMetadata embeddedMetadata(JsonNode node) {
+		return embeddedMetadata(node, false);
+	}
+
+	private EmbeddedMetadata embeddedMetadata(JsonNode node, boolean productContext) {
+		if (node == null || node.isNull()) {
+			return EmbeddedMetadata.empty();
+		}
+		if (node.isArray()) {
+			EmbeddedMetadata metadata = EmbeddedMetadata.empty();
+			for (JsonNode child : node) {
+				metadata = metadata.merge(embeddedMetadata(child, productContext));
+				if (metadata.hasAllProductValues()) {
+					return metadata;
+				}
+			}
+			return metadata;
+		}
+		if (!node.isObject()) {
+			return EmbeddedMetadata.empty();
+		}
+
+		EmbeddedMetadata metadata = EmbeddedMetadata.empty();
+		Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+		while (fields.hasNext()) {
+			Map.Entry<String, JsonNode> field = fields.next();
+			String key = field.getKey().toLowerCase(Locale.ROOT);
+			JsonNode value = field.getValue();
+			boolean nestedProductContext = productContext || isProductContainerKey(key);
+			if (value.isValueNode()) {
+				String text = normalizeWhitespace(value.asText());
+				if (isProductTitleKey(key, productContext)) {
+					metadata = metadata.withTitle(text, keyPriority(key, productContext));
+				} else if (isDescriptionKey(key)) {
+					metadata = metadata.withDescription(text, keyPriority(key, productContext));
+				} else if (isPriceKey(key, productContext)) {
+					metadata = metadata.withPriceText(text, keyPriority(key, productContext));
+				} else if (isImageKey(key, productContext)) {
+					metadata = metadata.withImageUrl(text, keyPriority(key, productContext));
+				}
+			}
+			metadata = metadata.merge(embeddedMetadata(value, nestedProductContext));
+			if (metadata.hasAllProductValues()) {
+				return metadata;
+			}
+		}
+		return metadata;
+	}
+
+	private String jsonCandidate(String rawScript) {
+		if (isBlank(rawScript)) {
+			return null;
+		}
+		String trimmed = rawScript.trim();
+		if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+			return trimmed;
+		}
+		int start = trimmed.indexOf('{');
+		int end = trimmed.lastIndexOf('}');
+		if (start < 0 || end <= start) {
+			return null;
+		}
+		return trimmed.substring(start, end + 1);
+	}
+
+	private boolean isProductContainerKey(String key) {
+		return key.contains("product") || key.contains("goods") || key.equals("item");
+	}
+
+	private boolean isProductTitleKey(String key, boolean productContext) {
+		return isStrongProductTitleKey(key) || (productContext && (key.equals("name") || key.equals("title")));
+	}
+
+	private boolean isStrongProductTitleKey(String key) {
+		return key.equals("productname") || key.equals("product_name")
+			|| key.equals("goodsnm") || key.equals("goodsname")
+			|| key.equals("itemname") || key.equals("item_name");
+	}
+
+	private boolean isDescriptionKey(String key) {
+		return key.equals("description") || key.equals("summary") || key.equals("content");
+	}
+
+	private boolean isPriceKey(String key, boolean productContext) {
+		return isStrongPriceKey(key) || (productContext && (key.equals("price") || key.equals("amount")));
+	}
+
+	private boolean isStrongPriceKey(String key) {
+		return key.equals("saleprice") || key.equals("sale_price")
+			|| key.equals("finalprice") || key.equals("final_price") || key.equals("discountedprice")
+			|| key.equals("discounted_price") || key.equals("goodsprice") || key.equals("sellprice");
+	}
+
+	private boolean isImageKey(String key, boolean productContext) {
+		return isStrongImageKey(key) || (productContext && (key.equals("image") || key.equals("thumbnail")));
+	}
+
+	private boolean isStrongImageKey(String key) {
+		return key.equals("imageurl") || key.equals("image_url")
+			|| key.equals("thumbnailurl") || key.equals("thumbnail_url")
+			|| key.equals("mainimage") || key.equals("main_image");
+	}
+
+	private int keyPriority(String key, boolean productContext) {
+		if (isStrongProductTitleKey(key) || isStrongPriceKey(key)) {
+			return 3;
+		}
+		if (isStrongImageKey(key)) {
+			return productContext ? 3 : 1;
+		}
+		return productContext ? 2 : 1;
 	}
 
 	private String searchJson(JsonNode node, String[] path) {
@@ -645,6 +786,114 @@ public class ShoppingLinkImportService {
 	}
 
 	private record NormalizationResult(URI uri, List<String> warnings) {
+	}
+
+	private record EmbeddedMetadata(
+		String title,
+		int titlePriority,
+		String description,
+		int descriptionPriority,
+		String priceText,
+		int pricePriority,
+		String imageUrl,
+		int imagePriority
+	) {
+		private static EmbeddedMetadata empty() {
+			return new EmbeddedMetadata(null, 0, null, 0, null, 0, null, 0);
+		}
+
+		private EmbeddedMetadata merge(EmbeddedMetadata other) {
+			return new EmbeddedMetadata(
+				bestValue(title, titlePriority, other.title, other.titlePriority),
+				bestPriority(title, titlePriority, other.title, other.titlePriority),
+				bestValue(description, descriptionPriority, other.description, other.descriptionPriority),
+				bestPriority(description, descriptionPriority, other.description, other.descriptionPriority),
+				bestValue(priceText, pricePriority, other.priceText, other.pricePriority),
+				bestPriority(priceText, pricePriority, other.priceText, other.pricePriority),
+				bestValue(imageUrl, imagePriority, other.imageUrl, other.imagePriority),
+				bestPriority(imageUrl, imagePriority, other.imageUrl, other.imagePriority)
+			);
+		}
+
+		private EmbeddedMetadata withTitle(String value, int priority) {
+			return new EmbeddedMetadata(
+				bestValue(title, titlePriority, value, priority),
+				bestPriority(title, titlePriority, value, priority),
+				description,
+				descriptionPriority,
+				priceText,
+				pricePriority,
+				imageUrl,
+				imagePriority
+			);
+		}
+
+		private EmbeddedMetadata withDescription(String value, int priority) {
+			return new EmbeddedMetadata(
+				title,
+				titlePriority,
+				bestValue(description, descriptionPriority, value, priority),
+				bestPriority(description, descriptionPriority, value, priority),
+				priceText,
+				pricePriority,
+				imageUrl,
+				imagePriority
+			);
+		}
+
+		private EmbeddedMetadata withPriceText(String value, int priority) {
+			return new EmbeddedMetadata(
+				title,
+				titlePriority,
+				description,
+				descriptionPriority,
+				bestValue(priceText, pricePriority, value, priority),
+				bestPriority(priceText, pricePriority, value, priority),
+				imageUrl,
+				imagePriority
+			);
+		}
+
+		private EmbeddedMetadata withImageUrl(String value, int priority) {
+			return new EmbeddedMetadata(
+				title,
+				titlePriority,
+				description,
+				descriptionPriority,
+				priceText,
+				pricePriority,
+				bestValue(imageUrl, imagePriority, value, priority),
+				bestPriority(imageUrl, imagePriority, value, priority)
+			);
+		}
+
+		private boolean hasAnyValue() {
+			return title != null || description != null || priceText != null || imageUrl != null;
+		}
+
+		private boolean hasAllProductValues() {
+			return title != null && priceText != null && imageUrl != null;
+		}
+
+		private static String bestValue(String current, int currentPriority, String next, int nextPriority) {
+			if (next == null) {
+				return current;
+			}
+			if (current == null || nextPriority > currentPriority) {
+				return next;
+			}
+			return current;
+		}
+
+		private static int bestPriority(String current, int currentPriority, String next, int nextPriority) {
+			if (next == null) {
+				return currentPriority;
+			}
+			if (current == null || nextPriority > currentPriority) {
+				return nextPriority;
+			}
+			return currentPriority;
+		}
 	}
 
 	private record ExtractionResult(

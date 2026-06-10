@@ -142,7 +142,8 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", null, "SAVED");
 		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
-		assertThat(response.opportunityCostMessage()).isEqualTo("가격을 입력하면 다른 선택지와 비교하기 쉬워요.");
+		assertThat(response.opportunityCostMessage())
+			.isIn(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES);
 	}
 
 	@Test
@@ -150,7 +151,8 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 0, "SAVED");
 		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
-		assertThat(response.opportunityCostMessage()).isEqualTo("가격을 입력하면 다른 선택지와 비교하기 쉬워요.");
+		assertThat(response.opportunityCostMessage())
+			.isIn(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES);
 	}
 
 	@Test
@@ -158,7 +160,10 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 39000, "SAVED");
 		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
-		assertThat(response.opportunityCostMessage()).isEqualTo("39,000원을 다른 곳에 쓸 수도 있어요.");
+		assertThat(response.opportunityCostMessage())
+			.isIn(DeliberationService.PRICE_OPPORTUNITY_COST_MESSAGE_FORMATS.stream()
+				.map(format -> format.formatted(39000))
+				.toList());
 	}
 
 	// ── TC5: 유사 카테고리 소비 집계 ────────────────────────────────────────

@@ -230,7 +230,7 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void completeWithOuterWhitespaceNicknameReturns400() throws Exception {
+	void completeWithOuterWhitespaceNicknameTrimsAndReturns200() throws Exception {
 		UUID userId = insertUser("NOT_STARTED");
 
 		mockMvc.perform(post("/api/v1/onboarding/complete")
@@ -245,7 +245,10 @@ class OnboardingCompleteIntegrationTest extends PostgreSqlContainerTest {
 						"regretFrequencyChoice": "FOUR_OR_MORE"
 					}
 					"""))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isOk());
+
+		assertThat(queryString("select nickname from user_profiles where user_id = ?", userId))
+			.isEqualTo("nick");
 	}
 
 	@Test

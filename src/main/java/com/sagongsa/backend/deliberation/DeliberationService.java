@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,6 +30,16 @@ public class DeliberationService {
 		new SelfCheckQuestion("BUDGET", "비슷한 물건을 이미 갖고 있나요?"),
 		new SelfCheckQuestion("ALTERNATIVE", "구매하지 않아도 일상생활에 불편함이 없나요?"),
 		new SelfCheckQuestion("DELAY", "한 달 뒤에는 필요하지 않을 것 같나요?")
+	);
+	static final List<String> PRICE_OPPORTUNITY_COST_MESSAGE_FORMATS = List.of(
+		"%,d원을 다른 곳에 쓸 수도 있어요.",
+		"%,d원이면 다른 위시템 예산을 남겨둘 수 있어요.",
+		"지금 %,d원을 쓰면 이번 달 예산 여유가 줄어들어요."
+	);
+	static final List<String> NO_PRICE_OPPORTUNITY_COST_MESSAGES = List.of(
+		"가격을 입력하면 다른 선택지와 비교하기 쉬워요.",
+		"가격을 넣으면 이번 달 예산과 더 정확히 비교할 수 있어요.",
+		"가격 정보가 있으면 기회비용을 더 잘 계산할 수 있어요."
 	);
 
 	private final JdbcTemplate jdbcTemplate;
@@ -150,9 +161,13 @@ public class DeliberationService {
 
 	private String opportunityCostMessage(ItemSummary item) {
 		if (item.listedPrice() == null || item.listedPrice() == 0) {
-			return "가격을 입력하면 다른 선택지와 비교하기 쉬워요.";
+			return randomValue(NO_PRICE_OPPORTUNITY_COST_MESSAGES);
 		}
-		return "%,d원을 다른 곳에 쓸 수도 있어요.".formatted(item.listedPrice());
+		return randomValue(PRICE_OPPORTUNITY_COST_MESSAGE_FORMATS).formatted(item.listedPrice());
+	}
+
+	private String randomValue(List<String> values) {
+		return values.get(ThreadLocalRandom.current().nextInt(values.size()));
 	}
 
 	private BigDecimal usageRate(int spentAmount, int monthlyBudgetAmount) {

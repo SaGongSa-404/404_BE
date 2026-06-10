@@ -7,8 +7,13 @@ import com.sagongsa.backend.domain.enums.ItemInputSource;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -34,6 +39,7 @@ public class WishlistService {
 	private static final BigDecimal MAX_CONFIDENCE = BigDecimal.valueOf(100);
 	private static final int DEFAULT_LIST_LIMIT = 20;
 	private static final int MAX_LIST_LIMIT = 50;
+	private static final Duration DIRECT_INPUT_DUPLICATE_WINDOW = Duration.ofSeconds(30);
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
 	);
@@ -73,8 +79,27 @@ public class WishlistService {
 			);
 		}
 
+		if (requiresDirectInputDuplicateGuard(inputSource, normalizedUrl)) {
+			acquireDuplicateLock(directInputDuplicateLockKey(userId, title, imageUrl, listedPrice, currencyCode, category));
+		}
+
 		UUID itemId = UUID.randomUUID();
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		Optional<WishlistItemResponse> recentDuplicate = findRecentDuplicateDirectInput(
+			userId,
+			inputSource,
+			normalizedUrl,
+			title,
+			imageUrl,
+			listedPrice,
+			currencyCode,
+			category,
+			now
+		);
+		if (recentDuplicate.isPresent()) {
+			return recentDuplicate.get();
+		}
+
 		try {
 			jdbcTemplate.update(
 				"""
@@ -403,6 +428,94 @@ public class WishlistService {
 			parameters.toArray()
 		);
 		return items.stream().findFirst();
+	}
+
+	private Optional<WishlistItemResponse> findRecentDuplicateDirectInput(
+		UUID userId,
+		ItemInputSource inputSource,
+		String normalizedUrl,
+		String title,
+		String imageUrl,
+		Integer listedPrice,
+		String currencyCode,
+		ItemCategory category,
+		OffsetDateTime now
+	) {
+		if (inputSource != ItemInputSource.DIRECT_INPUT || StringUtils.hasText(normalizedUrl)) {
+			return Optional.empty();
+		}
+		List<WishlistItemResponse> items = jdbcTemplate.query(
+			baseSelect() + """
+			where si.user_id = ?
+			  and si.status = 'SAVED'
+			  and si.input_source = 'DIRECT_INPUT'
+			  and si.normalized_url is null
+			  and si.title = ?
+			  and si.image_url is not distinct from ?
+			  and si.listed_price is not distinct from ?
+			  and trim(si.currency_code) is not distinct from ?
+			  and si.category = ?
+			  and si.created_at >= ?
+			order by si.created_at desc, si.id desc
+			limit 1
+			""",
+			this::mapRow,
+			userId,
+			title,
+			imageUrl,
+			listedPrice,
+			currencyCode,
+			category.name(),
+			now.minus(DIRECT_INPUT_DUPLICATE_WINDOW)
+		);
+		return items.stream().findFirst();
+	}
+
+	private boolean requiresDirectInputDuplicateGuard(ItemInputSource inputSource, String normalizedUrl) {
+		return inputSource == ItemInputSource.DIRECT_INPUT && !StringUtils.hasText(normalizedUrl);
+	}
+
+	private void acquireDuplicateLock(long lockKey) {
+		jdbcTemplate.query("select pg_advisory_xact_lock(?)", resultSet -> {
+		}, lockKey);
+	}
+
+	private long directInputDuplicateLockKey(
+		UUID userId,
+		String title,
+		String imageUrl,
+		Integer listedPrice,
+		String currencyCode,
+		ItemCategory category
+	) {
+		return lockKey(
+			"wishlist-direct-input",
+			userId,
+			title,
+			imageUrl,
+			listedPrice,
+			currencyCode,
+			category.name()
+		);
+	}
+
+	private long lockKey(String namespace, Object... values) {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			updateDigest(digest, namespace);
+			for (Object value : values) {
+				updateDigest(digest, value == null ? null : value.toString());
+			}
+			return ByteBuffer.wrap(digest.digest()).getLong();
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("SHA-256 digest is not available", exception);
+		}
+	}
+
+	private void updateDigest(MessageDigest digest, String value) {
+		byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
+		digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
+		digest.update(bytes);
 	}
 
 	private String baseSelect() {

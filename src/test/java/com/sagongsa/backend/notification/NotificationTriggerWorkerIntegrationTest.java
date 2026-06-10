@@ -94,6 +94,22 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void retainsOldDedupeNotificationsToPreventRepublish() {
+		OffsetDateTime now = OffsetDateTime.of(2026, 6, 10, 12, 0, 0, 0, ZoneOffset.UTC);
+		UUID userId = createReadyUser(now.minusDays(40));
+		UUID itemId = insertSavedItem(userId, "오래된 위시", "SAVED", now.minusDays(40));
+		insertNotification(userId, "WISHLIST_REMINDER", "오래된 알림", "만료", itemId,
+			null, null, "/wishlist/items/" + itemId, "item:" + itemId, now.minusMonths(1).minusDays(1));
+
+		int createdCount = notificationTriggerWorker.processDueNotifications(now);
+
+		assertThat(createdCount).isZero();
+		assertThat(queryInteger("select count(*) from notifications where notification_type = 'WISHLIST_REMINDER'"))
+			.isEqualTo(1);
+		verify(pushNotificationService, times(0)).send(any(NotificationPushMessage.class));
+	}
+
+	@Test
 	void createsBudgetResetOnlyAfterFirstDayNineAmInKorea() {
 		OffsetDateTime dueAt = OffsetDateTime.of(2026, 7, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		UUID firstUserId = createReadyUserWithBudgetCycle(

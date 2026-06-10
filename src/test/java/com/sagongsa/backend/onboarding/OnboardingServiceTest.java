@@ -115,10 +115,12 @@ class OnboardingServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void rejectsNicknameWithOuterWhitespace() {
+	void trimsNicknameOuterWhitespace() {
 		UUID userId = insertUser("NOT_STARTED");
-		assertThatThrownBy(() -> onboardingService.complete(userId, request(" 닉네임", "너굴", "Asia/Seoul", 100000, "LESS_THAN_ONCE")))
-			.isInstanceOf(OnboardingBadRequestException.class);
+		onboardingService.complete(userId, request(" 닉네임 ", "너굴", "Asia/Seoul", 100000, "LESS_THAN_ONCE"));
+
+		assertThat(queryString("select nickname from user_profiles where user_id = ?", userId))
+			.isEqualTo("닉네임");
 	}
 
 	@Test

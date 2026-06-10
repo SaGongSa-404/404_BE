@@ -13,6 +13,11 @@ import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
 import com.sagongsa.backend.domain.user.UserProfile;
 import com.sagongsa.backend.domain.user.UserProfileRepository;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -28,6 +34,8 @@ import org.springframework.util.StringUtils;
 @Transactional(readOnly = true)
 class SocialPostService {
 
+	private static final Duration POST_DUPLICATE_WINDOW = Duration.ofSeconds(30);
+
 	private final FeedPostRepository feedPostRepository;
 	private final PostVoteRepository postVoteRepository;
 	private final PostCommentRepository postCommentRepository;
@@ -35,6 +43,7 @@ class SocialPostService {
 	private final UserProfileRepository userProfileRepository;
 	private final SavedItemRepository savedItemRepository;
 	private final BlockService blockService;
+	private final JdbcTemplate jdbcTemplate;
 
 	SocialPostService(FeedPostRepository feedPostRepository,
 		PostVoteRepository postVoteRepository,
@@ -42,7 +51,8 @@ class SocialPostService {
 		UserAccountRepository userAccountRepository,
 		UserProfileRepository userProfileRepository,
 		SavedItemRepository savedItemRepository,
-		BlockService blockService) {
+		BlockService blockService,
+		JdbcTemplate jdbcTemplate) {
 		this.feedPostRepository = feedPostRepository;
 		this.postVoteRepository = postVoteRepository;
 		this.postCommentRepository = postCommentRepository;
@@ -50,6 +60,7 @@ class SocialPostService {
 		this.userProfileRepository = userProfileRepository;
 		this.savedItemRepository = savedItemRepository;
 		this.blockService = blockService;
+		this.jdbcTemplate = jdbcTemplate;
 	}
 
 	@Transactional
@@ -57,6 +68,13 @@ class SocialPostService {
 		UserAccount user = findUserOrThrow(userId);
 		SavedItem item = resolveItem(userId, request.itemId());
 		String imageUrl = resolveImageUrl(request.imageUrl(), item);
+		acquireDuplicateLock(postDuplicateLockKey(userId, request, item, imageUrl));
+		FeedPost duplicate = findRecentDuplicatePost(userId, request, item, imageUrl);
+		if (duplicate != null) {
+			String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
+				? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
+			return PostResponse.of(duplicate, authorNickname, countVisibleCommentsByPostId(duplicate.getId(), Collections.emptyList()), null, userId);
+		}
 		FeedPost post = new FeedPost(user, item, request.title(), request.body(), imageUrl, request.price());
 		feedPostRepository.save(post);
 		String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
@@ -201,6 +219,58 @@ class SocialPostService {
 		return savedItemRepository.findById(itemId)
 			.filter(item -> item.getUser().getId().equals(userId))
 			.orElse(null);
+	}
+
+	private FeedPost findRecentDuplicatePost(UUID userId, CreatePostRequest request, SavedItem item, String imageUrl) {
+		return feedPostRepository.findRecentDuplicates(
+				userId,
+				item == null ? null : item.getId(),
+				request.title(),
+				request.body(),
+				imageUrl,
+				request.price(),
+				Instant.now().minus(POST_DUPLICATE_WINDOW),
+				PageRequest.of(0, 1)
+			)
+			.stream()
+			.findFirst()
+			.orElse(null);
+	}
+
+	private void acquireDuplicateLock(long lockKey) {
+		jdbcTemplate.query("select pg_advisory_xact_lock(?)", resultSet -> {
+		}, lockKey);
+	}
+
+	private long postDuplicateLockKey(UUID userId, CreatePostRequest request, SavedItem item, String imageUrl) {
+		return lockKey(
+			"social-post-create",
+			userId,
+			item == null ? null : item.getId(),
+			request.title(),
+			request.body(),
+			imageUrl,
+			request.price()
+		);
+	}
+
+	private long lockKey(String namespace, Object... values) {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			updateDigest(digest, namespace);
+			for (Object value : values) {
+				updateDigest(digest, value == null ? null : value.toString());
+			}
+			return ByteBuffer.wrap(digest.digest()).getLong();
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("SHA-256 digest is not available", exception);
+		}
+	}
+
+	private void updateDigest(MessageDigest digest, String value) {
+		byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
+		digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
+		digest.update(bytes);
 	}
 
 	private String resolveImageUrl(String requestImageUrl, SavedItem item) {

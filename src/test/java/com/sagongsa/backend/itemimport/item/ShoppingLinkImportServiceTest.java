@@ -256,6 +256,102 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void extractsProductMetadataFromEmbeddedCommerceJson() {
+		pageFetcher.stub(
+			"https://zigzag.kr/catalog/products/110621280",
+			"""
+				<html>
+				<head>
+				  <title>지그재그</title>
+				  <script id="__NEXT_DATA__" type="application/json">
+				  {
+				    "props": {
+				      "pageProps": {
+				        "product": {
+				          "productName": "린넨 반팔 셔츠",
+				          "salePrice": 39000,
+				          "imageUrl": "https://image.zigzag.kr/product.jpg",
+				          "description": "여름 셔츠 상품 상세"
+				        }
+				      }
+				    }
+				  }
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://zigzag.kr/catalog/products/110621280",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("린넨 반팔 셔츠");
+		assertThat(response.item().listedPrice()).isEqualTo(39000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://image.zigzag.kr/product.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+		assertThat(response.sourceMetadata().extractionMethod()).isEqualTo("EMBEDDED_JSON");
+	}
+
+	@Test
+	void prefersProductObjectOverGenericEmbeddedJsonKeys() {
+		pageFetcher.stub(
+			"https://zigzag.kr/catalog/products/220",
+			"""
+				<html>
+				<head>
+				  <title>지그재그</title>
+				  <script id="__NEXT_DATA__" type="application/json">
+				  {
+				    "props": {
+				      "pageProps": {
+				        "seo": {
+				          "title": "지그재그 인기 상품",
+				          "amount": 999999,
+				          "imageUrl": "https://image.zigzag.kr/seo.jpg"
+				        },
+				        "product": {
+				          "name": "오버핏 코튼 셔츠",
+				          "price": 45000,
+				          "image": "https://image.zigzag.kr/cotton-shirt.jpg",
+				          "description": "상품 상세 설명"
+				        }
+				      }
+				    }
+				  }
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://zigzag.kr/catalog/products/220",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("오버핏 코튼 셔츠");
+		assertThat(response.item().listedPrice()).isEqualTo(45000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://image.zigzag.kr/cotton-shirt.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
 	void acceptsDirectInputWithoutRemoteFetch() {
 		ShoppingLinkImportResponse response = service.importLink(
 			new ShoppingLinkImportRequest(
