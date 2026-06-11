@@ -22,6 +22,19 @@
 ./gradlew test
 ```
 
+## Environment
+
+FCM 푸시 발송은 기본값에서 비활성화됩니다.
+QA/운영 서버에서 활성화하려면 Firebase 서비스 계정 JSON을 레포 밖에 두고 환경변수로 경로만 주입합니다.
+
+| Variable | Default | Note |
+| --- | --- | --- |
+| `APP_PUSH_FCM_ENABLED` | `false` | `true`일 때 실제 FCM sender를 사용합니다. |
+| `APP_PUSH_FCM_CREDENTIALS_LOCATION` | empty | 예: `file:/opt/wigul/secrets/firebase-adminsdk.json` |
+| `APP_ADMIN_NOTIFICATION_TOKEN` | empty | 관리자 공지/점검 알림 API의 `X-Admin-Token` 검증에 사용합니다. |
+
+상세 운영 절차는 `docs/FCM_PUSH_OPERATIONS.md`를 기준으로 합니다.
+
 ## Coverage
 
 JaCoCo 커버리지 리포트는 테스트 실행 후 생성됩니다.

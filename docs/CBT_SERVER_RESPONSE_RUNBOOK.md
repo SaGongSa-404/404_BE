@@ -53,6 +53,34 @@ sudo journalctl -u wigul-backend --since "2 hours ago" --no-pager | grep "<X-Req
 systemctl status wigul-backend --no-pager
 ```
 
+## FCM 푸시 설정 확인
+
+푸시 발송이 필요한 QA/운영 서버에서는 FCM systemd drop-in과 VM-local credential이 있어야 한다.
+credential JSON은 레포에 커밋하지 않고 서버 로컬에서만 관리한다.
+
+```bash
+sudo systemctl status wigul-backend --no-pager
+sudo systemctl show wigul-backend -p Environment --no-pager
+sudo ls -l /opt/wigul/secrets/firebase-adminsdk.json
+sudo grep '"project_id"' /opt/wigul/secrets/firebase-adminsdk.json
+```
+
+정상 기준:
+
+- `wigul-backend`가 `active (running)`이다.
+- `Environment=`에 `APP_PUSH_FCM_ENABLED=true`가 있다.
+- `Environment=`에 `APP_PUSH_FCM_CREDENTIALS_LOCATION=file:/opt/wigul/secrets/firebase-adminsdk.json`가 있다.
+- credential 파일 권한이 `600` 형태다.
+- credential JSON의 `project_id`가 프론트 앱 등록 Firebase 프로젝트와 일치한다.
+
+최근 재시작 로그에서 credential 로드 실패가 없는지도 확인한다.
+
+```bash
+sudo journalctl -u wigul-backend --since "10 minutes ago" --no-pager
+```
+
+상세 설치/롤백 절차는 `docs/FCM_PUSH_OPERATIONS.md`를 따른다.
+
 ## 수동 재시작
 
 자동 배포 workflow와 같은 서비스명을 사용한다.
