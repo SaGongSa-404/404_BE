@@ -35,3 +35,23 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Local docs / agents ###
+LOCAL_OAUTH_KEYS.md
+AGENTS.md
+agent.md
+
+### Local secrets ###
+.env
+.env.*
+!.env.example
+!.env.template
+application-local.yml
+application-local.yaml
+application-secret.yml
+application-secret.yaml
+application-secrets.yml
+application-secrets.yaml
+*firebase-adminsdk*.json
+firebase-service-account*.json
+serviceAccountKey*.json
