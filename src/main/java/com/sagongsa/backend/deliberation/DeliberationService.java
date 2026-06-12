@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.IntUnaryOperator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,9 +45,16 @@ public class DeliberationService {
 	);
 
 	private final JdbcTemplate jdbcTemplate;
+	private final IntUnaryOperator randomIndexProvider;
 
+	@Autowired
 	public DeliberationService(JdbcTemplate jdbcTemplate) {
+		this(jdbcTemplate, bound -> ThreadLocalRandom.current().nextInt(bound));
+	}
+
+	DeliberationService(JdbcTemplate jdbcTemplate, IntUnaryOperator randomIndexProvider) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.randomIndexProvider = randomIndexProvider;
 	}
 
 	public DeliberationSummaryResponse getSummary(UUID userId, UUID itemId) {
@@ -167,7 +176,7 @@ public class DeliberationService {
 	}
 
 	private String randomValue(List<String> values) {
-		return values.get(ThreadLocalRandom.current().nextInt(values.size()));
+		return values.get(randomIndexProvider.applyAsInt(values.size()));
 	}
 
 	private BigDecimal usageRate(int spentAmount, int monthlyBudgetAmount) {

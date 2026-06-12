@@ -27,6 +27,17 @@ jobs:
       - name: Build bootJar
         run: ./gradlew clean bootJar -x test --no-daemon
 
+      - name: Resolve bootJar path
+        id: bootjar
+        run: |
+          jar_path="$(find build/libs -maxdepth 1 -type f -name "*.jar" ! -name "*-plain.jar" | sort | head -n 1)"
+          if [ -z "$jar_path" ]; then
+            echo "No bootJar artifact found under build/libs" >&2
+            exit 1
+          fi
+          echo "path=$jar_path" >> "$GITHUB_OUTPUT"
+          echo "Resolved bootJar: $jar_path"
+
       - name: Prepare SSH
         run: |
           mkdir -p ~/.ssh
@@ -45,12 +56,22 @@ jobs:
         run: |
           scp -i ~/.ssh/deploy_key \
             -o IdentitiesOnly=yes \
-            build/libs/wigul-backend-0.0.1-SNAPSHOT.jar \
+            "${{ steps.bootjar.outputs.path }}" \
             ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }}:/home/${{ secrets.GCP_VM_USER }}/404_BE/build/libs/wigul-backend-0.0.1-SNAPSHOT.jar
 
       - name: Restart service
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o IdentitiesOnly=yes \
-            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
-            "sudo -n systemctl restart wigul-backend && systemctl status wigul-backend --no-pager"
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} <<'REMOTE'
+          sudo -n systemctl restart wigul-backend
+          for attempt in {1..10}; do
+            if systemctl is-active --quiet wigul-backend; then
+              systemctl status wigul-backend --no-pager
+              exit 0
+            fi
+            sleep 2
+          done
+          systemctl status wigul-backend --no-pager
+          exit 1
+          REMOTE
