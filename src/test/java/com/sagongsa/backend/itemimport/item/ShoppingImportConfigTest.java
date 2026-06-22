@@ -28,7 +28,7 @@ class ShoppingImportConfigTest {
 			)
 			.run(context -> {
 				assertThat(context).hasSingleBean(PageFetcher.class);
-				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(BrowserPageFetcher.class);
+				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(FallbackPageFetcher.class);
 				assertThat(context.getBean(ShoppingImportProperties.class)
 					.getBrowserFetch()
 					.getRenderWait()).isEqualTo(Duration.ofSeconds(5));

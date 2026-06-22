@@ -256,6 +256,40 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void extractsNaverCommerceMetadataFromKakaoCommerceTags() {
+		pageFetcher.stub(
+			"https://m.brand.naver.com/cookierun/products/13194003181?tr=nshfum",
+			"""
+				<html>
+				<head>
+				  <meta property="og:title" content="[쿠키런스토어] 쿠키런 굿나잇 보조배터리 3종 : 쿠키런스토어" />
+				  <meta property="og:image" content="https://shop-phinf.pstatic.net/product.png" />
+				  <meta property="kakao:commerce:brand_name" content="쿠키런" />
+				  <meta property="kakao:commerce:price" content="17910" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.brand.naver.com/cookierun/products/13194003181?tr=nshfum",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("[쿠키런스토어] 쿠키런 굿나잇 보조배터리 3종 : 쿠키런스토어");
+		assertThat(response.item().brandName()).isEqualTo("쿠키런");
+		assertThat(response.item().listedPrice()).isEqualTo(17910);
+		assertThat(response.item().category()).isEqualTo(ItemCategory.DIGITAL);
+	}
+
+	@Test
 	void extractsProductMetadataFromEmbeddedCommerceJson() {
 		pageFetcher.stub(
 			"https://zigzag.kr/catalog/products/110621280",

@@ -12,7 +12,7 @@ public class ShoppingImportConfig {
 	public PageFetcher pageFetcher(ShoppingImportProperties properties) {
 		ShoppingImportProperties.BrowserFetch browserFetch = properties.getBrowserFetch();
 		if (browserFetch.isEnabled()) {
-			return new BrowserPageFetcher(browserFetch);
+			return new FallbackPageFetcher(new JsoupPageFetcher(), new BrowserPageFetcher(browserFetch));
 		}
 		return new JsoupPageFetcher();
 	}

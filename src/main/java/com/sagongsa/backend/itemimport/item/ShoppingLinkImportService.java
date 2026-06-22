@@ -237,12 +237,14 @@ public class ShoppingLinkImportService {
 		String brandName = firstNonBlank(
 			jsonLdText(document, "brand.name"),
 			jsonLdText(document, "brand"),
+			metaContent(document, "meta[property=kakao:commerce:brand_name]"),
 			firstText(document, "[itemprop=brand]", ".prod-brand-name", ".brand-name")
 		);
 
 		Integer price = firstNonNull(
 			parsePrice(metaContent(document, "meta[property=product:price:amount]")),
 			parsePrice(metaContent(document, "meta[property=og:price:amount]")),
+			parsePrice(metaContent(document, "meta[property=kakao:commerce:price]")),
 			parsePrice(jsonLdText(document, "offers.price")),
 			parsePrice(jsonLdText(document, "price")),
 			parsePrice(embeddedMetadata.priceText()),
@@ -251,6 +253,7 @@ public class ShoppingLinkImportService {
 		String rawPriceText = firstNonBlank(
 			metaContent(document, "meta[property=product:price:amount]"),
 			metaContent(document, "meta[property=og:price:amount]"),
+			metaContent(document, "meta[property=kakao:commerce:price]"),
 			jsonLdText(document, "offers.price"),
 			jsonLdText(document, "price"),
 			embeddedMetadata.priceText(),
@@ -308,7 +311,7 @@ public class ShoppingLinkImportService {
 		if (containsAny(haystack, "립", "쿠션", "에센스", "크림", "마스크팩", "oliveyoung", "향수", "샴푸")) {
 			return ItemCategory.BEAUTY;
 		}
-		if (containsAny(haystack, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "ipad", "monitor", "ssd")) {
+		if (containsAny(haystack, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "ipad", "monitor", "ssd", "보조배터리", "충전기")) {
 			return ItemCategory.DIGITAL;
 		}
 		if (containsAny(haystack, "컵", "머그", "침구", "수납", "조명", "청소", "커피머신", "테이블")) {

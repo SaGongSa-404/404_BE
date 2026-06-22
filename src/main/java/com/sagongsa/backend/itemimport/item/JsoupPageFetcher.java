@@ -2,8 +2,16 @@ package com.sagongsa.backend.itemimport.item;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.parser.Parser;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -12,46 +20,327 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static final String ANDROID_USER_AGENT =
 		"Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 "
 			+ "(KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36";
+	private static final int DEFAULT_TIMEOUT_MILLIS = 30_000;
+	private static final int DEFAULT_MAX_ATTEMPTS = 2;
 	private static final int MAX_REDIRECTS = 5;
+	private static final Pattern JS_HTTP_ASSIGNMENT_PATTERN = Pattern.compile(
+		"(?is)\\b(?:var|let|const)\\s+(store_link|fallback_url|af_android_url|af_ios_url|af_web_dp)\\s*=\\s*(['\"])(https?://.*?)\\2"
+	);
+	private static final Pattern JS_APP_LINK_ASSIGNMENT_PATTERN = Pattern.compile(
+		"(?is)\\b(?:var|let|const)\\s+app_link\\s*=\\s*(['\"])(.*?)\\1"
+	);
+	private static final Pattern JS_LOCATION_ASSIGNMENT_PATTERN = Pattern.compile(
+		"(?is)\\b(?:window\\.)?location(?:\\.href)?\\s*=\\s*(['\"])(https?://.*?)\\1"
+	);
+	private static final Pattern JS_LOCATION_CALL_PATTERN = Pattern.compile(
+		"(?is)\\b(?:window\\.)?location\\.(?:replace|assign)\\(\\s*(['\"])(https?://.*?)\\1\\s*\\)"
+	);
+	private static final Pattern JSON_HTTP_URL_PATTERN = Pattern.compile(
+		"(?is)\"(targetUrl|url)\"\\s*:\\s*\"(https?://(?:\\\\.|[^\"\\\\])*)\""
+	);
+
+	private final int timeoutMillis;
+	private final int maxAttempts;
+
+	public JsoupPageFetcher() {
+		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS);
+	}
+
+	JsoupPageFetcher(int timeoutMillis, int maxAttempts) {
+		this.timeoutMillis = timeoutMillis <= 0 ? DEFAULT_TIMEOUT_MILLIS : timeoutMillis;
+		this.maxAttempts = maxAttempts <= 0 ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
+	}
 
 	@Override
 	public FetchedPage fetch(URI uri) {
-		URI currentUri = uri;
-		try {
-			for (int redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
-				ShoppingUrlSafety.validatePublicHost(currentUri);
-				Connection.Response response = Jsoup.connect(currentUri.toString())
-					.userAgent(ANDROID_USER_AGENT)
-					.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
-					.followRedirects(false)
-					.ignoreContentType(true)
-					.ignoreHttpErrors(true)
-					.timeout(10_000)
-					.execute();
+		ResponseStatusException lastStatusException = null;
+		IOException lastIoException = null;
 
-				if (isRedirect(response.statusCode())) {
-					String location = response.header("Location");
-					if (location != null && !location.isBlank()) {
-						currentUri = currentUri.resolve(location);
-						continue;
-					}
+		for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				FetchedPage page = fetchOnce(uri);
+				if (isRetryableStatus(page.statusCode()) && attempt < maxAttempts) {
+					lastStatusException = new ResponseStatusException(
+						HttpStatus.BAD_GATEWAY,
+						"Shopping page returned " + page.statusCode()
+					);
+					continue;
 				}
-
-				return new FetchedPage(
-					uri,
-					URI.create(response.url().toString()),
-					response.statusCode(),
-					response.contentType(),
-					response.body()
-				);
+				return page;
+			} catch (IOException exception) {
+				lastIoException = exception;
 			}
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page redirected too many times");
-		} catch (IOException exception) {
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to fetch shopping page", exception);
 		}
+
+		if (lastStatusException != null) {
+			throw lastStatusException;
+		}
+		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to fetch shopping page", lastIoException);
+	}
+
+	private FetchedPage fetchOnce(URI uri) throws IOException {
+		URI currentUri = uri;
+		for (int redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
+			ShoppingUrlSafety.validatePublicHost(currentUri);
+			Connection.Response response = Jsoup.connect(currentUri.toString())
+				.userAgent(ANDROID_USER_AGENT)
+				.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+				.followRedirects(false)
+				.ignoreContentType(true)
+				.ignoreHttpErrors(true)
+				.timeout(timeoutMillis)
+				.execute();
+
+			if (isRedirect(response.statusCode())) {
+				String location = response.header("Location");
+				if (location != null && !location.isBlank()) {
+					currentUri = currentUri.resolve(location);
+					continue;
+				}
+			}
+
+			Optional<URI> clientSideRedirect = clientSideRedirectTarget(
+				currentUri,
+				response.contentType(),
+				response.body()
+			);
+			if (clientSideRedirect.isPresent()) {
+				currentUri = clientSideRedirect.get();
+				continue;
+			}
+
+			return new FetchedPage(
+				uri,
+				URI.create(response.url().toString()),
+				response.statusCode(),
+				response.contentType(),
+				response.body()
+			);
+		}
+		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page redirected too many times");
 	}
 
 	private boolean isRedirect(int statusCode) {
 		return statusCode >= 300 && statusCode < 400;
+	}
+
+	private boolean isRetryableStatus(int statusCode) {
+		return statusCode == 408 || statusCode == 429 || statusCode >= 500;
+	}
+
+	static Optional<URI> clientSideRedirectTarget(URI baseUri, String contentType, String body) {
+		if (body == null || body.isBlank() || !mayContainClientSideRedirect(contentType)) {
+			return Optional.empty();
+		}
+
+		Document document = Jsoup.parse(body, baseUri.toString());
+		Optional<URI> metaRefreshRedirect = metaRefreshRedirectTarget(baseUri, document);
+		if (metaRefreshRedirect.isPresent()) {
+			return metaRefreshRedirect;
+		}
+
+		Optional<URI> bridgeJsonRedirect = bridgeJsonRedirectTarget(baseUri, body);
+		if (bridgeJsonRedirect.isPresent()) {
+			return bridgeJsonRedirect;
+		}
+
+		Optional<URI> assignedHttpUrl = assignedHttpUrlTarget(baseUri, body);
+		if (assignedHttpUrl.isPresent()) {
+			return assignedHttpUrl;
+		}
+
+		Optional<URI> appLinkWebUrl = appLinkWebUrlTarget(baseUri, body);
+		if (appLinkWebUrl.isPresent()) {
+			return appLinkWebUrl;
+		}
+
+		return locationRedirectTarget(baseUri, body);
+	}
+
+	private static boolean mayContainClientSideRedirect(String contentType) {
+		if (contentType == null || contentType.isBlank()) {
+			return true;
+		}
+		String normalized = contentType.toLowerCase(Locale.ROOT);
+		return normalized.contains("text/html")
+			|| normalized.contains("application/xhtml")
+			|| normalized.contains("text/javascript")
+			|| normalized.contains("application/javascript");
+	}
+
+	private static Optional<URI> metaRefreshRedirectTarget(URI baseUri, Document document) {
+		return document.select("meta[http-equiv=refresh]").stream()
+			.map(element -> element.attr("content"))
+			.map(JsoupPageFetcher::metaRefreshUrl)
+			.flatMap(Optional::stream)
+			.map(target -> resolveHttpUri(baseUri, target))
+			.flatMap(Optional::stream)
+			.findFirst();
+	}
+
+	private static Optional<String> metaRefreshUrl(String content) {
+		if (content == null || content.isBlank()) {
+			return Optional.empty();
+		}
+		Matcher matcher = Pattern.compile("(?i)\\burl\\s*=\\s*(.+)$").matcher(content);
+		if (!matcher.find()) {
+			return Optional.empty();
+		}
+		return Optional.of(stripWrappingQuotes(matcher.group(1).trim()));
+	}
+
+	private static Optional<URI> bridgeJsonRedirectTarget(URI baseUri, String body) {
+		Matcher matcher = JSON_HTTP_URL_PATTERN.matcher(body);
+		while (matcher.find()) {
+			Optional<URI> target = resolveHttpUri(baseUri, matcher.group(2));
+			if (target.isPresent() && isLikelyBridgeTarget(baseUri, target.get())) {
+				return target;
+			}
+		}
+		return Optional.empty();
+	}
+
+	private static boolean isLikelyBridgeTarget(URI baseUri, URI targetUri) {
+		String baseHost = Optional.ofNullable(baseUri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		String targetHost = Optional.ofNullable(targetUri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if (baseHost.equals(targetHost)) {
+			return false;
+		}
+		return baseHost.equals("app.shopping.naver.com")
+			|| baseHost.endsWith(".onelink.me")
+			|| baseHost.equals("oy.run")
+			|| targetHost.contains("brand.naver.com")
+			|| targetHost.contains("oliveyoung.co.kr");
+	}
+
+	private static Optional<URI> assignedHttpUrlTarget(URI baseUri, String body) {
+		Matcher matcher = JS_HTTP_ASSIGNMENT_PATTERN.matcher(body);
+		while (matcher.find()) {
+			Optional<URI> target = resolveHttpUri(baseUri, matcher.group(3));
+			if (target.isPresent()) {
+				return target;
+			}
+		}
+		return Optional.empty();
+	}
+
+	private static Optional<URI> appLinkWebUrlTarget(URI baseUri, String body) {
+		Matcher matcher = JS_APP_LINK_ASSIGNMENT_PATTERN.matcher(body);
+		while (matcher.find()) {
+			Optional<URI> target = webUrlFromAppLink(matcher.group(2))
+				.flatMap(url -> resolveHttpUri(baseUri, url));
+			if (target.isPresent()) {
+				return target;
+			}
+		}
+		return Optional.empty();
+	}
+
+	private static Optional<String> webUrlFromAppLink(String rawAppLink) {
+		try {
+			URI appLink = URI.create(unescapeJsUrl(rawAppLink));
+			String rawQuery = appLink.getRawQuery();
+			if (rawQuery == null || rawQuery.isBlank()) {
+				return Optional.empty();
+			}
+			for (String key : new String[] { "link", "af_android_url", "af_ios_url" }) {
+				Optional<String> value = queryParameter(rawQuery, key);
+				if (value.isPresent() && isHttpUrl(value.get())) {
+					return value;
+				}
+			}
+			return Optional.empty();
+		} catch (IllegalArgumentException exception) {
+			return Optional.empty();
+		}
+	}
+
+	private static Optional<String> queryParameter(String rawQuery, String key) {
+		for (String parameter : rawQuery.split("&")) {
+			String[] parts = parameter.split("=", 2);
+			String parameterKey = urlDecode(parts[0]);
+			if (key.equals(parameterKey)) {
+				return Optional.of(parts.length == 1 ? "" : urlDecode(parts[1]));
+			}
+		}
+		return Optional.empty();
+	}
+
+	private static Optional<URI> locationRedirectTarget(URI baseUri, String body) {
+		Optional<URI> assignedLocation = firstRegexUri(baseUri, body, JS_LOCATION_ASSIGNMENT_PATTERN, 2);
+		if (assignedLocation.isPresent()) {
+			return assignedLocation;
+		}
+		return firstRegexUri(baseUri, body, JS_LOCATION_CALL_PATTERN, 2);
+	}
+
+	private static Optional<URI> firstRegexUri(URI baseUri, String body, Pattern pattern, int urlGroup) {
+		Matcher matcher = pattern.matcher(body);
+		while (matcher.find()) {
+			Optional<URI> target = resolveHttpUri(baseUri, matcher.group(urlGroup));
+			if (target.isPresent()) {
+				return target;
+			}
+		}
+		return Optional.empty();
+	}
+
+	private static Optional<URI> resolveHttpUri(URI baseUri, String rawTarget) {
+		try {
+			String unescaped = unescapeJsUrl(rawTarget);
+			URI target = baseUri.resolve(unescaped);
+			String scheme = Optional.ofNullable(target.getScheme()).orElse("").toLowerCase(Locale.ROOT);
+			if (!scheme.equals("http") && !scheme.equals("https")) {
+				return Optional.empty();
+			}
+			if (isAppStoreUrl(target)) {
+				return Optional.empty();
+			}
+			return Optional.of(target);
+		} catch (IllegalArgumentException exception) {
+			return Optional.empty();
+		}
+	}
+
+	private static boolean isAppStoreUrl(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return host.equals("apps.apple.com")
+			|| host.equals("itunes.apple.com")
+			|| host.equals("play.google.com");
+	}
+
+	private static boolean isHttpUrl(String value) {
+		String normalized = value.toLowerCase(Locale.ROOT);
+		return normalized.startsWith("http://") || normalized.startsWith("https://");
+	}
+
+	private static String unescapeJsUrl(String value) {
+		return Parser.unescapeEntities(value, true)
+			.replace("\\/", "/")
+			.replace("\\u002F", "/")
+			.replace("\\u002f", "/")
+			.replace("\\u003A", ":")
+			.replace("\\u003a", ":")
+			.replace("\\u003F", "?")
+			.replace("\\u003f", "?")
+			.replace("\\u003D", "=")
+			.replace("\\u003d", "=")
+			.replace("\\u0026", "&")
+			.replace("\\x26", "&");
+	}
+
+	private static String stripWrappingQuotes(String value) {
+		if (value.length() >= 2) {
+			char first = value.charAt(0);
+			char last = value.charAt(value.length() - 1);
+			if ((first == '\'' || first == '"') && first == last) {
+				return value.substring(1, value.length() - 1);
+			}
+		}
+		return value;
+	}
+
+	private static String urlDecode(String value) {
+		return URLDecoder.decode(value, StandardCharsets.UTF_8);
 	}
 }
