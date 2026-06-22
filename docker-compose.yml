@@ -25,9 +25,9 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       APP_JWT_SECRET: local-development-jwt-secret-change-me
+      SHOPPING_IMPORT_BROWSER_FETCH_ENABLED: "true"
     ports:
       - "8080:8080"
 
 volumes:
   postgres-data:
-

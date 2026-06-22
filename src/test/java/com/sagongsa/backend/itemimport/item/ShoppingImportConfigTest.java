@@ -12,15 +12,25 @@ class ShoppingImportConfigTest {
 		.withUserConfiguration(ShoppingImportConfig.class);
 
 	@Test
-	void usesJsoupPageFetcherByDefault() {
+	void usesFallbackPageFetcherByDefault() {
 		contextRunner.run(context -> {
 			assertThat(context).hasSingleBean(PageFetcher.class);
-			assertThat(context.getBean(PageFetcher.class)).isInstanceOf(JsoupPageFetcher.class);
+			assertThat(context.getBean(PageFetcher.class)).isInstanceOf(FallbackPageFetcher.class);
 		});
 	}
 
 	@Test
-	void usesBrowserPageFetcherWhenEnabled() {
+	void usesJsoupPageFetcherWhenDisabled() {
+		contextRunner
+			.withPropertyValues("app.shopping.import.browser-fetch.enabled=false")
+			.run(context -> {
+				assertThat(context).hasSingleBean(PageFetcher.class);
+				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(JsoupPageFetcher.class);
+			});
+	}
+
+	@Test
+	void usesFallbackPageFetcherWhenEnabled() {
 		contextRunner
 			.withPropertyValues(
 				"app.shopping.import.browser-fetch.enabled=true",

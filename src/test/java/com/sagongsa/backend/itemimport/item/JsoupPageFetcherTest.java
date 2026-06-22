@@ -90,7 +90,74 @@ class JsoupPageFetcherTest {
 			URI.create("https://app.shopping.naver.com/app-bridge?url=https%3A%2F%2Fm.brand.naver.com%2Fcookierun%2Fproducts%2F13194003181"),
 			"text/html",
 			body
-		)).contains(URI.create("https://m.brand.naver.com/cookierun/products/13194003181?NaPm=ct%3Dabc&tr=nshfum"));
+		)).contains(URI.create("https://m.brand.naver.com/cookierun/products/13194003181?tr=nshfum"));
+	}
+
+	@Test
+	void resolvesNaverShoppingBridgeDeepLinkUrl() {
+		String body = """
+			<html>
+			<body>
+			  <script id="__NEXT_DATA__" type="application/json">
+			  {
+			    "page": "/app-bridge",
+			    "query": {
+			      "dst": "navershopping://open?url=https%3A%2F%2Fm.brand.naver.com%2Fcookierun%2Fproducts%2F13194003181%3Ftr%3Dnshfum"
+			    }
+			  }
+			  </script>
+			</body>
+			</html>
+			""";
+
+		assertThat(JsoupPageFetcher.clientSideRedirectTarget(
+			URI.create("https://app.shopping.naver.com/bridge"),
+			"text/html",
+			body
+		)).contains(URI.create("https://m.brand.naver.com/cookierun/products/13194003181?tr=nshfum"));
+	}
+
+	@Test
+	void doesNotTreatProductPageEmbeddedUrlAsBridgeRedirect() {
+		String body = """
+			<html>
+			<body>
+			  <script>
+			    window.__PRELOADED_STATE__ = {
+			      "channel": {
+			        "url": "https://brand.naver.com/cookierun"
+			      }
+			    };
+			  </script>
+			</body>
+			</html>
+			""";
+
+		assertThat(JsoupPageFetcher.clientSideRedirectTarget(
+			URI.create("https://m.brand.naver.com/cookierun/products/13194003181"),
+			"text/html",
+			body
+		)).isEmpty();
+	}
+
+	@Test
+	void resolvesCommerceAppDeepLinkVariableToWebUrl() {
+		String body = """
+			<html>
+			<head>
+			  <script>
+			    var deep_link = 'bunjang://product?id=123&url=https%3A%2F%2Fm.bunjang.co.kr%2Fproducts%2F123';
+			  </script>
+			</head>
+			<body></body>
+			</html>
+			""";
+
+		assertThat(JsoupPageFetcher.clientSideRedirectTarget(
+			URI.create("https://link.bunjang.co.kr/product/123"),
+			"text/html",
+			body
+		)).contains(URI.create("https://m.bunjang.co.kr/products/123"));
 	}
 
 	@Test

@@ -2,8 +2,8 @@
 
 ## 기본 정책
 
-- `app.shopping.import.browser-fetch.enabled=false`가 기본값이다.
-- 브라우저 수집을 켜면 `BrowserPageFetcher`가 Playwright Chromium을 지연 생성하고 재사용한다.
+- `app.shopping.import.browser-fetch.enabled=true`가 기본값이다.
+- 브라우저 수집이 켜져 있으면 정적 수집이 403/408/429/5xx로 실패할 때 `BrowserPageFetcher`가 Playwright Chromium을 지연 생성하고 재사용한다.
 - 요청마다 새 브라우저를 만들지 않고, 요청 단위로 격리된 `BrowserContext`만 생성 후 닫는다.
 - 애플리케이션 종료 시 브라우저와 Playwright 런타임을 닫는다.
 
@@ -22,6 +22,6 @@
 
 ## 검증 포인트
 
-- 기본값에서는 `JsoupPageFetcher`가 선택된다.
-- 플래그를 켜면 `BrowserPageFetcher`가 선택된다.
+- 플래그를 끄면 `JsoupPageFetcher`만 선택된다.
+- 기본값 또는 플래그를 켜면 `JsoupPageFetcher` 이후 `BrowserPageFetcher` 폴백이 선택된다.
 - 브라우저 수집 중 private network 하위 요청이 발생하면 수집이 실패해야 한다.

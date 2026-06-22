@@ -386,6 +386,95 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void ignoresZeroEmbeddedPriceAndUsesLaterProductPrice() {
+		pageFetcher.stub(
+			"https://m.bunjang.co.kr/products/123",
+			"""
+				<html>
+				<head>
+				  <title>번개장터</title>
+				  <script>
+				  window.__PRELOADED_STATE__ = {
+				    "product": {
+				      "name": null,
+				      "salePrice": 0,
+				      "discountedSalePrice": 0,
+				      "representativeImageUrl": null
+				    },
+				    "productDetail": {
+				      "item": {
+				        "name": "나이키 반팔 티셔츠",
+				        "price": 29000,
+				        "image": "https://media.bunjang.co.kr/product.jpg"
+				      }
+				    }
+				  };
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.bunjang.co.kr/products/123",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("나이키 반팔 티셔츠");
+		assertThat(response.item().listedPrice()).isEqualTo(29000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://media.bunjang.co.kr/product.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
+	void rejectsCommerceBridgeShellInsteadOfImportingSiteNameWithZeroPrice() {
+		pageFetcher.stub(
+			"https://zigzag.kr/share/products/110621280",
+			"""
+				<html>
+				<head>
+				  <title>지그재그</title>
+				  <meta property="og:title" content="지그재그" />
+				  <meta property="og:image" content="https://cf.res.s.zigzag.kr/app-icon.png" />
+				  <script>
+				  window.__PRELOADED_STATE__ = {
+				    "product": {
+				      "salePrice": 0,
+				      "discountedSalePrice": 0
+				    }
+				  };
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://zigzag.kr/share/products/110621280",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+			});
+	}
+
+	@Test
 	void acceptsDirectInputWithoutRemoteFetch() {
 		ShoppingLinkImportResponse response = service.importLink(
 			new ShoppingLinkImportRequest(

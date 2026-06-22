@@ -2,6 +2,7 @@ package com.sagongsa.backend.itemimport.item;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -24,10 +25,10 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static final int DEFAULT_MAX_ATTEMPTS = 2;
 	private static final int MAX_REDIRECTS = 5;
 	private static final Pattern JS_HTTP_ASSIGNMENT_PATTERN = Pattern.compile(
-		"(?is)\\b(?:var|let|const)\\s+(store_link|fallback_url|af_android_url|af_ios_url|af_web_dp)\\s*=\\s*(['\"])(https?://.*?)\\2"
+		"(?is)\\b(?:var|let|const)\\s+(store_link|fallback_url|fallbackUrl|target_url|targetUrl|web_url|webUrl|product_url|productUrl|landing_url|landingUrl|redirect_url|redirectUrl|af_android_url|af_ios_url|af_web_dp)\\s*=\\s*(['\"])(https?://.*?)\\2"
 	);
 	private static final Pattern JS_APP_LINK_ASSIGNMENT_PATTERN = Pattern.compile(
-		"(?is)\\b(?:var|let|const)\\s+app_link\\s*=\\s*(['\"])(.*?)\\1"
+		"(?is)\\b(?:var|let|const)\\s+(?:app_link|appLink|deep_link|deepLink|deeplink|fallback_deeplink|fallbackDeeplink)\\s*=\\s*(['\"])(.*?)\\1"
 	);
 	private static final Pattern JS_LOCATION_ASSIGNMENT_PATTERN = Pattern.compile(
 		"(?is)\\b(?:window\\.)?location(?:\\.href)?\\s*=\\s*(['\"])(https?://.*?)\\1"
@@ -36,7 +37,10 @@ public class JsoupPageFetcher implements PageFetcher {
 		"(?is)\\b(?:window\\.)?location\\.(?:replace|assign)\\(\\s*(['\"])(https?://.*?)\\1\\s*\\)"
 	);
 	private static final Pattern JSON_HTTP_URL_PATTERN = Pattern.compile(
-		"(?is)\"(targetUrl|url)\"\\s*:\\s*\"(https?://(?:\\\\.|[^\"\\\\])*)\""
+		"(?is)\"(targetUrl|target_url|webUrl|web_url|productUrl|product_url|landingUrl|landing_url|fallbackUrl|fallback_url|redirectUrl|redirect_url|url)\"\\s*:\\s*\"(https?://(?:\\\\.|[^\"\\\\])*)\""
+	);
+	private static final Pattern JSON_APP_URL_PATTERN = Pattern.compile(
+		"(?is)\"(dst|deepLink|deep_link|deeplink|appLink|app_link|af_dp)\"\\s*:\\s*\"((?:[a-z][a-z0-9+.-]*:)(?:\\\\.|[^\"\\\\])*)\""
 	);
 
 	private final int timeoutMillis;
@@ -82,9 +86,16 @@ public class JsoupPageFetcher implements PageFetcher {
 		URI currentUri = uri;
 		for (int redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
 			ShoppingUrlSafety.validatePublicHost(currentUri);
+			Optional<URI> queryRedirect = queryRedirectTarget(currentUri);
+			if (queryRedirect.isPresent()) {
+				currentUri = queryRedirect.get();
+				continue;
+			}
 			Connection.Response response = Jsoup.connect(currentUri.toString())
 				.userAgent(ANDROID_USER_AGENT)
+				.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 				.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+				.header("Upgrade-Insecure-Requests", "1")
 				.followRedirects(false)
 				.ignoreContentType(true)
 				.ignoreHttpErrors(true)
@@ -137,6 +148,11 @@ public class JsoupPageFetcher implements PageFetcher {
 		Optional<URI> metaRefreshRedirect = metaRefreshRedirectTarget(baseUri, document);
 		if (metaRefreshRedirect.isPresent()) {
 			return metaRefreshRedirect;
+		}
+
+		String baseHost = Optional.ofNullable(baseUri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if (!isKnownBridgeHost(baseHost)) {
+			return Optional.empty();
 		}
 
 		Optional<URI> bridgeJsonRedirect = bridgeJsonRedirectTarget(baseUri, body);
@@ -197,6 +213,14 @@ public class JsoupPageFetcher implements PageFetcher {
 				return target;
 			}
 		}
+		matcher = JSON_APP_URL_PATTERN.matcher(body);
+		while (matcher.find()) {
+			Optional<URI> target = webUrlFromAppLink(matcher.group(2))
+				.flatMap(value -> resolveHttpUri(baseUri, value));
+			if (target.isPresent() && isLikelyBridgeTarget(baseUri, target.get())) {
+				return target;
+			}
+		}
 		return Optional.empty();
 	}
 
@@ -206,11 +230,44 @@ public class JsoupPageFetcher implements PageFetcher {
 		if (baseHost.equals(targetHost)) {
 			return false;
 		}
-		return baseHost.equals("app.shopping.naver.com")
-			|| baseHost.endsWith(".onelink.me")
-			|| baseHost.equals("oy.run")
-			|| targetHost.contains("brand.naver.com")
-			|| targetHost.contains("oliveyoung.co.kr");
+		return isKnownBridgeHost(baseHost)
+			&& (targetHost.contains("brand.naver.com")
+				|| targetHost.contains("oliveyoung.co.kr")
+				|| targetHost.contains("zigzag.kr")
+				|| targetHost.contains("bunjang.co.kr")
+				|| targetHost.contains("musinsa.com")
+				|| targetHost.contains("29cm.co.kr")
+				|| targetHost.contains("kream.co.kr")
+				|| targetHost.contains("daangn.com"));
+	}
+
+	private static boolean isKnownBridgeHost(String host) {
+		return host.equals("app.shopping.naver.com")
+			|| host.equals("naver.me")
+			|| host.endsWith(".onelink.me")
+			|| host.endsWith(".app.link")
+			|| host.equals("oy.run")
+			|| host.equals("s.zigzag.kr")
+			|| host.equals("link.zigzag.kr")
+			|| host.equals("link.bunjang.co.kr")
+			|| host.equals("share.bunjang.co.kr");
+	}
+
+	private static Optional<URI> queryRedirectTarget(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		String rawQuery = uri.getRawQuery();
+		if (!isKnownBridgeHost(host) || rawQuery == null || rawQuery.isBlank()) {
+			return Optional.empty();
+		}
+		for (String key : redirectQueryKeys()) {
+			Optional<URI> target = queryParameter(rawQuery, key)
+				.flatMap(value -> webUrlFromAppLink(value).or(() -> Optional.of(value)))
+				.flatMap(value -> resolveHttpUri(uri, value));
+			if (target.isPresent()) {
+				return target;
+			}
+		}
+		return Optional.empty();
 	}
 
 	private static Optional<URI> assignedHttpUrlTarget(URI baseUri, String body) {
@@ -243,7 +300,7 @@ public class JsoupPageFetcher implements PageFetcher {
 			if (rawQuery == null || rawQuery.isBlank()) {
 				return Optional.empty();
 			}
-			for (String key : new String[] { "link", "af_android_url", "af_ios_url" }) {
+			for (String key : redirectQueryKeys()) {
 				Optional<String> value = queryParameter(rawQuery, key);
 				if (value.isPresent() && isHttpUrl(value.get())) {
 					return value;
@@ -253,6 +310,15 @@ public class JsoupPageFetcher implements PageFetcher {
 		} catch (IllegalArgumentException exception) {
 			return Optional.empty();
 		}
+	}
+
+	private static String[] redirectQueryKeys() {
+		return new String[] {
+			"url", "link", "dst", "deepLink", "deep_link", "deeplink", "appLink", "app_link", "af_dp",
+			"targetUrl", "target_url", "webUrl", "web_url", "productUrl", "product_url",
+			"landingUrl", "landing_url", "fallbackUrl", "fallback_url", "redirectUrl", "redirect_url",
+			"af_web_dp", "af_android_url", "af_ios_url"
+		};
 	}
 
 	private static Optional<String> queryParameter(String rawQuery, String key) {
@@ -296,10 +362,45 @@ public class JsoupPageFetcher implements PageFetcher {
 			if (isAppStoreUrl(target)) {
 				return Optional.empty();
 			}
-			return Optional.of(target);
+			return Optional.of(normalizeKnownProductUri(target));
 		} catch (IllegalArgumentException exception) {
 			return Optional.empty();
 		}
+	}
+
+	private static URI normalizeKnownProductUri(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if ((host.equals("brand.naver.com") || host.equals("m.brand.naver.com"))
+			&& Optional.ofNullable(uri.getPath()).orElse("").contains("/products/")) {
+			return rebuildUriWithHostAndQuery(uri, "m.brand.naver.com", removeQueryParameter(uri.getRawQuery(), "NaPm"));
+		}
+		return uri;
+	}
+
+	private static URI rebuildUriWithHostAndQuery(URI uri, String host, String rawQuery) {
+		try {
+			return new URI(uri.getScheme(), uri.getUserInfo(), host, uri.getPort(), uri.getPath(), rawQuery, uri.getFragment());
+		} catch (URISyntaxException exception) {
+			return uri;
+		}
+	}
+
+	private static String removeQueryParameter(String rawQuery, String keyToRemove) {
+		if (rawQuery == null || rawQuery.isBlank()) {
+			return rawQuery;
+		}
+		StringBuilder filtered = new StringBuilder();
+		for (String parameter : rawQuery.split("&")) {
+			String key = parameter.split("=", 2)[0];
+			if (key.equalsIgnoreCase(keyToRemove)) {
+				continue;
+			}
+			if (!filtered.isEmpty()) {
+				filtered.append('&');
+			}
+			filtered.append(parameter);
+		}
+		return filtered.isEmpty() ? null : filtered.toString();
 	}
 
 	private static boolean isAppStoreUrl(URI uri) {

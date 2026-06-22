@@ -242,15 +242,15 @@ public class ShoppingLinkImportService {
 		);
 
 		Integer price = firstNonNull(
-			parsePrice(metaContent(document, "meta[property=product:price:amount]")),
-			parsePrice(metaContent(document, "meta[property=og:price:amount]")),
-			parsePrice(metaContent(document, "meta[property=kakao:commerce:price]")),
-			parsePrice(jsonLdText(document, "offers.price")),
-			parsePrice(jsonLdText(document, "price")),
-			parsePrice(embeddedMetadata.priceText()),
-			parsePrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
+			parseListedPrice(metaContent(document, "meta[property=product:price:amount]")),
+			parseListedPrice(metaContent(document, "meta[property=og:price:amount]")),
+			parseListedPrice(metaContent(document, "meta[property=kakao:commerce:price]")),
+			parseListedPrice(jsonLdText(document, "offers.price")),
+			parseListedPrice(jsonLdText(document, "price")),
+			parseListedPrice(embeddedMetadata.priceText()),
+			parseListedPrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
 		);
-		String rawPriceText = firstNonBlank(
+		String rawPriceText = firstValidPriceText(
 			metaContent(document, "meta[property=product:price:amount]"),
 			metaContent(document, "meta[property=og:price:amount]"),
 			metaContent(document, "meta[property=kakao:commerce:price]"),
@@ -421,11 +421,15 @@ public class ShoppingLinkImportService {
 			boolean nestedProductContext = productContext || isProductContainerKey(key);
 			if (value.isValueNode()) {
 				String text = normalizeWhitespace(value.asText());
+				if (isPlaceholderMetadataText(text)) {
+					metadata = metadata.merge(embeddedMetadata(value, nestedProductContext));
+					continue;
+				}
 				if (isProductTitleKey(key, productContext)) {
 					metadata = metadata.withTitle(text, keyPriority(key, productContext));
 				} else if (isDescriptionKey(key)) {
 					metadata = metadata.withDescription(text, keyPriority(key, productContext));
-				} else if (isPriceKey(key, productContext)) {
+				} else if (isPriceKey(key, productContext) && parseListedPrice(text) != null) {
 					metadata = metadata.withPriceText(text, keyPriority(key, productContext));
 				} else if (isImageKey(key, productContext)) {
 					metadata = metadata.withImageUrl(text, keyPriority(key, productContext));
@@ -612,6 +616,14 @@ public class ShoppingLinkImportService {
 		}
 	}
 
+	private Integer parseListedPrice(String rawPrice) {
+		Integer price = parsePrice(rawPrice);
+		if (price == null || price <= 0) {
+			return null;
+		}
+		return price;
+	}
+
 	private URI parseHttpUri(String rawUrl, String errorMessage) {
 		if (isBlank(rawUrl)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
@@ -661,6 +673,9 @@ public class ShoppingLinkImportService {
 				return null;
 			}
 		}
+		if (isShoppingBridgeOrSiteTitle(sourceDomain, title)) {
+			return null;
+		}
 		return title;
 	}
 
@@ -678,6 +693,27 @@ public class ShoppingLinkImportService {
 			.trim()
 			.toLowerCase(Locale.ROOT);
 		return normalized.equals("올리브영") || normalized.equals("oliveyoung");
+	}
+
+	private boolean isShoppingBridgeOrSiteTitle(String sourceDomain, String title) {
+		if (isBlank(sourceDomain) || isBlank(title)) {
+			return false;
+		}
+		String normalizedTitle = title.replace("+", "")
+			.replace(" ", "")
+			.trim()
+			.toLowerCase(Locale.ROOT);
+		return switch (sourceDomain) {
+			case "zigzag.kr", "s.zigzag.kr", "link.zigzag.kr" ->
+				normalizedTitle.equals("지그재그") || normalizedTitle.equals("zigzag") || normalizedTitle.equals("지그재그스토어");
+			case "bunjang.co.kr", "m.bunjang.co.kr", "link.bunjang.co.kr", "share.bunjang.co.kr" ->
+				normalizedTitle.equals("번개장터") || normalizedTitle.equals("bunjang");
+			case "app.shopping.naver.com", "naver.me" ->
+				normalizedTitle.equals("네이버스토어") || normalizedTitle.equals("네이버플러스스토어");
+			case "oy.run" ->
+				normalizedTitle.equals("올리브영") || normalizedTitle.equals("oliveyoung");
+			default -> false;
+		};
 	}
 
 	private boolean containsAny(String value, String... keywords) {
@@ -711,6 +747,14 @@ public class ShoppingLinkImportService {
 		}
 		String normalized = value.replaceAll("\\s+", " ").trim();
 		return normalized.isBlank() ? null : normalized;
+	}
+
+	private boolean isPlaceholderMetadataText(String value) {
+		if (isBlank(value)) {
+			return true;
+		}
+		String normalized = value.trim().toLowerCase(Locale.ROOT);
+		return normalized.equals("null") || normalized.equals("undefined") || normalized.equals("none");
 	}
 
 	private String blankToNull(String value) {
@@ -782,6 +826,15 @@ public class ShoppingLinkImportService {
 	private String firstNonBlank(String... values) {
 		for (String value : values) {
 			if (!isBlank(value)) {
+				return normalizeWhitespace(value);
+			}
+		}
+		return null;
+	}
+
+	private String firstValidPriceText(String... values) {
+		for (String value : values) {
+			if (parseListedPrice(value) != null) {
 				return normalizeWhitespace(value);
 			}
 		}

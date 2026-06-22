@@ -143,7 +143,7 @@ Metadata Extraction + Category Recommendation
 ## 롤아웃/관측 (배포 전략)
 ### Feature Flag / 단계적 배포
 - [ ] 사용 안함
-- [x] 사용함 (Flag명/기본값/롤아웃: `shopping.import.browser-fetch.enabled`, 기본값 false, 운영 전 샘플 재측정 후 활성화)
+- [x] 사용함 (Flag명/기본값/롤아웃: `shopping.import.browser-fetch.enabled`, 기본값 true, 정적 수집 실패 시 브라우저 폴백)
 
 ### 성공 지표/메트릭
 - 상품 링크 수집 성공률

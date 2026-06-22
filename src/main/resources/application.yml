@@ -64,7 +64,7 @@ app:
   shopping:
     import:
       browser-fetch:
-        enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:false}
+        enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:true}
         timeout: ${SHOPPING_IMPORT_BROWSER_FETCH_TIMEOUT:PT30S}
         render-wait: ${SHOPPING_IMPORT_BROWSER_RENDER_WAIT:PT5S}
         network-idle-timeout: ${SHOPPING_IMPORT_BROWSER_NETWORK_IDLE_TIMEOUT:PT2S}
