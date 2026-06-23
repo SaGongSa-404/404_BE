@@ -1,0 +1,143 @@
+name: QA VM Readonly Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Inspect QA VM without changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      GCP_VM_HOST: ${{ secrets.GCP_VM_HOST }}
+      GCP_VM_PORT: ${{ secrets.GCP_VM_PORT }}
+      GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+      GCP_VM_SSH_KEY: ${{ secrets.GCP_VM_SSH_KEY }}
+      GCP_VM_SSH_KEY_B64: ${{ secrets.GCP_VM_SSH_KEY_B64 }}
+
+    steps:
+      - name: Prepare SSH
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          : "${GCP_VM_HOST:?GCP_VM_HOST secret is required}"
+          : "${GCP_VM_USER:?GCP_VM_USER secret is required}"
+
+          vm_port="${GCP_VM_PORT:-22}"
+          echo "VM_PORT=${vm_port}" >> "${GITHUB_ENV}"
+
+          mkdir -p ~/.ssh
+          if [[ -n "${GCP_VM_SSH_KEY_B64:-}" ]]; then
+            printf '%s' "${GCP_VM_SSH_KEY_B64}" | base64 -d > ~/.ssh/deploy_key
+          elif [[ -n "${GCP_VM_SSH_KEY:-}" ]]; then
+            printf '%s\n' "${GCP_VM_SSH_KEY}" > ~/.ssh/deploy_key
+          else
+            echo "GCP_VM_SSH_KEY_B64 or GCP_VM_SSH_KEY secret is required" >&2
+            exit 1
+          fi
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -p "${vm_port}" -H "${GCP_VM_HOST}" >> ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<EOF
+          Host qa-vm
+            HostName ${GCP_VM_HOST}
+            User ${GCP_VM_USER}
+            Port ${vm_port}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 15
+            ConnectTimeout 10
+          EOF
+
+      - name: Run readonly audit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          ssh qa-vm 'bash -s' <<'REMOTE' | tee vm-readonly-audit.log
+          set +e
+
+          section() {
+            printf '\n===== %s =====\n' "$1"
+          }
+
+          redact() {
+            sed -E \
+              -e 's/([Pp]ass(word)?|[Ss]ecret|[Tt]oken|[Kk]ey|[Aa]uthorization)([^[:space:]]*)[[:space:]=:]+[^[:space:]]+/\1\3=<redacted>/g' \
+              -e 's/(Bearer )[A-Za-z0-9._~+\/-]+/\1<redacted>/g'
+          }
+
+          run() {
+            local title="$1"
+            local command="$2"
+            local status
+
+            section "$title"
+            bash -lc "$command" 2>&1 | redact
+            status=${PIPESTATUS[0]}
+            if [[ "$status" -ne 0 ]]; then
+              printf '[WARN] exit=%s command=%s\n' "$status" "$command"
+            fi
+          }
+
+          section "Audit scope"
+          printf 'readonly=true\n'
+          printf 'changes=none\n'
+          printf 'restarts=none\n'
+          printf 'timestamp=%s\n' "$(date -Is)"
+
+          run "Host identity" "hostname; hostnamectl 2>/dev/null || true; id"
+          run "Running service summary" "systemctl list-units --type=service --state=running --no-pager | grep -E 'caddy|nginx|wigul|backend|postgres|docker|containerd' || true"
+
+          run "Caddy service status" "systemctl status caddy --no-pager"
+          run "Caddy unit" "systemctl cat caddy"
+          run "Caddy validate" "if command -v caddy >/dev/null 2>&1; then sudo -n caddy validate --config /etc/caddy/Caddyfile || caddy validate --config /etc/caddy/Caddyfile; else echo 'caddy binary not found'; fi"
+          run "Caddyfile" "sudo -n sed -n '1,220p' /etc/caddy/Caddyfile || sed -n '1,220p' /etc/caddy/Caddyfile"
+
+          run "Backend service status" "systemctl status wigul-backend --no-pager"
+          run "Backend unit" "systemctl cat wigul-backend"
+          run "Backend unit properties" "systemctl show wigul-backend --property=Id,Names,LoadState,ActiveState,SubState,FragmentPath,DropInPaths,ExecStart,User,Group,EnvironmentFiles --no-pager"
+
+          run "Listening TCP ports" "sudo -n ss -ltnp || ss -ltn"
+          run "Top memory processes" "ps -eo pid,ppid,user,%mem,%cpu,etime,args --sort=-%mem | head -30"
+          run "Java, Caddy, Docker, PostgreSQL processes" "ps -ef | grep -E '[j]ava|[c]addy|[d]ocker|[p]ostgres|[c]ontainerd' || true"
+
+          run "Memory" "free -m"
+          run "Disk" "df -h; lsblk"
+          run "Docker containers" "if command -v docker >/dev/null 2>&1; then docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'; else echo 'docker not installed'; fi"
+          run "Docker resource snapshot" "if command -v docker >/dev/null 2>&1; then docker stats --no-stream; else echo 'docker not installed'; fi"
+
+          run "Local health probes" "for port in 8080 8081 18080; do printf 'port=%s ' \"\$port\"; curl -fsS -m 3 \"http://127.0.0.1:\$port/health\" || true; printf '\n'; done"
+          run "Caddy journal tail" "sudo -n journalctl -u caddy -n 120 --no-pager -o short-iso || journalctl -u caddy -n 120 --no-pager -o short-iso"
+          run "Backend journal tail" "sudo -n journalctl -u wigul-backend -n 160 --no-pager -o short-iso || journalctl -u wigul-backend -n 160 --no-pager -o short-iso"
+
+          section "Audit finished"
+          printf 'timestamp=%s\n' "$(date -Is)"
+          exit 0
+          REMOTE
+
+      - name: Upload audit log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vm-readonly-audit-${{ github.run_id }}
+          path: vm-readonly-audit.log
+
+      - name: Write summary
+        shell: bash
+        if: always()
+        run: |
+          {
+            echo "### QA VM Readonly Audit"
+            echo "- Scope: read-only SSH inspection"
+            echo "- Changes: none"
+            echo "- Restarts: none"
+            echo "- Artifact: vm-readonly-audit-${GITHUB_RUN_ID}"
+          } >> "${GITHUB_STEP_SUMMARY}"
