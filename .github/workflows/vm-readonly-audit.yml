@@ -14,7 +14,6 @@ jobs:
 
     env:
       GCP_VM_HOST: ${{ secrets.GCP_VM_HOST }}
-      GCP_VM_PORT: ${{ secrets.GCP_VM_PORT }}
       GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
       GCP_VM_SSH_KEY: ${{ secrets.GCP_VM_SSH_KEY }}
       GCP_VM_SSH_KEY_B64: ${{ secrets.GCP_VM_SSH_KEY_B64 }}
@@ -28,9 +27,6 @@ jobs:
           : "${GCP_VM_HOST:?GCP_VM_HOST secret is required}"
           : "${GCP_VM_USER:?GCP_VM_USER secret is required}"
 
-          vm_port="${GCP_VM_PORT:-22}"
-          echo "VM_PORT=${vm_port}" >> "${GITHUB_ENV}"
-
           mkdir -p ~/.ssh
           if [[ -n "${GCP_VM_SSH_KEY_B64:-}" ]]; then
             echo "${GCP_VM_SSH_KEY_B64}" | base64 -d > ~/.ssh/deploy_key
@@ -43,13 +39,12 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null
 
-          ssh-keyscan -p "${vm_port}" -H "${GCP_VM_HOST}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${GCP_VM_HOST}" >> ~/.ssh/known_hosts
 
           cat > ~/.ssh/config <<EOF
           Host qa-vm
             HostName ${GCP_VM_HOST}
             User ${GCP_VM_USER}
-            Port ${vm_port}
             IdentityFile ~/.ssh/deploy_key
             IdentitiesOnly yes
             StrictHostKeyChecking yes
