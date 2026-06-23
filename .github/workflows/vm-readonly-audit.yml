@@ -33,7 +33,7 @@ jobs:
 
           mkdir -p ~/.ssh
           if [[ -n "${GCP_VM_SSH_KEY_B64:-}" ]]; then
-            printf '%s' "${GCP_VM_SSH_KEY_B64}" | base64 -d > ~/.ssh/deploy_key
+            echo "${GCP_VM_SSH_KEY_B64}" | base64 -d > ~/.ssh/deploy_key
           elif [[ -n "${GCP_VM_SSH_KEY:-}" ]]; then
             printf '%s\n' "${GCP_VM_SSH_KEY}" > ~/.ssh/deploy_key
           else
@@ -41,6 +41,7 @@ jobs:
             exit 1
           fi
           chmod 600 ~/.ssh/deploy_key
+          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null
 
           ssh-keyscan -p "${vm_port}" -H "${GCP_VM_HOST}" >> ~/.ssh/known_hosts
 
