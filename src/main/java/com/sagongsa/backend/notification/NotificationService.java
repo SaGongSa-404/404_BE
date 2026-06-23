@@ -74,6 +74,28 @@ public class NotificationService {
 		return findById(userId, notificationId);
 	}
 
+	@Transactional
+	public NotificationReadAllResponse markAllAsRead(UUID userId) {
+		requireUsableUser(userId);
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		int updated = jdbcTemplate.update(
+			"""
+			update notifications
+			set is_read = true,
+				read_at = ?,
+				updated_at = ?
+			where user_id = ?
+			  and is_read = false
+			  and created_at >= ?
+			""",
+			now,
+			now,
+			userId,
+			retentionCutoff()
+		);
+		return new NotificationReadAllResponse(updated);
+	}
+
 	private NotificationResponse findById(UUID userId, UUID notificationId) {
 		try {
 			return jdbcTemplate.queryForObject(
