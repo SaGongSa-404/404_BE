@@ -41,23 +41,15 @@ jobs:
 
           ssh-keyscan -H "${GCP_VM_HOST}" >> ~/.ssh/known_hosts
 
-          cat > ~/.ssh/config <<EOF
-          Host qa-vm
-            HostName ${GCP_VM_HOST}
-            User ${GCP_VM_USER}
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking yes
-            ServerAliveInterval 15
-            ConnectTimeout 10
-          EOF
-
       - name: Run readonly audit
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          ssh qa-vm 'bash -s' <<'REMOTE' | tee vm-readonly-audit.log
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            "${GCP_VM_USER}@${GCP_VM_HOST}" \
+            'bash -s' <<'REMOTE' | tee vm-readonly-audit.log
           set +e
 
           section() {
