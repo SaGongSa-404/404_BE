@@ -58,4 +58,20 @@ public class NotificationController {
 	) {
 		return notificationService.markAsRead(userId, notificationId);
 	}
+
+	@PatchMapping("/read-all")
+	@Operation(
+		summary = "Mark all notifications as read",
+		description = "Marks all unread notifications for the authenticated user as read and returns the updated count.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Notifications marked as read"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+			@ApiResponse(responseCode = "403", description = "Notifications can be used only after onboarding")
+		}
+	)
+	public NotificationReadAllResponse markAllAsRead(
+		@Parameter(hidden = true) @CurrentUserId UUID userId
+	) {
+		return notificationService.markAllAsRead(userId);
+	}
 }
