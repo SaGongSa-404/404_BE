@@ -98,7 +98,9 @@ sudo journalctl -u wigul-backend --since "10 minutes ago" --no-pager
 
 ## 배포와의 관계
 
-QA 배포 workflow는 jar를 빌드해서 VM에 업로드하고 `wigul-backend`를 재시작한다.
+QA 배포 workflow는 jar를 후보 파일로 업로드한 뒤 8081 standby 프로세스를 먼저 띄운다. 8081 `/health`가 성공하면 Caddy를 8081로 전환하고, 기존 8080 `wigul-backend`의 jar를 교체한 뒤 서비스를 재시작한다. 8080 `/health`가 다시 성공하면 Caddy를 8080으로 되돌리고 8081 standby를 종료한다.
+
+8080 재시작이 실패하면 workflow는 실패 처리되지만, Caddy는 8081 standby를 바라보는 상태로 남겨 외부 요청을 계속 처리한다. 이 경우 8080 복구가 끝날 때까지 8081 standby 프로세스를 종료하면 안 된다.
 
 Firebase 서비스 계정 JSON을 업로드하지 않고, systemd drop-in도 만들지 않는다. VM-local secret 파일과 drop-in은 일반적인 jar 배포와 서비스 재시작 후에도 유지된다. 다만 새 VM을 만들거나 서비스 유닛을 다시 구성하면 FCM 설정을 다시 provision해야 한다.
 
