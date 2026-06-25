@@ -183,6 +183,43 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void acceptsProductPageWhenBodyContainsWaitPhrase() {
+		pageFetcher.stub(
+			"https://shopping.example.com/products/waiting-note",
+			"""
+				<html>
+				<head>
+				  <title>기다림 노트 상품 상세</title>
+				  <meta property="og:title" content="기다림 노트 세트" />
+				  <meta property="og:image" content="https://cdn.example.com/waiting-note.jpg" />
+				  <meta property="product:price:amount" content="18000" />
+				</head>
+				<body>
+				  이 상품은 배송 전 잠시만 기다려 주세요 라는 안내 문구가 포함된 패키지입니다.
+				  실제 상품 상세, 사용 방법, 구성품, 교환 안내, 리뷰 요약까지 정상적으로 렌더링된 긴 본문입니다.
+				  차단 안내 페이지가 아니라 상품 설명 문장 안에 같은 표현이 포함된 케이스입니다.
+				</body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://shopping.example.com/products/waiting-note",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("기다림 노트 세트");
+		assertThat(response.item().listedPrice()).isEqualTo(18000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://cdn.example.com/waiting-note.jpg");
+	}
+
+	@Test
 	void acceptsRenderedProductPageWithCloudflareScriptMarker() {
 		pageFetcher.stub(
 			"https://www.musinsa.com/products/478021",

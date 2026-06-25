@@ -577,18 +577,27 @@ public class ShoppingLinkImportService {
 		String title = normalizeWhitespace(document.title());
 		String bodyText = normalizeWhitespace(document.body() == null ? null : document.body().text());
 		String html = page.body() == null ? "" : page.body().toLowerCase(Locale.ROOT);
-		return isBlockedPageText(title)
-			|| isBlockedPageText(bodyText)
-			|| isChallengeShell(title, bodyText, html);
+		return isChallengeShell(title, bodyText, html)
+			|| isBlockedNoticeShell(title, bodyText);
 	}
 
 	private boolean isChallengeShell(String title, String bodyText, String html) {
-		boolean hasChallengeMarker = html.contains("cf-mitigated")
+		return hasChallengeMarker(html)
+			&& (isBlank(title) || isBlockedPageText(title))
+			&& (isBlank(bodyText) || bodyText.length() < 80 || isBlockedPageText(bodyText));
+	}
+
+	private boolean isBlockedNoticeShell(String title, String bodyText) {
+		if (isBlockedPageText(title)) {
+			return isBlank(bodyText) || bodyText.length() < 120 || isBlockedPageText(bodyText);
+		}
+		return isBlank(title) && isBlockedPageText(bodyText) && bodyText.length() < 120;
+	}
+
+	private boolean hasChallengeMarker(String html) {
+		return html.contains("cf-mitigated")
 			|| html.contains("cf_chl")
 			|| html.contains("/cdn-cgi/challenge-platform");
-		return hasChallengeMarker
-			&& (isBlank(title) || isBlockedPageText(title))
-			&& (isBlank(bodyText) || bodyText.length() < 80);
 	}
 
 	private boolean isBlockedPageText(String text) {

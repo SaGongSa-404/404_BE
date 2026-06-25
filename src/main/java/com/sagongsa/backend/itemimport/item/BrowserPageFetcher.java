@@ -73,8 +73,17 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	private Browser browser() {
 		synchronized (browserLock) {
 			if (browser == null) {
-				playwright = Playwright.create();
-				browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+				Playwright newPlaywright = null;
+				try {
+					newPlaywright = Playwright.create();
+					Browser newBrowser = newPlaywright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+					playwright = newPlaywright;
+					browser = newBrowser;
+				}
+				catch (RuntimeException exception) {
+					closeQuietly(newPlaywright);
+					throw exception;
+				}
 			}
 			return browser;
 		}
@@ -93,7 +102,7 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 				ShoppingUrlSafety.validatePublicHost(requestUri);
 				route.resume();
 			}
-			catch (RuntimeException exception) {
+			catch (IllegalArgumentException | ResponseStatusException exception) {
 				route.abort();
 			}
 		});
@@ -152,6 +161,17 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 			return 0;
 		}
 		return duration.toMillis();
+	}
+
+	private void closeQuietly(Playwright playwright) {
+		if (playwright == null) {
+			return;
+		}
+		try {
+			playwright.close();
+		}
+		catch (RuntimeException ignored) {
+		}
 	}
 
 	@Override
