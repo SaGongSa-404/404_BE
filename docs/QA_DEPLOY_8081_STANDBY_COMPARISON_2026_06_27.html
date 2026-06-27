@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QA 배포 방식 비교: 기존 재시작 vs 8081 스탠바이</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #5c667a;
+      --line: #d8deea;
+      --panel: #f7f9fc;
+      --accent: #1267d8;
+      --good: #137a46;
+      --warn: #a15c00;
+      --bad: #b3261e;
+      --soft-blue: #eaf2ff;
+      --soft-green: #eaf7ef;
+      --soft-yellow: #fff5dc;
+      --soft-red: #fdeceb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #ffffff;
+      line-height: 1.6;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 42px 0 64px;
+    }
+
+    header {
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 24px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.16;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 36px 0 14px;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 22px 0 8px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin: 24px 0 8px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 16px;
+      border-radius: 8px;
+      min-height: 132px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1.2;
+      margin: 8px 0;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .callout {
+      border-left: 5px solid var(--accent);
+      background: var(--soft-blue);
+      padding: 16px 18px;
+      margin: 18px 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      background: #ffffff;
+    }
+
+    .box.good {
+      border-color: #a8d8bc;
+      background: var(--soft-green);
+    }
+
+    .box.warn {
+      border-color: #eed08f;
+      background: var(--soft-yellow);
+    }
+
+    .box.bad {
+      border-color: #efb0ac;
+      background: var(--soft-red);
+    }
+
+    ul {
+      margin: 10px 0 0 20px;
+      padding: 0;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 22px;
+      font-size: 15px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #edf1f7;
+      font-weight: 700;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      background: #eef2f8;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 0.92em;
+    }
+
+    .good-text {
+      color: var(--good);
+      font-weight: 700;
+    }
+
+    .warn-text {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    .bad-text {
+      color: var(--bad);
+      font-weight: 700;
+    }
+
+    footer {
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      margin-top: 42px;
+      padding-top: 18px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        width: min(100% - 24px, 1120px);
+        padding-top: 28px;
+      }
+
+      .summary,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="meta">NF-75 · QA 배포 안정화 판단 자료 · 2026-06-27</div>
+      <h1>QA 배포 방식 비교: 기존 재시작 vs 8081 스탠바이</h1>
+      <p>
+        이 문서는 QA 서버 배포에서 8081 스탠바이 절차를 사용할 때와 사용하지 않을 때의
+        사용자 영향, 배포 소요 시간, 운영 장단점을 비교한다.
+      </p>
+    </header>
+
+    <section class="summary" aria-label="핵심 요약">
+      <div class="metric">
+        <div class="label">기존 방식</div>
+        <strong>짧은 배포, 노출되는 끊김</strong>
+        <p>8080 서비스를 바로 재시작하므로 배포 단계는 단순하지만, 기동 완료 전까지 외부 요청은 502 또는 연결 실패가 될 수 있다.</p>
+      </div>
+      <div class="metric">
+        <div class="label">8081 방식</div>
+        <strong>긴 배포, 끊김 최소화</strong>
+        <p>후보 jar를 8081에서 먼저 검증하고 Caddy를 전환하므로 작업 시간은 늘지만 사용자가 보는 다운타임을 줄인다.</p>
+      </div>
+      <div class="metric">
+        <div class="label">권장 판단</div>
+        <strong class="good-text">8081 스탠바이 유지</strong>
+        <p>비공개 테스트 기간에는 배포 속도보다 외부 사용자의 요청 성공률과 복구 여지가 더 중요하다.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>비교 기준</h2>
+      <div class="callout">
+        현재 QA VM은 2 vCPU, 약 4GB 메모리로 업그레이드되었고, Caddy가
+        <code>localhost:8080</code> 또는 <code>localhost:8081</code>로 reverse proxy를 전환하는 구조다.
+        8081 절차는 완전한 로드밸런서 blue/green은 아니지만, 단일 VM에서 가능한 경량 무중단 배포에 가깝다.
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>항목</th>
+            <th>기존 8080 직접 재시작</th>
+            <th>8081 스탠바이 절차</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>배포 흐름</td>
+            <td>jar 업로드 후 <code>wigul-backend</code> 8080 서비스를 바로 재시작</td>
+            <td>candidate jar를 8081로 먼저 기동, health 성공 후 Caddy 전환, 8080 교체 후 복귀</td>
+          </tr>
+          <tr>
+            <td>사용자 체감 끊김</td>
+            <td><span class="bad-text">발생 가능</span>. 8080 재시작 동안 Caddy upstream이 비어 502가 날 수 있음</td>
+            <td><span class="good-text">최소화</span>. 8080 재시작 중 외부 요청은 8081이 받음</td>
+          </tr>
+          <tr>
+            <td>배포 작업 시간</td>
+            <td><span class="good-text">더 짧음</span>. standby 기동과 Caddy 왕복 전환이 없음</td>
+            <td><span class="warn-text">더 김</span>. 8081 기동 대기와 8080 재기동 대기를 모두 수행</td>
+          </tr>
+          <tr>
+            <td>실패 시 상태</td>
+            <td>8080이 실패하면 외부 요청도 실패할 가능성이 큼</td>
+            <td>8080 복구 실패 시 Caddy를 8081에 남겨 서비스 지속 가능</td>
+          </tr>
+          <tr>
+            <td>복잡도</td>
+            <td>낮음. systemd restart 중심</td>
+            <td>중간. standby pid, Caddyfile 전환, rollback guard가 필요</td>
+          </tr>
+          <tr>
+            <td>리소스 사용</td>
+            <td>Java 프로세스 1개</td>
+            <td>배포 중 잠시 Java 프로세스 2개. 4GB 업그레이드 이후 허용 가능한 수준</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>시간 차이</h2>
+      <p>
+        시간은 “전체 GitHub Actions 실행 시간”과 “사용자에게 노출되는 끊김 시간”을 나눠서 봐야 한다.
+        8081 방식은 전체 배포 시간은 늘지만, 사용자에게 노출되는 실패 시간을 줄이는 방식이다.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>기존 방식 예상</th>
+            <th>8081 방식 예상</th>
+            <th>판단</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>추가 준비 시간</td>
+            <td>거의 없음</td>
+            <td>8081 standby 기동 대기 약 20~40초 수준</td>
+            <td>8081 방식이 더 오래 걸림</td>
+          </tr>
+          <tr>
+            <td>8080 재시작 시간</td>
+            <td>현재 4GB 기준 약 20~40초 수준으로 예상</td>
+            <td>동일하게 발생하지만 외부 트래픽은 8081이 받음</td>
+            <td>작업 시간은 비슷하나 사용자 영향이 다름</td>
+          </tr>
+          <tr>
+            <td>Caddy 전환 시간</td>
+            <td>없음</td>
+            <td>8081 전환과 8080 복귀가 각각 짧게 발생</td>
+            <td>초 단위 추가 비용</td>
+          </tr>
+          <tr>
+            <td>사용자 체감 실패 시간</td>
+            <td>8080 기동 전까지 502 가능</td>
+            <td>정상 경로에서는 거의 없음. 실패 시에도 8081 유지 가능</td>
+            <td>8081 방식 우위</td>
+          </tr>
+          <tr>
+            <td>총 배포 시간</td>
+            <td>더 짧음</td>
+            <td>대략 8081 기동 대기만큼 더 길어짐</td>
+            <td>속도보다 안정성 우선이면 수용 가능</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="grid">
+      <div class="box warn">
+        <h2>8081 절차를 안 했을 때</h2>
+        <h3>장점</h3>
+        <ul>
+          <li>workflow가 짧고 단순하다.</li>
+          <li>배포 총 시간이 더 짧다.</li>
+          <li>추가 프로세스와 pid 관리가 없다.</li>
+        </ul>
+        <h3>단점</h3>
+        <ul>
+          <li>재시작 구간에 외부 사용자가 502를 볼 수 있다.</li>
+          <li>기동이 늦어지면 장애처럼 보이는 시간이 길어진다.</li>
+          <li>비공개 테스트 중 사용자 행동과 겹치면 신뢰도가 떨어질 수 있다.</li>
+        </ul>
+      </div>
+
+      <div class="box good">
+        <h2>8081 절차를 했을 때</h2>
+        <h3>장점</h3>
+        <ul>
+          <li>새 jar가 8081에서 뜨는지 먼저 확인하고 외부 전환한다.</li>
+          <li>8080 재시작 동안에도 외부 요청을 받을 수 있다.</li>
+          <li>8080 복구 실패 시 Caddy를 8081에 남겨 서비스 유지가 가능하다.</li>
+          <li>비공개 테스트 기간에 “배포 때문에 터졌다”는 리스크를 줄인다.</li>
+        </ul>
+        <h3>단점</h3>
+        <ul>
+          <li>전체 배포 시간은 더 길어진다.</li>
+          <li>Caddyfile 전환, standby 종료, 실패 시 복구 규칙이 추가된다.</li>
+          <li>배포 중 잠시 Java 프로세스 2개가 떠서 메모리를 더 쓴다.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>운영 판단</h2>
+      <div class="box">
+        <p>
+          QA 비공개 테스트 기준에서는 <span class="good-text">8081 스탠바이 절차를 사용하는 편이 더 낫다</span>.
+          이유는 배포 총 시간이 조금 늘어나는 비용보다, 실제 사용자 요청이 실패로 보이는 시간을 줄이는 이득이 더 크기 때문이다.
+        </p>
+        <p>
+          특히 테스트 인원이 동시에 앱을 쓰는 상황에서는 20~40초의 재시작 공백도 로그인, 알림, 위시리스트,
+          홈 요약 같은 API 실패로 체감될 수 있다. 8081 절차는 이 구간을 standby로 흡수하고,
+          실패 시에도 8081을 임시 운영 상태로 남겨 복구 시간을 벌 수 있다.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>채택 조건</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>조건</th>
+            <th>필요 이유</th>
+            <th>현재 판단</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>QA VM 메모리 여유</td>
+            <td>배포 중 Java 프로세스 2개가 잠시 떠야 함</td>
+            <td><span class="good-text">충족</span>. 4GB 업그레이드 후 여유 확인</td>
+          </tr>
+          <tr>
+            <td>Caddy 전환 권한</td>
+            <td>workflow가 Caddyfile을 8081/8080으로 바꾸고 reload해야 함</td>
+            <td><span class="warn-text">PR 적용 후 첫 배포에서 확인 필요</span></td>
+          </tr>
+          <tr>
+            <td>8081 포트 비어 있음</td>
+            <td>standby 프로세스 기동 필요</td>
+            <td><span class="good-text">사전 검사 포함</span></td>
+          </tr>
+          <tr>
+            <td>DB migration 호환성</td>
+            <td>8080과 8081이 짧게 같은 DB를 바라볼 수 있음</td>
+            <td><span class="warn-text">파괴적 migration은 별도 배포 계획 필요</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      이 문서는 NF-75 QA CD 변경 PR의 보조 판단 자료다. 수치는 QA VM 4GB 업그레이드 이후의 관측 흐름을 기준으로 한 운영 추정이며,
+      실제 GitHub Actions 실행 시간은 네트워크, JVM 기동, DB migration, runner 상태에 따라 달라질 수 있다.
+    </footer>
+  </main>
+</body>
+</html>
