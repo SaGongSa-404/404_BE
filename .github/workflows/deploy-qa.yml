@@ -6,6 +6,10 @@ on:
       - develop
   workflow_dispatch:
 
+concurrency:
+  group: qa-backend-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -41,16 +45,200 @@ jobs:
             ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
             "whoami && hostname"
 
-      - name: Upload jar
-        run: |
-          scp -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            build/libs/wigul-backend-0.0.1-SNAPSHOT.jar \
-            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }}:/home/${{ secrets.GCP_VM_USER }}/404_BE/build/libs/wigul-backend-0.0.1-SNAPSHOT.jar
-
-      - name: Restart service
+      - name: Upload candidate jar
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o IdentitiesOnly=yes \
             ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
-            "sudo -n systemctl restart wigul-backend && systemctl status wigul-backend --no-pager"
+            "mkdir -p /home/${{ secrets.GCP_VM_USER }}/404_BE/build/libs"
+
+          scp -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            build/libs/wigul-backend-0.0.1-SNAPSHOT.jar \
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }}:/home/${{ secrets.GCP_VM_USER }}/404_BE/build/libs/wigul-backend-0.0.1-SNAPSHOT.jar.candidate-${{ github.sha }}
+
+      - name: Deploy through 8081 standby
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
+            'bash -s' <<'REMOTE_DEPLOY'
+          set -Eeuo pipefail
+
+          APP_DIR="/home/${{ secrets.GCP_VM_USER }}/404_BE"
+          JAR_NAME="wigul-backend-0.0.1-SNAPSHOT.jar"
+          ACTIVE_JAR="$APP_DIR/build/libs/$JAR_NAME"
+          CANDIDATE_JAR="$ACTIVE_JAR.candidate-${{ github.sha }}"
+          ENV_FILE="$APP_DIR/.env.systemd"
+          CADDY_FILE="/etc/caddy/Caddyfile"
+          STANDBY_PID="/tmp/wigul-backend-standby.pid"
+          STANDBY_LOG="/tmp/wigul-backend-standby-${{ github.sha }}.log"
+          TS="$(date +%Y%m%d_%H%M%S)"
+          ACTIVE_BACKUP="$ACTIVE_JAR.bak.$TS"
+          CADDY_BACKUP="/etc/caddy/Caddyfile.bak.deploy.$TS"
+          CADDY_ON_8081=0
+
+          cleanup() {
+            code=$?
+            if [ "$code" -eq 0 ]; then
+              return
+            fi
+
+            echo "::error::8081 standby deploy failed. exit=$code"
+            if [ "${CADDY_ON_8081:-0}" = "1" ]; then
+              echo "::warning::Caddy remains on 8081 standby. Do not stop the standby process until 8080 is recovered."
+              sudo -n sed -n '1,120p' "$CADDY_FILE" || true
+              ss -ltnp 2>/dev/null | grep -E ':8080|:8081|:80|:443' || true
+              if [ -n "${CADDY_SITE:-}" ]; then
+                curl -skfsS "https://$CADDY_SITE/health" || true
+                echo
+              fi
+            else
+              if [ -f "$STANDBY_PID" ]; then
+                kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
+                rm -f "$STANDBY_PID"
+              fi
+              if [ -f "$CADDY_BACKUP" ]; then
+                sudo -n cp "$CADDY_BACKUP" "$CADDY_FILE" || true
+                sudo -n systemctl reload caddy || true
+              fi
+            fi
+            exit "$code"
+          }
+          trap cleanup EXIT
+
+          wait_health() {
+            port="$1"
+            label="$2"
+            max_attempts="$3"
+
+            for i in $(seq 1 "$max_attempts"); do
+              if curl -fsS "http://127.0.0.1:$port/health"; then
+                echo
+                echo "$label health OK"
+                return 0
+              fi
+
+              echo "waiting $label health... $i/$max_attempts"
+              sleep 3
+            done
+
+            echo "::error::$label health failed"
+            return 1
+          }
+
+          switch_caddy() {
+            port="$1"
+            tmp_file="$(mktemp)"
+
+            cat > "$tmp_file" <<EOF
+          $CADDY_SITE {
+              reverse_proxy localhost:$port
+          }
+          EOF
+
+            sudo -n cp "$tmp_file" "$CADDY_FILE"
+            rm -f "$tmp_file"
+            sudo -n caddy fmt --overwrite "$CADDY_FILE"
+            sudo -n caddy validate --config "$CADDY_FILE"
+            sudo -n systemctl reload caddy
+          }
+
+          echo "===== deploy start ====="
+          echo "ts=$TS"
+          echo "candidate=$CANDIDATE_JAR"
+          echo "standby_log=$STANDBY_LOG"
+
+          test -f "$CANDIDATE_JAR"
+          test -f "$ACTIVE_JAR"
+          test -f "$ENV_FILE"
+          systemctl is-active --quiet caddy
+          systemctl is-active --quiet wigul-backend
+          systemctl is-active --quiet postgresql@15-main
+
+          CADDY_SITE="$(sudo -n awk 'NF && $1 !~ /^#/ && $NF == "{" { print $1; exit }' "$CADDY_FILE")"
+          if [ -z "$CADDY_SITE" ]; then
+            echo "::error::Could not detect Caddy site from $CADDY_FILE"
+            exit 1
+          fi
+          echo "caddy_site=$CADDY_SITE"
+
+          if ! grep -q 'reverse_proxy localhost:8080' "$CADDY_FILE"; then
+            echo "::error::Caddy must point to localhost:8080 before deploy"
+            sudo -n sed -n '1,120p' "$CADDY_FILE" || true
+            exit 1
+          fi
+
+          if ss -ltn | grep -q ':8081 '; then
+            echo "::error::Port 8081 is already listening"
+            ss -ltnp 2>/dev/null | grep ':8081' || true
+            exit 1
+          fi
+
+          wait_health 8080 "8080 main" 20
+          sudo -n cp "$CADDY_FILE" "$CADDY_BACKUP"
+          rm -f "$STANDBY_PID"
+
+          echo
+          echo "===== start 8081 standby ====="
+          (
+            cd "$APP_DIR"
+            set -a
+            . "$ENV_FILE"
+            set +a
+            export APP_PUSH_FCM_ENABLED=true
+            export APP_PUSH_FCM_CREDENTIALS_LOCATION="file:/opt/wigul/secrets/firebase-adminsdk.json"
+            exec /usr/bin/java \
+              -Xms128m \
+              -Xmx256m \
+              -XX:MaxMetaspaceSize=128m \
+              -jar "$CANDIDATE_JAR" \
+              --server.port=8081 \
+              --spring.datasource.hikari.maximum-pool-size=3
+          ) > "$STANDBY_LOG" 2>&1 &
+          echo "$!" > "$STANDBY_PID"
+          echo "8081 standby pid=$(cat "$STANDBY_PID")"
+
+          wait_health 8081 "8081 standby" 100
+
+          echo
+          echo "===== switch caddy to 8081 ====="
+          switch_caddy 8081
+          CADDY_ON_8081=1
+          curl -skfsS "https://$CADDY_SITE/health"
+          echo
+
+          echo
+          echo "===== replace active jar and restart 8080 ====="
+          cp "$ACTIVE_JAR" "$ACTIVE_BACKUP"
+          cp "$CANDIDATE_JAR" "$ACTIVE_JAR"
+          sudo -n systemctl restart wigul-backend
+          wait_health 8080 "8080 main" 120
+
+          echo
+          echo "===== switch caddy back to 8080 ====="
+          switch_caddy 8080
+          CADDY_ON_8081=0
+          curl -skfsS "https://$CADDY_SITE/health"
+          echo
+
+          echo
+          echo "===== stop 8081 standby ====="
+          kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
+          rm -f "$STANDBY_PID"
+          rm -f "$CANDIDATE_JAR"
+
+          echo
+          echo "===== final check ====="
+          systemctl is-active caddy
+          systemctl is-active wigul-backend
+          systemctl is-active postgresql@15-main
+          sudo -n sed -n '1,80p' "$CADDY_FILE"
+          ss -ltnp 2>/dev/null | grep -E ':8080|:8081|:80|:443' || true
+          curl -fsS http://127.0.0.1:8080/health
+          echo
+          curl -skfsS "https://$CADDY_SITE/health"
+          echo
+          free -h
+          echo "deploy finished"
+          REMOTE_DEPLOY
