@@ -23,6 +23,7 @@ public class JsoupPageFetcher implements PageFetcher {
 			+ "(KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36";
 	private static final int DEFAULT_TIMEOUT_MILLIS = 30_000;
 	private static final int DEFAULT_MAX_ATTEMPTS = 2;
+	private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_000_000;
 	private static final int MAX_REDIRECTS = 5;
 	private static final Pattern JS_HTTP_ASSIGNMENT_PATTERN = Pattern.compile(
 		"(?is)\\b(?:var|let|const)\\s+(store_link|fallback_url|fallbackUrl|target_url|targetUrl|web_url|webUrl|product_url|productUrl|landing_url|landingUrl|redirect_url|redirectUrl|af_android_url|af_ios_url|af_web_dp)\\s*=\\s*(['\"])(https?://.*?)\\2"
@@ -45,14 +46,24 @@ public class JsoupPageFetcher implements PageFetcher {
 
 	private final int timeoutMillis;
 	private final int maxAttempts;
+	private final int maxResponseBytes;
 
 	public JsoupPageFetcher() {
-		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS);
+		this(DEFAULT_MAX_RESPONSE_BYTES);
+	}
+
+	JsoupPageFetcher(int maxResponseBytes) {
+		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes);
 	}
 
 	JsoupPageFetcher(int timeoutMillis, int maxAttempts) {
+		this(timeoutMillis, maxAttempts, DEFAULT_MAX_RESPONSE_BYTES);
+	}
+
+	JsoupPageFetcher(int timeoutMillis, int maxAttempts, int maxResponseBytes) {
 		this.timeoutMillis = timeoutMillis <= 0 ? DEFAULT_TIMEOUT_MILLIS : timeoutMillis;
 		this.maxAttempts = maxAttempts <= 0 ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
+		this.maxResponseBytes = maxResponseBytes <= 0 ? DEFAULT_MAX_RESPONSE_BYTES : maxResponseBytes;
 	}
 
 	@Override
@@ -100,6 +111,7 @@ public class JsoupPageFetcher implements PageFetcher {
 				.ignoreContentType(true)
 				.ignoreHttpErrors(true)
 				.timeout(timeoutMillis)
+				.maxBodySize(maxResponseBytes)
 				.execute();
 
 			if (isRedirect(response.statusCode())) {
@@ -110,10 +122,13 @@ public class JsoupPageFetcher implements PageFetcher {
 				}
 			}
 
+			String body = response.body();
+			enforceBodySize(body);
+
 			Optional<URI> clientSideRedirect = clientSideRedirectTarget(
 				currentUri,
 				response.contentType(),
-				response.body()
+				body
 			);
 			if (clientSideRedirect.isPresent()) {
 				currentUri = clientSideRedirect.get();
@@ -125,10 +140,16 @@ public class JsoupPageFetcher implements PageFetcher {
 				URI.create(response.url().toString()),
 				response.statusCode(),
 				response.contentType(),
-				response.body()
+				body
 			);
 		}
 		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page redirected too many times");
+	}
+
+	private void enforceBodySize(String body) {
+		if (body != null && body.getBytes(StandardCharsets.UTF_8).length > maxResponseBytes) {
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page response is too large");
+		}
 	}
 
 	private boolean isRedirect(int statusCode) {

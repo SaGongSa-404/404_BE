@@ -1,5 +1,6 @@
 package com.sagongsa.backend.itemimport.item;
 
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -23,6 +24,7 @@ final class ShoppingUrlSafety {
 					|| address.isLoopbackAddress()
 					|| address.isLinkLocalAddress()
 					|| address.isSiteLocalAddress()
+					|| isUniqueLocalAddress(address)
 					|| address.isMulticastAddress()) {
 					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Private network shopping urls are not supported");
 				}
@@ -30,5 +32,13 @@ final class ShoppingUrlSafety {
 		} catch (UnknownHostException exception) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Shopping url host could not be resolved", exception);
 		}
+	}
+
+	private static boolean isUniqueLocalAddress(InetAddress address) {
+		if (!(address instanceof Inet6Address)) {
+			return false;
+		}
+		byte[] bytes = address.getAddress();
+		return bytes.length == 16 && (bytes[0] & 0xfe) == 0xfc;
 	}
 }

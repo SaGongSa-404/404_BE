@@ -3,3 +3,17 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+app:
+  auth:
+    jwt-secret: ${APP_JWT_SECRET:}
+    allowed-redirect-uri-prefixes: ${APP_ALLOWED_REDIRECT_URI_PREFIXES:sagongsa404://auth/callback}
+    trusted-user-id-header:
+      enabled: false
+    reviewer-token:
+      enabled: ${APP_REVIEWER_TOKEN_ENABLED:true}
+      secret: ${APP_REVIEWER_TOKEN_SECRET:}
+  shopping:
+    import:
+      browser-fetch:
+        enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:false}

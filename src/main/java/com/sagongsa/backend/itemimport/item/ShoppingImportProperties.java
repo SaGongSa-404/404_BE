@@ -6,7 +6,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.shopping.import")
 public class ShoppingImportProperties {
 
+	private int maxResponseBytes = 1_000_000;
 	private final BrowserFetch browserFetch = new BrowserFetch();
+
+	public int getMaxResponseBytes() {
+		return maxResponseBytes;
+	}
+
+	public void setMaxResponseBytes(int maxResponseBytes) {
+		this.maxResponseBytes = maxResponseBytes <= 0 ? 1_000_000 : maxResponseBytes;
+	}
 
 	public BrowserFetch getBrowserFetch() {
 		return browserFetch;

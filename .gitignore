@@ -46,6 +46,7 @@ agent.md
 .env.*
 !.env.example
 !.env.template
+uploads/
 application-local.yml
 application-local.yaml
 application-secret.yml

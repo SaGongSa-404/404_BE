@@ -57,12 +57,22 @@ app:
     access-token-ttl: ${APP_ACCESS_TOKEN_TTL:PT2H}
     refresh-token-ttl: ${APP_REFRESH_TOKEN_TTL:P30D}
     allowed-redirect-uri-prefixes: ${APP_ALLOWED_REDIRECT_URI_PREFIXES:sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://localhost/auth/callback,https://127.0.0.1/auth/callback}
+    reviewer-token:
+      enabled: ${APP_REVIEWER_TOKEN_ENABLED:true}
+      secret: ${APP_REVIEWER_TOKEN_SECRET:}
+      rate-limit-max-attempts: ${APP_REVIEWER_TOKEN_RATE_LIMIT_MAX_ATTEMPTS:10}
+      rate-limit-window: ${APP_REVIEWER_TOKEN_RATE_LIMIT_WINDOW:PT10M}
+  upload:
+    dir: ${APP_UPLOAD_DIR:./uploads}
+    max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:5MB}
+    max-pixels: ${APP_UPLOAD_MAX_PIXELS:20000000}
   push:
     fcm:
       enabled: ${APP_PUSH_FCM_ENABLED:false}
       credentials-location: ${APP_PUSH_FCM_CREDENTIALS_LOCATION:}
   shopping:
     import:
+      max-response-bytes: ${SHOPPING_IMPORT_MAX_RESPONSE_BYTES:1000000}
       browser-fetch:
         enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:true}
         timeout: ${SHOPPING_IMPORT_BROWSER_FETCH_TIMEOUT:PT30S}

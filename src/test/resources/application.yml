@@ -33,10 +33,16 @@ spring:
 
 app:
   auth:
-    jwt-secret: test-jwt-secret
+    jwt-secret: test-jwt-secret-for-private-test-security-checks
     allowed-redirect-uri-prefixes: sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://localhost/auth/callback,https://127.0.0.1/auth/callback
+    reviewer-token:
+      secret: test-reviewer-token-secret-for-private-test
     trusted-user-id-header:
       enabled: true
+  shopping:
+    import:
+      browser-fetch:
+        enabled: false
   notification:
     reminder-worker:
       enabled: false
