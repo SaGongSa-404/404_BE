@@ -148,6 +148,52 @@ jobs:
             fi
           }
 
+          require_reviewer_seed() {
+            require_env SPRING_DATASOURCE_URL
+            require_env SPRING_DATASOURCE_USERNAME
+
+            case "$SPRING_DATASOURCE_URL" in
+              jdbc:postgresql://*/*)
+                ;;
+              *)
+                fail_preflight "SPRING_DATASOURCE_URL must be a jdbc:postgresql:// URL for reviewer seed preflight"
+                ;;
+            esac
+
+            jdbc_target="${SPRING_DATASOURCE_URL#jdbc:postgresql://}"
+            jdbc_target="${jdbc_target%%\?*}"
+            db_host_port="${jdbc_target%%/*}"
+            db_name="${jdbc_target#*/}"
+            db_host="${db_host_port%%:*}"
+            db_port="5432"
+            if [ "$db_host_port" != "$db_host" ]; then
+              db_port="${db_host_port##*:}"
+            fi
+
+            reviewer_seed_count="$(
+              PGPASSWORD="${SPRING_DATASOURCE_PASSWORD:-}" psql \
+                -h "$db_host" \
+                -p "$db_port" \
+                -U "$SPRING_DATASOURCE_USERNAME" \
+                -d "$db_name" \
+                -Atv ON_ERROR_STOP=1 <<'SQL'
+          select count(*)
+          from users u
+          join social_accounts sa on sa.user_id = u.id
+          join user_profiles up on up.user_id = u.id
+          where u.id = '40400000-0000-0000-0000-000000000055'::uuid
+            and u.status = 'ACTIVE'
+            and u.onboarding_status = 'COMPLETED'
+            and sa.provider = 'KAKAO'
+            and sa.provider_user_id = 'app-reviewer-fixed';
+          SQL
+            )"
+
+            if [ "$reviewer_seed_count" != "1" ]; then
+              fail_preflight "App reviewer seed must exist in users, social_accounts, and user_profiles"
+            fi
+          }
+
           switch_caddy() {
             port="$1"
             tmp_file="$(mktemp)"
@@ -206,6 +252,7 @@ jobs:
           if [ "${APP_REVIEWER_TOKEN_ENABLED:-true}" != "false" ]; then
             require_env APP_REVIEWER_TOKEN_SECRET
             require_secret_length APP_REVIEWER_TOKEN_SECRET
+            require_reviewer_seed
           fi
 
           if [ "${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:-true}" != "true" ]; then

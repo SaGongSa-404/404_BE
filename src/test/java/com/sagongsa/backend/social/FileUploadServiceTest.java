@@ -76,6 +76,21 @@ class FileUploadServiceTest {
 	}
 
 	@Test
+	void rejectsImageWhenPixelCountExceedsLimitBeforeSaving() throws Exception {
+		ReflectionTestUtils.setField(fileUploadService, "maxPixels", 3L);
+		byte[] png = imageBytes("png");
+
+		MockMultipartFile file = new MockMultipartFile("file", "profile.png", "image/png", png);
+
+		assertThatThrownBy(() -> fileUploadService.saveImage(file))
+			.isInstanceOf(FileUploadInvalidException.class)
+			.hasMessageContaining("이미지 해상도");
+		try (var files = Files.list(tempDir.resolve("social"))) {
+			assertThat(files).isEmpty();
+		}
+	}
+
+	@Test
 	void rejectsWebpUntilItCanBeSafelyReencoded() {
 		byte[] webpHeader = new byte[] {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'};
 		MockMultipartFile file = new MockMultipartFile("file", "profile.webp", "image/webp", webpHeader);

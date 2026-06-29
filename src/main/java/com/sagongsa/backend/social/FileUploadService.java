@@ -9,10 +9,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.unit.DataSize;
@@ -73,15 +76,14 @@ class FileUploadService {
 				throw new FileUploadInvalidException(SUPPORTED_FORMAT_MESSAGE);
 			}
 
+			ImageDimensions dimensions = readDimensions(bytes, imageFormat);
+			assertPixelLimit(dimensions.width(), dimensions.height());
+
 			BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
 			if (image == null) {
 				throw new FileUploadInvalidException("이미지 파일을 읽을 수 없습니다.");
 			}
-			long pixels = (long) image.getWidth() * image.getHeight();
-			if (pixels <= 0 || pixels > maxPixels) {
-				throw new FileUploadInvalidException("이미지 해상도가 너무 큽니다.");
-			}
-
+			assertPixelLimit(image.getWidth(), image.getHeight());
 			byte[] sanitizedBytes = encodeImage(image, imageFormat);
 			String filename = UUID.randomUUID() + "." + imageFormat.extension();
 			Path target = baseDir.resolve(filename);
@@ -89,6 +91,33 @@ class FileUploadService {
 			return "/uploads/" + SUB_DIR + "/" + filename;
 		} catch (IOException e) {
 			throw new RuntimeException("파일 저장 실패", e);
+		}
+	}
+
+	private ImageDimensions readDimensions(byte[] bytes, ImageFormat imageFormat) {
+		Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName(imageFormat.readerFormat());
+		if (!readers.hasNext()) {
+			throw new FileUploadInvalidException(SUPPORTED_FORMAT_MESSAGE);
+		}
+
+		ImageReader reader = readers.next();
+		try (ImageInputStream inputStream = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+			if (inputStream == null) {
+				throw new FileUploadInvalidException("이미지 파일을 읽을 수 없습니다.");
+			}
+			reader.setInput(inputStream, true, true);
+			return new ImageDimensions(reader.getWidth(0), reader.getHeight(0));
+		} catch (IOException | RuntimeException e) {
+			throw new FileUploadInvalidException("이미지 파일을 읽을 수 없습니다.");
+		} finally {
+			reader.dispose();
+		}
+	}
+
+	private void assertPixelLimit(int width, int height) {
+		long pixels = (long) width * height;
+		if (width <= 0 || height <= 0 || pixels > maxPixels) {
+			throw new FileUploadInvalidException("이미지 해상도가 너무 큽니다.");
 		}
 	}
 
@@ -128,18 +157,20 @@ class FileUploadService {
 	}
 
 	private enum ImageFormat {
-		JPEG("jpg", "jpg", Set.of("jpg", "jpeg"), Set.of("image/jpeg")),
-		PNG("png", "png", Set.of("png"), Set.of("image/png")),
-		GIF("gif", "gif", Set.of("gif"), Set.of("image/gif"));
+		JPEG("jpg", "jpg", "jpg", Set.of("jpg", "jpeg"), Set.of("image/jpeg")),
+		PNG("png", "png", "png", Set.of("png"), Set.of("image/png")),
+		GIF("gif", "gif", "gif", Set.of("gif"), Set.of("image/gif"));
 
 		private final String extension;
 		private final String writerFormat;
+		private final String readerFormat;
 		private final Set<String> extensions;
 		private final Set<String> mimeTypes;
 
-		ImageFormat(String extension, String writerFormat, Set<String> extensions, Set<String> mimeTypes) {
+		ImageFormat(String extension, String writerFormat, String readerFormat, Set<String> extensions, Set<String> mimeTypes) {
 			this.extension = extension;
 			this.writerFormat = writerFormat;
+			this.readerFormat = readerFormat;
 			this.extensions = extensions;
 			this.mimeTypes = mimeTypes;
 		}
@@ -152,6 +183,10 @@ class FileUploadService {
 			return writerFormat;
 		}
 
+		String readerFormat() {
+			return readerFormat;
+		}
+
 		Set<String> extensions() {
 			return extensions;
 		}
@@ -159,5 +194,8 @@ class FileUploadService {
 		Set<String> mimeTypes() {
 			return mimeTypes;
 		}
+	}
+
+	private record ImageDimensions(int width, int height) {
 	}
 }
