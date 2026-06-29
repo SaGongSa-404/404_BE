@@ -57,13 +57,23 @@ class PublicServerSecurityGuardTest {
 	}
 
 	@Test
-	void rejectsBrowserFetchInProd() {
+	void rejectsDisabledBrowserFetchInPrivateTestProd() {
 		ShoppingImportProperties shoppingImportProperties = safeShoppingImportProperties();
-		shoppingImportProperties.getBrowserFetch().setEnabled(true);
+		shoppingImportProperties.getBrowserFetch().setEnabled(false);
 
 		assertThatThrownBy(() -> guard(safeAuthProperties(), shoppingImportProperties, false).run(null))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("browser-fetch");
+	}
+
+	@Test
+	void rejectsOversizedShoppingImportResponseLimitInProd() {
+		ShoppingImportProperties shoppingImportProperties = safeShoppingImportProperties();
+		shoppingImportProperties.setMaxResponseBytes(3_000_001);
+
+		assertThatThrownBy(() -> guard(safeAuthProperties(), shoppingImportProperties, false).run(null))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("max-response-bytes");
 	}
 
 	private PublicServerSecurityGuard guard(
@@ -86,7 +96,7 @@ class PublicServerSecurityGuardTest {
 
 	private ShoppingImportProperties safeShoppingImportProperties() {
 		ShoppingImportProperties properties = new ShoppingImportProperties();
-		properties.getBrowserFetch().setEnabled(false);
+		properties.getBrowserFetch().setEnabled(true);
 		return properties;
 	}
 }

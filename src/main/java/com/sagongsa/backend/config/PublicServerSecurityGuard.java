@@ -2,6 +2,7 @@ package com.sagongsa.backend.config;
 
 import com.sagongsa.backend.itemimport.item.ShoppingImportProperties;
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -16,6 +17,10 @@ public class PublicServerSecurityGuard implements ApplicationRunner {
 
 	private static final String DEFAULT_JWT_SECRET = "local-development-jwt-secret-change-me";
 	private static final int MIN_SECRET_LENGTH = 32;
+	private static final int MAX_SHOPPING_RESPONSE_BYTES = 3_000_000;
+	private static final Duration MAX_BROWSER_FETCH_TIMEOUT = Duration.ofSeconds(30);
+	private static final Duration MAX_BROWSER_RENDER_WAIT = Duration.ofSeconds(5);
+	private static final Duration MAX_BROWSER_NETWORK_IDLE_TIMEOUT = Duration.ofSeconds(2);
 
 	private final AppAuthProperties authProperties;
 	private final ShoppingImportProperties shoppingImportProperties;
@@ -50,9 +55,7 @@ public class PublicServerSecurityGuard implements ApplicationRunner {
 		if (hasLocalRedirectPrefix(authProperties.getAllowedRedirectUriPrefixes())) {
 			throw new IllegalStateException("app.auth.allowed-redirect-uri-prefixes must not include localhost in prod");
 		}
-		if (shoppingImportProperties.getBrowserFetch().isEnabled()) {
-			throw new IllegalStateException("app.shopping.import.browser-fetch.enabled must be false in prod");
-		}
+		validateShoppingImportSettings();
 		if (authProperties.getReviewerToken().isEnabled()) {
 			requireStrongSecret("APP_REVIEWER_TOKEN_SECRET", authProperties.getReviewerToken().getSecret());
 		}
@@ -66,6 +69,30 @@ public class PublicServerSecurityGuard implements ApplicationRunner {
 
 	private boolean hasLocalRedirectPrefix(List<String> prefixes) {
 		return prefixes.stream().anyMatch(this::isLocalRedirectPrefix);
+	}
+
+	private void validateShoppingImportSettings() {
+		if (!shoppingImportProperties.getBrowserFetch().isEnabled()) {
+			throw new IllegalStateException("app.shopping.import.browser-fetch.enabled must be true for private test prod");
+		}
+		if (shoppingImportProperties.getMaxResponseBytes() > MAX_SHOPPING_RESPONSE_BYTES) {
+			throw new IllegalStateException("app.shopping.import.max-response-bytes must be at most " + MAX_SHOPPING_RESPONSE_BYTES + " in prod");
+		}
+
+		ShoppingImportProperties.BrowserFetch browserFetch = shoppingImportProperties.getBrowserFetch();
+		requireDurationAtMost("app.shopping.import.browser-fetch.timeout", browserFetch.getTimeout(), MAX_BROWSER_FETCH_TIMEOUT);
+		requireDurationAtMost("app.shopping.import.browser-fetch.render-wait", browserFetch.getRenderWait(), MAX_BROWSER_RENDER_WAIT);
+		requireDurationAtMost(
+			"app.shopping.import.browser-fetch.network-idle-timeout",
+			browserFetch.getNetworkIdleTimeout(),
+			MAX_BROWSER_NETWORK_IDLE_TIMEOUT
+		);
+	}
+
+	private void requireDurationAtMost(String name, Duration value, Duration max) {
+		if (value != null && value.compareTo(max) > 0) {
+			throw new IllegalStateException(name + " must be at most " + max + " in prod");
+		}
 	}
 
 	private boolean isLocalRedirectPrefix(String prefix) {

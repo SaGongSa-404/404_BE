@@ -208,8 +208,8 @@ jobs:
             require_secret_length APP_REVIEWER_TOKEN_SECRET
           fi
 
-          if [ "${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:-false}" = "true" ]; then
-            fail_preflight "SHOPPING_IMPORT_BROWSER_FETCH_ENABLED must not be true"
+          if [ "${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:-true}" != "true" ]; then
+            fail_preflight "SHOPPING_IMPORT_BROWSER_FETCH_ENABLED must be true for private test"
           fi
 
           case "${APP_ALLOWED_REDIRECT_URI_PREFIXES:-}" in

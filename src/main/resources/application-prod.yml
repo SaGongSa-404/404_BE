@@ -16,4 +16,4 @@ app:
   shopping:
     import:
       browser-fetch:
-        enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:false}
+        enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:true}

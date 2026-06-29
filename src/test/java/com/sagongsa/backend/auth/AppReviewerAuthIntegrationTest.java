@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.MvcResult;
 	"app.auth.jwt-secret=test-jwt-secret-for-private-test-security-checks",
 	"app.auth.allowed-redirect-uri-prefixes=sagongsa404://auth/callback",
 	"app.auth.reviewer-token.secret=test-reviewer-token-secret-for-private-test",
-	"app.shopping.import.browser-fetch.enabled=false"
+	"app.shopping.import.browser-fetch.enabled=true"
 })
 @ActiveProfiles("prod")
 @AutoConfigureMockMvc
