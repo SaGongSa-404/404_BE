@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
 import org.junit.jupiter.api.Test;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 
 class JsoupPageFetcherTest {
 
@@ -181,5 +183,66 @@ class JsoupPageFetcherTest {
 			"text/html",
 			body
 		)).contains(URI.create("https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000186792"));
+	}
+
+	@Test
+	void resolvesAirbridgeShareLinkQueryToZigzagProductPage() {
+		assertThat(JsoupPageFetcher.queryRedirectTarget(
+			URI.create("https://abr.ge/@zigzag/sharelink"
+				+ "?deeplink_url=zigzag%3A%2F%2Fopen%2Fproduct_detail%3Furl%3Dhttps%253A%252F%252Fstore.zigzag.kr%252Fcatalog%252Fproducts%252F170411267%253Fcatalog_product_id%253D170411267%26catalog_product_id%3D170411267"
+				+ "&fallback_desktop=https%3A%2F%2Fzigzag.kr%2Fp%2F170411267")
+		)).contains(URI.create("https://store.zigzag.kr/catalog/products/170411267?catalog_product_id=170411267"));
+	}
+
+	@Test
+	void resolvesAirbridgeProductDetailQueryToZigzagProductPage() {
+		assertThat(JsoupPageFetcher.queryRedirectTarget(
+			URI.create("https://zigzag.airbridge.io/open/product_detail"
+				+ "?url=https%3A%2F%2Fstore.zigzag.kr%2Fcatalog%2Fproducts%2F170411267%3Fcatalog_product_id%3D170411267"
+				+ "&catalog_product_id=170411267"
+				+ "&fallback_desktop=https%3A%2F%2Fzigzag.kr%2Fp%2F170411267")
+		)).contains(URI.create("https://store.zigzag.kr/catalog/products/170411267?catalog_product_id=170411267"));
+	}
+
+	@Test
+	void resolvesBunjangAirbridgeProductQueryToMobileProductPage() {
+		assertThat(JsoupPageFetcher.queryRedirectTarget(
+			URI.create("https://bunjang.airbridge.io/goto"
+				+ "?type=product"
+				+ "&val=398473587"
+				+ "&airbridge_referrer=airbridge%3Dtrue")
+		)).contains(URI.create("https://m.bunjang.co.kr/products/398473587"));
+	}
+
+	@Test
+	void buildsBunjangProductMetadataHtmlFromDetailApiResponse() {
+		String apiBody = """
+			{
+			  "data": {
+			    "product": {
+			      "pid": 398473587,
+			      "name": "용인대 아디다스 유도복 165",
+			      "description": "용인대 마크가 새겨진 아디다스 유도복",
+			      "price": 100000,
+			      "imageUrl": "https://media.bunjang.co.kr/product/398473587_{cnt}_1781014735_w{res}.jpg",
+			      "brand": {
+			        "name": "아디다스"
+			      }
+			    }
+			  }
+			}
+			""";
+
+		String html = JsoupPageFetcher.bunjangProductMetadataHtml(apiBody).orElseThrow();
+		Document document = Jsoup.parse(html);
+
+		assertThat(document.selectFirst("meta[property=og:title]").attr("content"))
+			.isEqualTo("용인대 아디다스 유도복 165");
+		assertThat(document.selectFirst("meta[property=product:price:amount]").attr("content"))
+			.isEqualTo("100000");
+		assertThat(document.selectFirst("meta[property=og:image]").attr("content"))
+			.isEqualTo("https://media.bunjang.co.kr/product/398473587_1_1781014735_w900.jpg");
+		assertThat(document.selectFirst("meta[property=kakao:commerce:brand_name]").attr("content"))
+			.isEqualTo("아디다스");
 	}
 }

@@ -308,7 +308,7 @@ public class ShoppingLinkImportService {
 		if (containsAny(haystack, "셔츠", "니트", "가디건", "팬츠", "아우터", "원피스", "스니커즈", "신발", "가방", "musinsa", "zigzag", "ably", "29cm")) {
 			return ItemCategory.FASHION;
 		}
-		if (containsAny(haystack, "립", "쿠션", "에센스", "크림", "마스크팩", "oliveyoung", "향수", "샴푸")) {
+		if (containsAny(haystack, "립스틱", "립밤", "립틴트", "립글로스", "립라이너", "쿠션", "에센스", "크림", "마스크팩", "oliveyoung", "향수", "샴푸")) {
 			return ItemCategory.BEAUTY;
 		}
 		if (containsAny(haystack, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "ipad", "monitor", "ssd", "보조배터리", "충전기")) {
@@ -320,7 +320,7 @@ public class ShoppingLinkImportService {
 		if (containsAny(haystack, "간식", "음료", "커피", "프로틴", "식품", "라면", "과자")) {
 			return ItemCategory.FOOD;
 		}
-		if (containsAny(haystack, "레고", "피규어", "게임", "취미", "캠핑", "자전거")) {
+		if (containsAny(haystack, "레고", "피규어", "게임", "취미", "캠핑", "자전거", "스포츠", "레저", "유도", "도복", "운동")) {
 			return ItemCategory.HOBBY;
 		}
 		if (containsAny(haystack, "subscription", "멤버십", "정기구독", "월간", "연간 구독")) {
@@ -704,9 +704,10 @@ public class ShoppingLinkImportService {
 			.trim()
 			.toLowerCase(Locale.ROOT);
 		return switch (sourceDomain) {
-			case "zigzag.kr", "s.zigzag.kr", "link.zigzag.kr" ->
+			case "zigzag.kr", "s.zigzag.kr", "link.zigzag.kr", "zigzag.airbridge.io" ->
 				normalizedTitle.equals("지그재그") || normalizedTitle.equals("zigzag") || normalizedTitle.equals("지그재그스토어");
-			case "bunjang.co.kr", "m.bunjang.co.kr", "link.bunjang.co.kr", "share.bunjang.co.kr" ->
+			case "bunjang.co.kr", "m.bunjang.co.kr", "bunjang.airbridge.io", "go.bgzt.link",
+				"link.bunjang.co.kr", "share.bunjang.co.kr" ->
 				normalizedTitle.equals("번개장터") || normalizedTitle.equals("bunjang");
 			case "app.shopping.naver.com", "naver.me" ->
 				normalizedTitle.equals("네이버스토어") || normalizedTitle.equals("네이버플러스스토어");
