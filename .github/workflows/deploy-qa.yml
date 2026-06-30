@@ -28,8 +28,8 @@ jobs:
       - name: Grant execute permission for Gradle
         run: chmod +x ./gradlew
 
-      - name: Build bootJar
-        run: ./gradlew clean bootJar -x test --no-daemon
+      - name: Build and test bootJar
+        run: ./gradlew clean test bootJar --no-daemon
 
       - name: Prepare SSH
         run: |
@@ -127,6 +127,73 @@ jobs:
             return 1
           }
 
+          fail_preflight() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          require_env() {
+            name="$1"
+            value="${!name:-}"
+            if [ -z "$value" ]; then
+              fail_preflight "$name must be set in $ENV_FILE"
+            fi
+          }
+
+          require_secret_length() {
+            name="$1"
+            value="${!name:-}"
+            if [ "${#value}" -lt 32 ]; then
+              fail_preflight "$name must be at least 32 characters"
+            fi
+          }
+
+          require_reviewer_seed() {
+            require_env SPRING_DATASOURCE_URL
+            require_env SPRING_DATASOURCE_USERNAME
+
+            case "$SPRING_DATASOURCE_URL" in
+              jdbc:postgresql://*/*)
+                ;;
+              *)
+                fail_preflight "SPRING_DATASOURCE_URL must be a jdbc:postgresql:// URL for reviewer seed preflight"
+                ;;
+            esac
+
+            jdbc_target="${SPRING_DATASOURCE_URL#jdbc:postgresql://}"
+            jdbc_target="${jdbc_target%%\?*}"
+            db_host_port="${jdbc_target%%/*}"
+            db_name="${jdbc_target#*/}"
+            db_host="${db_host_port%%:*}"
+            db_port="5432"
+            if [ "$db_host_port" != "$db_host" ]; then
+              db_port="${db_host_port##*:}"
+            fi
+
+            reviewer_seed_count="$(
+              PGPASSWORD="${SPRING_DATASOURCE_PASSWORD:-}" psql \
+                -h "$db_host" \
+                -p "$db_port" \
+                -U "$SPRING_DATASOURCE_USERNAME" \
+                -d "$db_name" \
+                -Atv ON_ERROR_STOP=1 <<'SQL'
+          select count(*)
+          from users u
+          join social_accounts sa on sa.user_id = u.id
+          join user_profiles up on up.user_id = u.id
+          where u.id = '40400000-0000-0000-0000-000000000055'::uuid
+            and u.status = 'ACTIVE'
+            and u.onboarding_status = 'COMPLETED'
+            and sa.provider = 'KAKAO'
+            and sa.provider_user_id = 'app-reviewer-fixed';
+          SQL
+            )"
+
+            if [ "$reviewer_seed_count" != "1" ]; then
+              fail_preflight "App reviewer seed must exist in users, social_accounts, and user_profiles"
+            fi
+          }
+
           switch_caddy() {
             port="$1"
             tmp_file="$(mktemp)"
@@ -162,6 +229,41 @@ jobs:
             exit 1
           fi
           echo "caddy_site=$CADDY_SITE"
+
+          set -a
+          . "$ENV_FILE"
+          set +a
+
+          require_env SPRING_PROFILES_ACTIVE
+          if [ "$SPRING_PROFILES_ACTIVE" != "prod" ]; then
+            fail_preflight "SPRING_PROFILES_ACTIVE must be prod"
+          fi
+
+          require_env APP_JWT_SECRET
+          if [ "$APP_JWT_SECRET" = "local-development-jwt-secret-change-me" ]; then
+            fail_preflight "APP_JWT_SECRET must not use the development default"
+          fi
+          require_secret_length APP_JWT_SECRET
+
+          if [ "${APP_AUTH_TRUSTED_USER_ID_HEADER_ENABLED:-false}" = "true" ]; then
+            fail_preflight "APP_AUTH_TRUSTED_USER_ID_HEADER_ENABLED must not be true"
+          fi
+
+          if [ "${APP_REVIEWER_TOKEN_ENABLED:-true}" != "false" ]; then
+            require_env APP_REVIEWER_TOKEN_SECRET
+            require_secret_length APP_REVIEWER_TOKEN_SECRET
+            require_reviewer_seed
+          fi
+
+          if [ "${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:-true}" != "true" ]; then
+            fail_preflight "SHOPPING_IMPORT_BROWSER_FETCH_ENABLED must be true for private test"
+          fi
+
+          case "${APP_ALLOWED_REDIRECT_URI_PREFIXES:-}" in
+            *localhost*|*127.0.0.1*|*0.0.0.0*)
+              fail_preflight "APP_ALLOWED_REDIRECT_URI_PREFIXES must not include local hosts"
+              ;;
+          esac
 
           if ! grep -q 'reverse_proxy localhost:8080' "$CADDY_FILE"; then
             echo "::error::Caddy must point to localhost:8080 before deploy"

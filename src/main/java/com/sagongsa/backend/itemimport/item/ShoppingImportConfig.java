@@ -11,9 +11,10 @@ public class ShoppingImportConfig {
 	@Bean
 	public PageFetcher pageFetcher(ShoppingImportProperties properties) {
 		ShoppingImportProperties.BrowserFetch browserFetch = properties.getBrowserFetch();
+		JsoupPageFetcher jsoupPageFetcher = new JsoupPageFetcher(properties.getMaxResponseBytes());
 		if (browserFetch.isEnabled()) {
-			return new FallbackPageFetcher(new JsoupPageFetcher(), new BrowserPageFetcher(browserFetch));
+			return new FallbackPageFetcher(jsoupPageFetcher, new BrowserPageFetcher(browserFetch, properties.getMaxResponseBytes()));
 		}
-		return new JsoupPageFetcher();
+		return jsoupPageFetcher;
 	}
 }

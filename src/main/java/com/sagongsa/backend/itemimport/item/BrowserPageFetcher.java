@@ -11,6 +11,7 @@ import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
 import jakarta.annotation.PreDestroy;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
@@ -25,12 +26,18 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 			+ "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 	private final ShoppingImportProperties.BrowserFetch properties;
+	private final int maxResponseBytes;
 	private final Object browserLock = new Object();
 	private Playwright playwright;
 	private Browser browser;
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties) {
+		this(properties, 1_000_000);
+	}
+
+	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, int maxResponseBytes) {
 		this.properties = properties;
+		this.maxResponseBytes = maxResponseBytes <= 0 ? 1_000_000 : maxResponseBytes;
 	}
 
 	@Override
@@ -52,13 +59,17 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 
 				URI finalUri = URI.create(page.url());
 				ShoppingUrlSafety.validatePublicHost(finalUri);
+				String body = page.content();
+				if (body != null && body.getBytes(StandardCharsets.UTF_8).length > maxResponseBytes) {
+					throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Rendered shopping page response is too large");
+				}
 
 				return new FetchedPage(
 					uri,
 					finalUri,
 					response == null ? 200 : response.status(),
 					response == null ? "text/html" : response.headerValue("content-type"),
-					page.content()
+					body
 				);
 			} finally {
 				page.close();
