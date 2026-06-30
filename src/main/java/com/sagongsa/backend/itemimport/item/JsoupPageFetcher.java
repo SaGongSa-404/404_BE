@@ -1,5 +1,8 @@
 package com.sagongsa.backend.itemimport.item;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -24,6 +27,8 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static final int DEFAULT_TIMEOUT_MILLIS = 30_000;
 	private static final int DEFAULT_MAX_ATTEMPTS = 2;
 	private static final int MAX_REDIRECTS = 5;
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+	private static final Pattern BUNJANG_PRODUCT_PATH_PATTERN = Pattern.compile("^/products/(\\d+)(?:/.*)?$");
 	private static final Pattern JS_HTTP_ASSIGNMENT_PATTERN = Pattern.compile(
 		"(?is)\\b(?:var|let|const)\\s+(store_link|fallback_url|fallbackUrl|target_url|targetUrl|web_url|webUrl|product_url|productUrl|landing_url|landingUrl|redirect_url|redirectUrl|af_android_url|af_ios_url|af_web_dp)\\s*=\\s*(['\"])(https?://.*?)\\2"
 	);
@@ -120,9 +125,21 @@ public class JsoupPageFetcher implements PageFetcher {
 				continue;
 			}
 
+			URI finalUri = URI.create(response.url().toString());
+			Optional<FetchedPage> bunjangProductPage = bunjangProductApiPage(
+				uri,
+				finalUri,
+				response.statusCode(),
+				response.contentType(),
+				response.body()
+			);
+			if (bunjangProductPage.isPresent()) {
+				return bunjangProductPage.get();
+			}
+
 			return new FetchedPage(
 				uri,
-				URI.create(response.url().toString()),
+				finalUri,
 				response.statusCode(),
 				response.contentType(),
 				response.body()
@@ -244,20 +261,27 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static boolean isKnownBridgeHost(String host) {
 		return host.equals("app.shopping.naver.com")
 			|| host.equals("naver.me")
+			|| host.equals("abr.ge")
+			|| host.endsWith(".airbridge.io")
 			|| host.endsWith(".onelink.me")
 			|| host.endsWith(".app.link")
 			|| host.equals("oy.run")
 			|| host.equals("s.zigzag.kr")
 			|| host.equals("link.zigzag.kr")
+			|| host.equals("go.bgzt.link")
 			|| host.equals("link.bunjang.co.kr")
 			|| host.equals("share.bunjang.co.kr");
 	}
 
-	private static Optional<URI> queryRedirectTarget(URI uri) {
+	static Optional<URI> queryRedirectTarget(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
 		String rawQuery = uri.getRawQuery();
 		if (!isKnownBridgeHost(host) || rawQuery == null || rawQuery.isBlank()) {
 			return Optional.empty();
+		}
+		Optional<URI> bunjangProductTarget = bunjangAirbridgeProductTarget(uri, rawQuery);
+		if (bunjangProductTarget.isPresent()) {
+			return bunjangProductTarget;
 		}
 		for (String key : redirectQueryKeys()) {
 			Optional<URI> target = queryParameter(rawQuery, key)
@@ -268,6 +292,189 @@ public class JsoupPageFetcher implements PageFetcher {
 			}
 		}
 		return Optional.empty();
+	}
+
+	private static Optional<URI> bunjangAirbridgeProductTarget(URI uri, String rawQuery) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if (!host.equals("bunjang.airbridge.io")) {
+			return Optional.empty();
+		}
+		boolean isProduct = queryParameter(rawQuery, "type")
+			.map(type -> type.equalsIgnoreCase("product"))
+			.orElse(false);
+		return queryParameter(rawQuery, "val")
+			.filter(productId -> isProduct)
+			.filter(productId -> productId.matches("\\d+"))
+			.map(productId -> URI.create("https://m.bunjang.co.kr/products/" + productId));
+	}
+
+	private Optional<FetchedPage> bunjangProductApiPage(
+		URI requestedUri,
+		URI finalUri,
+		int statusCode,
+		String contentType,
+		String body
+	) throws IOException {
+		if (statusCode != 200 || !isBunjangProductShell(finalUri, contentType, body)) {
+			return Optional.empty();
+		}
+		Optional<String> productId = bunjangProductId(finalUri);
+		if (productId.isEmpty()) {
+			return Optional.empty();
+		}
+
+		URI apiUri = URI.create("https://api.bunjang.co.kr/api/pms/v1/products/" + productId.get() + "/detail/web");
+		ShoppingUrlSafety.validatePublicHost(apiUri);
+		Connection.Response apiResponse = Jsoup.connect(apiUri.toString())
+			.userAgent(ANDROID_USER_AGENT)
+			.header("Accept", "application/json, text/plain, */*")
+			.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+			.header("Origin", "https://m.bunjang.co.kr")
+			.header("Referer", finalUri.toString())
+			.ignoreContentType(true)
+			.ignoreHttpErrors(true)
+			.timeout(timeoutMillis)
+			.execute();
+
+		if (apiResponse.statusCode() >= 400) {
+			return Optional.empty();
+		}
+
+		return bunjangProductMetadataHtml(apiResponse.body())
+			.map(html -> new FetchedPage(requestedUri, finalUri, 200, "text/html; charset=UTF-8", html));
+	}
+
+	private static boolean isBunjangProductShell(URI uri, String contentType, String body) {
+		if (bunjangProductId(uri).isEmpty() || body == null || body.isBlank() || !mayContainClientSideRedirect(contentType)) {
+			return false;
+		}
+		Document document = Jsoup.parse(body, uri.toString());
+		return isBunjangSiteTitle(document.title())
+			&& isBunjangSiteTitle(document.selectFirst("meta[property=og:title]") == null
+				? null
+				: document.selectFirst("meta[property=og:title]").attr("content"));
+	}
+
+	private static Optional<String> bunjangProductId(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if (!host.equals("m.bunjang.co.kr") && !host.equals("bunjang.co.kr")) {
+			return Optional.empty();
+		}
+		String path = Optional.ofNullable(uri.getPath()).orElse("");
+		Matcher matcher = BUNJANG_PRODUCT_PATH_PATTERN.matcher(path);
+		return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
+	}
+
+	static Optional<String> bunjangProductMetadataHtml(String apiBody) {
+		if (apiBody == null || apiBody.isBlank()) {
+			return Optional.empty();
+		}
+		try {
+			JsonNode product = OBJECT_MAPPER.readTree(apiBody).path("data").path("product");
+			if (product.isMissingNode() || product.isNull()) {
+				return Optional.empty();
+			}
+
+			String title = jsonText(product, "name");
+			String description = jsonText(product, "description");
+			String price = jsonText(product, "price");
+			String brandName = jsonText(product, "brand", "name");
+			String imageUrl = normalizeBunjangImageUrl(jsonText(product, "imageUrl"));
+			if (isBlank(title) && isBlank(price) && isBlank(imageUrl)) {
+				return Optional.empty();
+			}
+
+			StringBuilder html = new StringBuilder("<!doctype html><html><head>");
+			html.append("<title>").append(escapeHtml(firstNonBlank(title, "번개장터 상품"))).append("</title>");
+			appendPropertyMeta(html, "og:title", title);
+			appendNameMeta(html, "twitter:title", title);
+			appendPropertyMeta(html, "og:description", description);
+			appendNameMeta(html, "description", description);
+			appendPropertyMeta(html, "og:image", imageUrl);
+			appendNameMeta(html, "twitter:image", imageUrl);
+			appendPropertyMeta(html, "product:price:amount", price);
+			appendPropertyMeta(html, "kakao:commerce:price", price);
+			appendPropertyMeta(html, "kakao:commerce:brand_name", brandName);
+			html.append("</head><body></body></html>");
+			return Optional.of(html.toString());
+		} catch (JsonProcessingException exception) {
+			return Optional.empty();
+		}
+	}
+
+	private static String jsonText(JsonNode node, String... path) {
+		JsonNode current = node;
+		for (String key : path) {
+			current = current.path(key);
+			if (current.isMissingNode() || current.isNull()) {
+				return null;
+			}
+		}
+		String value = current.asText();
+		return isBlank(value) ? null : value.trim();
+	}
+
+	private static String normalizeBunjangImageUrl(String imageUrl) {
+		if (isBlank(imageUrl)) {
+			return null;
+		}
+		String normalized = imageUrl.replace("{cnt}", "1").replace("{res}", "900");
+		try {
+			URI uri = URI.create(normalized);
+			String scheme = Optional.ofNullable(uri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
+			return scheme.equals("http") || scheme.equals("https") ? uri.toString() : null;
+		} catch (IllegalArgumentException exception) {
+			return null;
+		}
+	}
+
+	private static void appendPropertyMeta(StringBuilder html, String property, String content) {
+		appendMeta(html, "property", property, content);
+	}
+
+	private static void appendNameMeta(StringBuilder html, String name, String content) {
+		appendMeta(html, "name", name, content);
+	}
+
+	private static void appendMeta(StringBuilder html, String attributeName, String key, String content) {
+		if (isBlank(content)) {
+			return;
+		}
+		html.append("<meta ")
+			.append(attributeName)
+			.append("=\"")
+			.append(escapeHtml(key))
+			.append("\" content=\"")
+			.append(escapeHtml(content))
+			.append("\" />");
+	}
+
+	private static boolean isBunjangSiteTitle(String value) {
+		if (isBlank(value)) {
+			return false;
+		}
+		String normalized = value.replace(" ", "").trim().toLowerCase(Locale.ROOT);
+		return normalized.equals("번개장터") || normalized.equals("bunjang");
+	}
+
+	private static String firstNonBlank(String... values) {
+		for (String value : values) {
+			if (!isBlank(value)) {
+				return value.trim();
+			}
+		}
+		return null;
+	}
+
+	private static boolean isBlank(String value) {
+		return value == null || value.isBlank();
+	}
+
+	private static String escapeHtml(String value) {
+		return value.replace("&", "&amp;")
+			.replace("\"", "&quot;")
+			.replace("<", "&lt;")
+			.replace(">", "&gt;");
 	}
 
 	private static Optional<URI> assignedHttpUrlTarget(URI baseUri, String body) {
@@ -314,9 +521,11 @@ public class JsoupPageFetcher implements PageFetcher {
 
 	private static String[] redirectQueryKeys() {
 		return new String[] {
-			"url", "link", "dst", "deepLink", "deep_link", "deeplink", "appLink", "app_link", "af_dp",
+			"url", "link", "dst", "deepLink", "deep_link", "deeplink", "deeplinkUrl", "deeplink_url",
+			"deepLinkUrl", "deep_link_url", "appLink", "app_link", "af_dp",
 			"targetUrl", "target_url", "webUrl", "web_url", "productUrl", "product_url",
 			"landingUrl", "landing_url", "fallbackUrl", "fallback_url", "redirectUrl", "redirect_url",
+			"fallbackDesktop", "fallback_desktop", "fallbackWeb", "fallback_web",
 			"af_web_dp", "af_android_url", "af_ios_url"
 		};
 	}

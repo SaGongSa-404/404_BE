@@ -434,6 +434,39 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void classifiesBunjangSportsProductWithoutLipFalsePositive() {
+		pageFetcher.stub(
+			"https://m.bunjang.co.kr/products/398473587",
+			"""
+				<html>
+				<head>
+				  <meta property="og:title" content="용인대 아디다스 유도복 165" />
+				  <meta property="og:description" content="수선하시면 될것같고 그거 감안해서 싸게 올립니다" />
+				  <meta property="og:image" content="https://media.bunjang.co.kr/product/398473587_1_1781014735_w900.jpg" />
+				  <meta property="product:price:amount" content="100000" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.bunjang.co.kr/products/398473587",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("용인대 아디다스 유도복 165");
+		assertThat(response.item().listedPrice()).isEqualTo(100000);
+		assertThat(response.item().category()).isEqualTo(ItemCategory.HOBBY);
+	}
+
+	@Test
 	void rejectsCommerceBridgeShellInsteadOfImportingSiteNameWithZeroPrice() {
 		pageFetcher.stub(
 			"https://zigzag.kr/share/products/110621280",
@@ -461,6 +494,74 @@ class ShoppingLinkImportServiceTest {
 			new ShoppingLinkImportRequest(
 				ItemInputSource.SHARE,
 				"https://zigzag.kr/share/products/110621280",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+			});
+	}
+
+	@Test
+	void rejectsZigzagAirbridgeShellInsteadOfImportingSiteName() {
+		pageFetcher.stub(
+			"https://zigzag.airbridge.io/open/product_detail?fallback_desktop=https%3A%2F%2Fzigzag.kr%2Fp%2F170411267",
+			"""
+				<html>
+				<head>
+				  <title>지그재그</title>
+				  <meta property="og:title" content="지그재그" />
+				  <meta property="og:description" content="4,000만 여성이 선택한 쇼핑앱, 지그재그" />
+				  <meta property="og:image" content="http://static.airbridge.io/images/og_tags/zigzag.png" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://zigzag.airbridge.io/open/product_detail?fallback_desktop=https%3A%2F%2Fzigzag.kr%2Fp%2F170411267",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+			});
+	}
+
+	@Test
+	void rejectsBunjangAirbridgeShellInsteadOfImportingSiteName() {
+		pageFetcher.stub(
+			"https://bunjang.airbridge.io/goto?type=product&val=398473587",
+			"""
+				<html>
+				<head>
+				  <title>번개장터</title>
+				  <meta property="og:title" content="번개장터" />
+				  <meta property="og:description" content="취향을 잇는 거래, 번개장터" />
+				  <meta property="og:image" content="https://static.bunjang.co.kr/images/logo.png" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://bunjang.airbridge.io/goto?type=product&val=398473587",
 				null,
 				null,
 				null,
