@@ -14,10 +14,12 @@ import java.util.List;
 import java.util.Map;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
@@ -32,10 +34,15 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -58,6 +65,7 @@ public class SecurityConfig {
 		OAuth2AppAuthenticationFailureHandler authenticationFailureHandler,
 		Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter,
 		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedUserIdHeaderEnabled,
+		@Qualifier("apiAccessTokenJwtDecoder") JwtDecoder apiAccessTokenJwtDecoder,
 		Environment environment
 	) throws Exception {
 		boolean nonProd = !environment.acceptsProfiles(Profiles.of("prod"));
@@ -68,7 +76,7 @@ public class SecurityConfig {
 			.authorizeHttpRequests(auth -> {
 				auth
 					.requestMatchers("/", "/index.html", "/login.html", "/app.html",
-						"/deliberation.html", "/test-mypage.html", "/test-nickname.html", "/test-consumption.html", "/favicon.ico", "/error").permitAll()
+						"/favicon.ico", "/error").permitAll()
 					.requestMatchers("/health", "/api/health").permitAll()
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
@@ -78,6 +86,7 @@ public class SecurityConfig {
 
 				if (nonProd) {
 					auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
+					auth.requestMatchers("/deliberation.html", "/test-*.html").permitAll();
 					auth.requestMatchers("/api/dev/**").permitAll();
 				}
 
@@ -105,7 +114,9 @@ public class SecurityConfig {
 				)
 			)
 			.oauth2Client(Customizer.withDefaults())
-			.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
+			.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
+				.decoder(apiAccessTokenJwtDecoder)
+				.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
 		return http.build();
 	}
@@ -164,7 +175,30 @@ public class SecurityConfig {
 	}
 
 	@Bean
+	@Primary
 	JwtDecoder jwtDecoder(AppAuthProperties properties) {
+		NimbusJwtDecoder decoder = baseJwtDecoder(properties);
+		decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(properties.getIssuer()));
+		return decoder;
+	}
+
+	@Bean
+	JwtDecoder apiAccessTokenJwtDecoder(AppAuthProperties properties) {
+		NimbusJwtDecoder decoder = baseJwtDecoder(properties);
+		OAuth2TokenValidator<Jwt> accessTokenValidator = jwt -> {
+			if ("access".equals(jwt.getClaimAsString("token_type"))) {
+				return OAuth2TokenValidatorResult.success();
+			}
+			OAuth2Error error = new OAuth2Error("invalid_token", "JWT token_type must be access", null);
+			return OAuth2TokenValidatorResult.failure(error);
+		};
+		decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+			JwtValidators.createDefaultWithIssuer(properties.getIssuer()),
+			accessTokenValidator));
+		return decoder;
+	}
+
+	private NimbusJwtDecoder baseJwtDecoder(AppAuthProperties properties) {
 		return NimbusJwtDecoder.withSecretKey(jwtSecretKey(properties))
 			.macAlgorithm(MacAlgorithm.HS256)
 			.build();
