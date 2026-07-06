@@ -123,6 +123,23 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void rollsOverPreviousMonthBudgetWhenCurrentCycleIsMissing() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000115");
+		YearMonth currentMonth = YearMonth.now(SEOUL_ZONE);
+
+		insertUser(userId);
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 450_000, 120_000, new BigDecimal("75.00"));
+
+		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.budget.yearMonth").value(currentMonth.toString()))
+			.andExpect(jsonPath("$.budget.monthlyBudgetAmount").value(450_000))
+			.andExpect(jsonPath("$.budget.spentAmount").value(0))
+			.andExpect(jsonPath("$.budget.remainingAmount").value(450_000))
+			.andExpect(jsonPath("$.budget.warningThresholdRate").value(75.00));
+	}
+
+	@Test
 	void calculatesRationalChoiceRateByUserTimezoneMonthBoundary() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000105");
 		Instant monthStart = TEST_MONTH.atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();

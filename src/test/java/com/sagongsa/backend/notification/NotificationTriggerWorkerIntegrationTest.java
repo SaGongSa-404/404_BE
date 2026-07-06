@@ -139,6 +139,11 @@ class NotificationTriggerWorkerIntegrationTest extends PostgreSqlContainerTest {
 			.isEqualTo(2);
 		assertThat(queryString("select target_path from notifications where notification_type = 'BUDGET_RESET' limit 1"))
 			.isEqualTo("/home");
+		assertThat(queryInteger(
+			"select count(*) from budget_cycles where user_id in (?, ?) and year_month = '2026-07'",
+			firstUserId,
+			secondUserId
+		)).isEqualTo(2);
 
 		int duplicateCount = notificationTriggerWorker.processDueNotifications(
 			OffsetDateTime.of(2026, 7, 1, 0, 1, 0, 0, ZoneOffset.UTC)

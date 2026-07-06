@@ -1,5 +1,6 @@
 package com.sagongsa.backend.home;
 
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import com.sagongsa.backend.home.HomeSummaryResponse.BudgetSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.BubbleSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.MascotSummary;
@@ -56,9 +57,11 @@ public class HomeSummaryService {
 	);
 
 	private final JdbcTemplate jdbcTemplate;
+	private final BudgetCycleRolloverService budgetCycleRolloverService;
 
-	public HomeSummaryService(JdbcTemplate jdbcTemplate) {
+	public HomeSummaryService(JdbcTemplate jdbcTemplate, BudgetCycleRolloverService budgetCycleRolloverService) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.budgetCycleRolloverService = budgetCycleRolloverService;
 	}
 
 	public HomeSummaryResponse getSummary(UUID userId) {
@@ -73,6 +76,7 @@ public class HomeSummaryService {
 			.orElseGet(() -> new UserProfileSummary(null, null, null));
 		ZoneId zoneId = resolveZoneId(userProfile.timezone());
 		String currentYearMonth = YearMonth.now(zoneId).toString();
+		budgetCycleRolloverService.ensureBudgetCycle(userId, currentYearMonth);
 		MascotSummary mascot = findMascotSummary(userId).orElseGet(HomeSummaryService::defaultMascotSummary);
 		BudgetSummary budget = findBudgetSummary(userId, currentYearMonth).orElseGet(() -> defaultBudgetSummary(currentYearMonth));
 

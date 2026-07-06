@@ -1,5 +1,6 @@
 package com.sagongsa.backend.deliberation;
 
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.BudgetProjection;
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.ItemSummary;
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.SelfCheckQuestion;
@@ -43,9 +44,11 @@ public class DeliberationService {
 	);
 
 	private final JdbcTemplate jdbcTemplate;
+	private final BudgetCycleRolloverService budgetCycleRolloverService;
 
-	public DeliberationService(JdbcTemplate jdbcTemplate) {
+	public DeliberationService(JdbcTemplate jdbcTemplate, BudgetCycleRolloverService budgetCycleRolloverService) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.budgetCycleRolloverService = budgetCycleRolloverService;
 	}
 
 	public DeliberationSummaryResponse getSummary(UUID userId, UUID itemId) {
@@ -53,6 +56,7 @@ public class DeliberationService {
 		ZoneId zoneId = resolveZoneId(user.timezone());
 		String yearMonth = YearMonth.now(zoneId).toString();
 		ItemSummary item = findSavedItem(userId, itemId);
+		budgetCycleRolloverService.ensureBudgetCycle(userId, yearMonth);
 		BudgetSnapshot budget = findBudget(userId, yearMonth);
 		int itemPrice = item.listedPrice() == null ? 0 : item.listedPrice();
 		int projectedSpentAmount = budget.spentAmount() + itemPrice;

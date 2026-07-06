@@ -3,6 +3,7 @@ package com.sagongsa.backend.decision;
 import com.sagongsa.backend.decision.DecisionCompleteRequest.SelfCheckAnswerRequest;
 import com.sagongsa.backend.decision.DecisionResultResponse.MascotReactionResponse;
 import com.sagongsa.backend.decision.DecisionResultResponse.ReminderResponse;
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import com.sagongsa.backend.domain.enums.MascotState;
 import com.sagongsa.backend.domain.enums.PurchaseDecisionResult;
 import com.sagongsa.backend.domain.enums.RationalityResult;
@@ -38,9 +39,11 @@ public class DecisionService {
 	private static final List<String> SELF_CHECK_QUESTION_CODES = List.of("NEED", "BUDGET", "ALTERNATIVE", "DELAY");
 
 	private final JdbcTemplate jdbcTemplate;
+	private final BudgetCycleRolloverService budgetCycleRolloverService;
 
-	public DecisionService(JdbcTemplate jdbcTemplate) {
+	public DecisionService(JdbcTemplate jdbcTemplate, BudgetCycleRolloverService budgetCycleRolloverService) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.budgetCycleRolloverService = budgetCycleRolloverService;
 	}
 
 	@Transactional
@@ -58,6 +61,7 @@ public class DecisionService {
 		ZoneId zoneId = zoneId(user.timezone());
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		String yearMonth = YearMonth.now(zoneId).toString();
+		budgetCycleRolloverService.ensureBudgetCycle(userId, yearMonth);
 		BudgetCycle budgetCycle = lockBudgetCycle(userId, yearMonth);
 		Integer finalPrice = resolveFinalPrice(normalized.result(), normalized.finalPrice(), item.listedPrice());
 		Rationality rationality = rationality(normalized.selfCheckAnswers());

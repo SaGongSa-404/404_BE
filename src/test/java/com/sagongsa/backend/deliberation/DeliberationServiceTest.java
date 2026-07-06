@@ -77,6 +77,24 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void doesNotCreateCurrentBudgetCycleWhenItemIsNotUsable() {
+		UUID userId = insertActiveUser();
+		YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 450_000, 120_000);
+		UUID itemId = insertSavedItem(userId, "DIGITAL", 30_000, "DROPPED");
+
+		assertThatThrownBy(() -> deliberationService.getSummary(userId, itemId))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from budget_cycles where user_id = ? and year_month = ?",
+			Integer.class,
+			userId,
+			currentMonth.toString()
+		)).isZero();
+	}
+
+	@Test
 	void returnsSummaryForSavedItem() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 50000, "SAVED");
@@ -96,6 +114,22 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 		assertThat(response.budget().monthlyBudgetAmount()).isZero();
 		assertThat(response.budget().spentAmount()).isZero();
 		assertThat(response.budget().projectedUsageRate()).isEqualByComparingTo(BigDecimal.ZERO);
+	}
+
+	@Test
+	void carriesPreviousMonthBudgetWhenCurrentCycleIsMissing() {
+		UUID userId = insertActiveUser();
+		UUID itemId = insertSavedItem(userId, "DIGITAL", 45_000, "SAVED");
+		YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 450_000, 120_000);
+
+		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+
+		assertThat(response.budget().yearMonth()).isEqualTo(currentMonth.toString());
+		assertThat(response.budget().monthlyBudgetAmount()).isEqualTo(450_000);
+		assertThat(response.budget().spentAmount()).isZero();
+		assertThat(response.budget().projectedSpentAmount()).isEqualTo(45_000);
+		assertThat(response.budget().projectedUsageRate()).isEqualByComparingTo("10.00");
 	}
 
 	@Test
