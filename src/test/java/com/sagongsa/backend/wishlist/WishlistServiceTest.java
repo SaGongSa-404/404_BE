@@ -8,12 +8,6 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -91,7 +85,7 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void returnsExistingRecentDuplicateDirectInputWithoutUrl() {
+	void createsSeparateDirectInputWithoutUrlWhenSameFieldsAreSubmittedAgain() {
 		UUID userId = createActiveUser();
 		WishlistItemCreateRequest request = new WishlistItemCreateRequest(
 			"DIRECT_INPUT", null, null, "직접 입력 상품", null,
@@ -102,45 +96,12 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 		WishlistItemResponse first = wishlistService.create(userId, request);
 		WishlistItemResponse second = wishlistService.create(userId, request);
 
-		assertThat(second.id()).isEqualTo(first.id());
+		assertThat(second.id()).isNotEqualTo(first.id());
 		assertThat(jdbcTemplate.queryForObject(
 			"select count(*) from saved_items where user_id = ?",
 			Integer.class,
 			userId
-		)).isEqualTo(1);
-	}
-
-	@Test
-	void concurrentDuplicateDirectInputWithoutUrlReturnsOneItem() throws Exception {
-		UUID userId = createActiveUser();
-		WishlistItemCreateRequest request = new WishlistItemCreateRequest(
-			"DIRECT_INPUT", null, null, "직접 입력 상품", null,
-			29000, "KRW", "FASHION", null, false,
-			null, null, null, null, null
-		);
-		ExecutorService executor = Executors.newFixedThreadPool(2);
-		CountDownLatch start = new CountDownLatch(1);
-		Callable<WishlistItemResponse> task = () -> {
-			start.await();
-			return wishlistService.create(userId, request);
-		};
-
-		try {
-			Future<WishlistItemResponse> firstFuture = executor.submit(task);
-			Future<WishlistItemResponse> secondFuture = executor.submit(task);
-			start.countDown();
-			WishlistItemResponse first = firstFuture.get(5, TimeUnit.SECONDS);
-			WishlistItemResponse second = secondFuture.get(5, TimeUnit.SECONDS);
-
-			assertThat(second.id()).isEqualTo(first.id());
-			assertThat(jdbcTemplate.queryForObject(
-				"select count(*) from saved_items where user_id = ?",
-				Integer.class,
-				userId
-			)).isEqualTo(1);
-		} finally {
-			executor.shutdownNow();
-		}
+		)).isEqualTo(2);
 	}
 
 	@Test
