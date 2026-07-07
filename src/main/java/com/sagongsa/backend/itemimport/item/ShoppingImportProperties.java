@@ -18,7 +18,7 @@ public class ShoppingImportProperties {
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 				+ "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 
-		private boolean enabled;
+		private boolean enabled = true;
 		private Duration timeout = Duration.ofSeconds(30);
 		private Duration renderWait = Duration.ofSeconds(5);
 		private Duration networkIdleTimeout = Duration.ofSeconds(2);

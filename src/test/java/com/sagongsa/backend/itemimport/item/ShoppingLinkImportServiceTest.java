@@ -293,6 +293,40 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void extractsNaverCommerceMetadataFromKakaoCommerceTags() {
+		pageFetcher.stub(
+			"https://m.brand.naver.com/cookierun/products/13194003181?tr=nshfum",
+			"""
+				<html>
+				<head>
+				  <meta property="og:title" content="[쿠키런스토어] 쿠키런 굿나잇 보조배터리 3종 : 쿠키런스토어" />
+				  <meta property="og:image" content="https://shop-phinf.pstatic.net/product.png" />
+				  <meta property="kakao:commerce:brand_name" content="쿠키런" />
+				  <meta property="kakao:commerce:price" content="17910" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.brand.naver.com/cookierun/products/13194003181?tr=nshfum",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("[쿠키런스토어] 쿠키런 굿나잇 보조배터리 3종 : 쿠키런스토어");
+		assertThat(response.item().brandName()).isEqualTo("쿠키런");
+		assertThat(response.item().listedPrice()).isEqualTo(17910);
+		assertThat(response.item().category()).isEqualTo(ItemCategory.DIGITAL);
+	}
+
+	@Test
 	void extractsProductMetadataFromEmbeddedCommerceJson() {
 		pageFetcher.stub(
 			"https://zigzag.kr/catalog/products/110621280",
@@ -386,6 +420,196 @@ class ShoppingLinkImportServiceTest {
 		assertThat(response.item().listedPrice()).isEqualTo(45000);
 		assertThat(response.item().imageUrl()).isEqualTo("https://image.zigzag.kr/cotton-shirt.jpg");
 		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
+	void ignoresZeroEmbeddedPriceAndUsesLaterProductPrice() {
+		pageFetcher.stub(
+			"https://m.bunjang.co.kr/products/123",
+			"""
+				<html>
+				<head>
+				  <title>번개장터</title>
+				  <script>
+				  window.__PRELOADED_STATE__ = {
+				    "product": {
+				      "name": null,
+				      "salePrice": 0,
+				      "discountedSalePrice": 0,
+				      "representativeImageUrl": null
+				    },
+				    "productDetail": {
+				      "item": {
+				        "name": "나이키 반팔 티셔츠",
+				        "price": 29000,
+				        "image": "https://media.bunjang.co.kr/product.jpg"
+				      }
+				    }
+				  };
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.bunjang.co.kr/products/123",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("나이키 반팔 티셔츠");
+		assertThat(response.item().listedPrice()).isEqualTo(29000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://media.bunjang.co.kr/product.jpg");
+		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+	}
+
+	@Test
+	void classifiesBunjangSportsProductWithoutLipFalsePositive() {
+		pageFetcher.stub(
+			"https://m.bunjang.co.kr/products/398473587",
+			"""
+				<html>
+				<head>
+				  <meta property="og:title" content="용인대 아디다스 유도복 165" />
+				  <meta property="og:description" content="수선하시면 될것같고 그거 감안해서 싸게 올립니다" />
+				  <meta property="og:image" content="https://media.bunjang.co.kr/product/398473587_1_1781014735_w900.jpg" />
+				  <meta property="product:price:amount" content="100000" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://m.bunjang.co.kr/products/398473587",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().title()).isEqualTo("용인대 아디다스 유도복 165");
+		assertThat(response.item().listedPrice()).isEqualTo(100000);
+		assertThat(response.item().category()).isEqualTo(ItemCategory.HOBBY);
+	}
+
+	@Test
+	void rejectsCommerceBridgeShellInsteadOfImportingSiteNameWithZeroPrice() {
+		pageFetcher.stub(
+			"https://zigzag.kr/share/products/110621280",
+			"""
+				<html>
+				<head>
+				  <title>지그재그</title>
+				  <meta property="og:title" content="지그재그" />
+				  <meta property="og:image" content="https://cf.res.s.zigzag.kr/app-icon.png" />
+				  <script>
+				  window.__PRELOADED_STATE__ = {
+				    "product": {
+				      "salePrice": 0,
+				      "discountedSalePrice": 0
+				    }
+				  };
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://zigzag.kr/share/products/110621280",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+			});
+	}
+
+	@Test
+	void rejectsZigzagAirbridgeShellInsteadOfImportingSiteName() {
+		pageFetcher.stub(
+			"https://zigzag.airbridge.io/open/product_detail?fallback_desktop=https%3A%2F%2Fzigzag.kr%2Fp%2F170411267",
+			"""
+				<html>
+				<head>
+				  <title>지그재그</title>
+				  <meta property="og:title" content="지그재그" />
+				  <meta property="og:description" content="4,000만 여성이 선택한 쇼핑앱, 지그재그" />
+				  <meta property="og:image" content="http://static.airbridge.io/images/og_tags/zigzag.png" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://zigzag.airbridge.io/open/product_detail?fallback_desktop=https%3A%2F%2Fzigzag.kr%2Fp%2F170411267",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+			});
+	}
+
+	@Test
+	void rejectsBunjangAirbridgeShellInsteadOfImportingSiteName() {
+		pageFetcher.stub(
+			"https://bunjang.airbridge.io/goto?type=product&val=398473587",
+			"""
+				<html>
+				<head>
+				  <title>번개장터</title>
+				  <meta property="og:title" content="번개장터" />
+				  <meta property="og:description" content="취향을 잇는 거래, 번개장터" />
+				  <meta property="og:image" content="https://static.bunjang.co.kr/images/logo.png" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://bunjang.airbridge.io/goto?type=product&val=398473587",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> {
+				ResponseStatusException responseStatusException = (ResponseStatusException) exception;
+				assertThat(responseStatusException.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+			});
 	}
 
 	@Test

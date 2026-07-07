@@ -18,6 +18,15 @@
 테스트를 실행하면 Flyway 마이그레이션과 JPA 스키마 검증이 함께 수행됩니다.
 기본 실행 설정과 테스트 모두 PostgreSQL을 기준으로 합니다.
 
+Docker Engine이 실행 중이면 PostgreSQL과 애플리케이션을 Compose로 함께 실행할 수 있습니다.
+
+```bash
+docker compose up --build
+```
+
+애플리케이션은 `http://localhost:8080`에서 실행되고, PostgreSQL은 로컬 `5432` 포트로 노출됩니다.
+로컬 Gradle 실행은 별도 PostgreSQL이 `localhost:5432`에서 실행 중이어야 합니다.
+
 ```bash
 ./gradlew test
 ```

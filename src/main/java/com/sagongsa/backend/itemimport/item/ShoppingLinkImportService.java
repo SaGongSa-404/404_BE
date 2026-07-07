@@ -237,20 +237,23 @@ public class ShoppingLinkImportService {
 		String brandName = firstNonBlank(
 			jsonLdText(document, "brand.name"),
 			jsonLdText(document, "brand"),
+			metaContent(document, "meta[property=kakao:commerce:brand_name]"),
 			firstText(document, "[itemprop=brand]", ".prod-brand-name", ".brand-name")
 		);
 
 		Integer price = firstNonNull(
-			parsePrice(metaContent(document, "meta[property=product:price:amount]")),
-			parsePrice(metaContent(document, "meta[property=og:price:amount]")),
-			parsePrice(jsonLdText(document, "offers.price")),
-			parsePrice(jsonLdText(document, "price")),
-			parsePrice(embeddedMetadata.priceText()),
-			parsePrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
+			parseListedPrice(metaContent(document, "meta[property=product:price:amount]")),
+			parseListedPrice(metaContent(document, "meta[property=og:price:amount]")),
+			parseListedPrice(metaContent(document, "meta[property=kakao:commerce:price]")),
+			parseListedPrice(jsonLdText(document, "offers.price")),
+			parseListedPrice(jsonLdText(document, "price")),
+			parseListedPrice(embeddedMetadata.priceText()),
+			parseListedPrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
 		);
-		String rawPriceText = firstNonBlank(
+		String rawPriceText = firstValidPriceText(
 			metaContent(document, "meta[property=product:price:amount]"),
 			metaContent(document, "meta[property=og:price:amount]"),
+			metaContent(document, "meta[property=kakao:commerce:price]"),
 			jsonLdText(document, "offers.price"),
 			jsonLdText(document, "price"),
 			embeddedMetadata.priceText(),
@@ -305,10 +308,10 @@ public class ShoppingLinkImportService {
 		if (containsAny(haystack, "셔츠", "니트", "가디건", "팬츠", "아우터", "원피스", "스니커즈", "신발", "가방", "musinsa", "zigzag", "ably", "29cm")) {
 			return ItemCategory.FASHION;
 		}
-		if (containsAny(haystack, "립", "쿠션", "에센스", "크림", "마스크팩", "oliveyoung", "향수", "샴푸")) {
+		if (containsAny(haystack, "립스틱", "립밤", "립틴트", "립글로스", "립라이너", "쿠션", "에센스", "크림", "마스크팩", "oliveyoung", "향수", "샴푸")) {
 			return ItemCategory.BEAUTY;
 		}
-		if (containsAny(haystack, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "ipad", "monitor", "ssd")) {
+		if (containsAny(haystack, "이어폰", "헤드폰", "키보드", "마우스", "노트북", "갤럭시", "아이폰", "ipad", "monitor", "ssd", "보조배터리", "충전기")) {
 			return ItemCategory.DIGITAL;
 		}
 		if (containsAny(haystack, "컵", "머그", "침구", "수납", "조명", "청소", "커피머신", "테이블")) {
@@ -317,7 +320,7 @@ public class ShoppingLinkImportService {
 		if (containsAny(haystack, "간식", "음료", "커피", "프로틴", "식품", "라면", "과자")) {
 			return ItemCategory.FOOD;
 		}
-		if (containsAny(haystack, "레고", "피규어", "게임", "취미", "캠핑", "자전거")) {
+		if (containsAny(haystack, "레고", "피규어", "게임", "취미", "캠핑", "자전거", "스포츠", "레저", "유도", "도복", "운동")) {
 			return ItemCategory.HOBBY;
 		}
 		if (containsAny(haystack, "subscription", "멤버십", "정기구독", "월간", "연간 구독")) {
@@ -418,11 +421,15 @@ public class ShoppingLinkImportService {
 			boolean nestedProductContext = productContext || isProductContainerKey(key);
 			if (value.isValueNode()) {
 				String text = normalizeWhitespace(value.asText());
+				if (isPlaceholderMetadataText(text)) {
+					metadata = metadata.merge(embeddedMetadata(value, nestedProductContext));
+					continue;
+				}
 				if (isProductTitleKey(key, productContext)) {
 					metadata = metadata.withTitle(text, keyPriority(key, productContext));
 				} else if (isDescriptionKey(key)) {
 					metadata = metadata.withDescription(text, keyPriority(key, productContext));
-				} else if (isPriceKey(key, productContext)) {
+				} else if (isPriceKey(key, productContext) && parseListedPrice(text) != null) {
 					metadata = metadata.withPriceText(text, keyPriority(key, productContext));
 				} else if (isImageKey(key, productContext)) {
 					metadata = metadata.withImageUrl(text, keyPriority(key, productContext));
@@ -618,6 +625,14 @@ public class ShoppingLinkImportService {
 		}
 	}
 
+	private Integer parseListedPrice(String rawPrice) {
+		Integer price = parsePrice(rawPrice);
+		if (price == null || price <= 0) {
+			return null;
+		}
+		return price;
+	}
+
 	private URI parseHttpUri(String rawUrl, String errorMessage) {
 		if (isBlank(rawUrl)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
@@ -667,6 +682,9 @@ public class ShoppingLinkImportService {
 				return null;
 			}
 		}
+		if (isShoppingBridgeOrSiteTitle(sourceDomain, title)) {
+			return null;
+		}
 		return title;
 	}
 
@@ -684,6 +702,28 @@ public class ShoppingLinkImportService {
 			.trim()
 			.toLowerCase(Locale.ROOT);
 		return normalized.equals("올리브영") || normalized.equals("oliveyoung");
+	}
+
+	private boolean isShoppingBridgeOrSiteTitle(String sourceDomain, String title) {
+		if (isBlank(sourceDomain) || isBlank(title)) {
+			return false;
+		}
+		String normalizedTitle = title.replace("+", "")
+			.replace(" ", "")
+			.trim()
+			.toLowerCase(Locale.ROOT);
+		return switch (sourceDomain) {
+			case "zigzag.kr", "s.zigzag.kr", "link.zigzag.kr", "zigzag.airbridge.io" ->
+				normalizedTitle.equals("지그재그") || normalizedTitle.equals("zigzag") || normalizedTitle.equals("지그재그스토어");
+			case "bunjang.co.kr", "m.bunjang.co.kr", "bunjang.airbridge.io", "go.bgzt.link",
+				"link.bunjang.co.kr", "share.bunjang.co.kr" ->
+				normalizedTitle.equals("번개장터") || normalizedTitle.equals("bunjang");
+			case "app.shopping.naver.com", "naver.me" ->
+				normalizedTitle.equals("네이버스토어") || normalizedTitle.equals("네이버플러스스토어");
+			case "oy.run" ->
+				normalizedTitle.equals("올리브영") || normalizedTitle.equals("oliveyoung");
+			default -> false;
+		};
 	}
 
 	private boolean containsAny(String value, String... keywords) {
@@ -717,6 +757,14 @@ public class ShoppingLinkImportService {
 		}
 		String normalized = value.replaceAll("\\s+", " ").trim();
 		return normalized.isBlank() ? null : normalized;
+	}
+
+	private boolean isPlaceholderMetadataText(String value) {
+		if (isBlank(value)) {
+			return true;
+		}
+		String normalized = value.trim().toLowerCase(Locale.ROOT);
+		return normalized.equals("null") || normalized.equals("undefined") || normalized.equals("none");
 	}
 
 	private String blankToNull(String value) {
@@ -788,6 +836,15 @@ public class ShoppingLinkImportService {
 	private String firstNonBlank(String... values) {
 		for (String value : values) {
 			if (!isBlank(value)) {
+				return normalizeWhitespace(value);
+			}
+		}
+		return null;
+	}
+
+	private String firstValidPriceText(String... values) {
+		for (String value : values) {
+			if (parseListedPrice(value) != null) {
 				return normalizeWhitespace(value);
 			}
 		}

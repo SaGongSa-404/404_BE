@@ -71,10 +71,46 @@ class NotificationServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void markAllAsReadUpdatesOnlyCurrentUsersRecentUnreadNotifications() {
+		UUID userId = createUser("ACTIVE", "COMPLETED");
+		UUID otherUserId = createUser("ACTIVE", "COMPLETED");
+		UUID firstUnreadId = insertNotification(userId, "WISHLIST_REMINDER", false, OffsetDateTime.now(ZoneOffset.UTC).minusHours(2));
+		UUID secondUnreadId = insertNotification(userId, "BUDGET_WARNING", false, OffsetDateTime.now(ZoneOffset.UTC).minusHours(1));
+		insertNotification(userId, "SOCIAL_VOTE", true, OffsetDateTime.now(ZoneOffset.UTC));
+		UUID expiredUnreadId = insertNotification(userId, "REGRET_CHECK_READY", false, OffsetDateTime.now(ZoneOffset.UTC).minusMonths(1).minusDays(1));
+		UUID otherUnreadId = insertNotification(otherUserId, "WISHLIST_REMINDER", false, OffsetDateTime.now(ZoneOffset.UTC));
+
+		NotificationReadAllResponse first = notificationService.markAllAsRead(userId);
+		NotificationReadAllResponse second = notificationService.markAllAsRead(userId);
+
+		assertThat(first.updatedCount()).isEqualTo(2);
+		assertThat(second.updatedCount()).isZero();
+		assertThat(queryBoolean("select is_read from notifications where id = ?", firstUnreadId)).isTrue();
+		assertThat(queryBoolean("select is_read from notifications where id = ?", secondUnreadId)).isTrue();
+		assertThat(queryInteger(
+			"select count(*) from notifications where id in (?, ?) and read_at is not null",
+			firstUnreadId,
+			secondUnreadId
+		)).isEqualTo(2);
+		assertThat(queryBoolean("select is_read from notifications where id = ?", expiredUnreadId)).isFalse();
+		assertThat(queryBoolean("select is_read from notifications where id = ?", otherUnreadId)).isFalse();
+	}
+
+	@Test
 	void rejectsNotificationsBeforeOnboardingCompletion() {
 		UUID userId = createUser("ACTIVE", "NOT_STARTED");
 
 		assertThatThrownBy(() -> notificationService.list(userId, false))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.FORBIDDEN));
+	}
+
+	@Test
+	void rejectsMarkingAllNotificationsBeforeOnboardingCompletion() {
+		UUID userId = createUser("ACTIVE", "NOT_STARTED");
+
+		assertThatThrownBy(() -> notificationService.markAllAsRead(userId))
 			.isInstanceOf(ResponseStatusException.class)
 			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
 				.isEqualTo(HttpStatus.FORBIDDEN));
@@ -144,5 +180,9 @@ class NotificationServiceTest extends PostgreSqlContainerTest {
 
 	private Boolean queryBoolean(String sql, Object... args) {
 		return jdbcTemplate.queryForObject(sql, Boolean.class, args);
+	}
+
+	private Integer queryInteger(String sql, Object... args) {
+		return jdbcTemplate.queryForObject(sql, Integer.class, args);
 	}
 }
