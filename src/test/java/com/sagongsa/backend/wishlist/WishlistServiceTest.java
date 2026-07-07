@@ -106,6 +106,46 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void reusesCreatedItemWhenSameIdempotencyKeyIsSubmittedAgain() {
+		UUID userId = createActiveUser();
+		WishlistItemCreateRequest request = new WishlistItemCreateRequest(
+			"DIRECT_INPUT", null, null, "직접 입력 상품", null,
+			29000, "KRW", "FASHION", null, false,
+			null, null, null, null, null
+		);
+
+		WishlistItemResponse first = wishlistService.create(userId, request, "manual-create-1");
+		WishlistItemResponse second = wishlistService.create(userId, request, "manual-create-1");
+
+		assertThat(second.id()).isEqualTo(first.id());
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from saved_items where user_id = ?",
+			Integer.class,
+			userId
+		)).isEqualTo(1);
+	}
+
+	@Test
+	void createsSeparateDirectInputWhenIdempotencyKeyDiffers() {
+		UUID userId = createActiveUser();
+		WishlistItemCreateRequest request = new WishlistItemCreateRequest(
+			"DIRECT_INPUT", null, null, "직접 입력 상품", null,
+			29000, "KRW", "FASHION", null, false,
+			null, null, null, null, null
+		);
+
+		WishlistItemResponse first = wishlistService.create(userId, request, "manual-create-1");
+		WishlistItemResponse second = wishlistService.create(userId, request, "manual-create-2");
+
+		assertThat(second.id()).isNotEqualTo(first.id());
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from saved_items where user_id = ?",
+			Integer.class,
+			userId
+		)).isEqualTo(2);
+	}
+
+	@Test
 	void rejectsNonHttpScheme() {
 		UUID userId = createActiveUser();
 

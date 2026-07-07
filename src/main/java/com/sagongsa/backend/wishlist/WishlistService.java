@@ -34,6 +34,7 @@ public class WishlistService {
 	private static final BigDecimal MAX_CONFIDENCE = BigDecimal.valueOf(100);
 	private static final int DEFAULT_LIST_LIMIT = 20;
 	private static final int MAX_LIST_LIMIT = 50;
+	private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 120;
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
 	);
@@ -48,11 +49,17 @@ public class WishlistService {
 
 	@Transactional
 	public WishlistItemResponse create(UUID userId, WishlistItemCreateRequest request) {
+		return create(userId, request, null);
+	}
+
+	@Transactional
+	public WishlistItemResponse create(UUID userId, WishlistItemCreateRequest request, String rawIdempotencyKey) {
 		ensureWishlistUserAllowed(userId);
 		if (request == null) {
 			throw new BadRequestException("Request body is required.");
 		}
 
+		String idempotencyKey = cleanOptional(rawIdempotencyKey, "Idempotency-Key", MAX_IDEMPOTENCY_KEY_LENGTH);
 		ItemInputSource inputSource = parseRequiredEnum(request.inputSource(), ItemInputSource.class, "inputSource");
 		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
 		String title = cleanRequired(request.title(), "title", 255);
@@ -64,6 +71,11 @@ public class WishlistService {
 		BigDecimal categoryConfidence = validateCategoryConfidence(request.categoryConfidence());
 		boolean categoryLockedByUser = Boolean.TRUE.equals(request.categoryLockedByUser());
 		MetadataFields metadata = metadataFields(request);
+
+		Optional<WishlistItemResponse> idempotentItem = findByIdempotencyKey(userId, idempotencyKey);
+		if (idempotentItem.isPresent()) {
+			return idempotentItem.get();
+		}
 
 		Optional<WishlistItemResponse> existingItem = findExistingSavedNormalizedUrl(userId, normalizedUrl);
 		if (existingItem.isPresent()) {
@@ -82,9 +94,9 @@ public class WishlistService {
 				insert into saved_items (
 					id, user_id, input_source, original_url, normalized_url, title, image_url,
 					listed_price, currency_code, category, category_confidence, category_locked_by_user,
-					status, created_at, updated_at
+					idempotency_key, status, created_at, updated_at
 				)
-				values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SAVED', ?, ?)
+				values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SAVED', ?, ?)
 				""",
 				itemId,
 				userId,
@@ -98,11 +110,16 @@ public class WishlistService {
 				category.name(),
 				categoryConfidence,
 				categoryLockedByUser,
+				idempotencyKey,
 				now,
 				now
 			);
 		}
 		catch (DuplicateKeyException exception) {
+			Optional<WishlistItemResponse> duplicateIdempotentItem = findByIdempotencyKey(userId, idempotencyKey);
+			if (duplicateIdempotentItem.isPresent()) {
+				return duplicateIdempotentItem.get();
+			}
 			throw new DuplicateSavedItemException(
 				"Saved wishlist item already exists for the normalized URL.",
 				findExistingSavedNormalizedUrl(userId, normalizedUrl).orElse(null)
@@ -402,6 +419,23 @@ public class WishlistService {
 			query.toString(),
 			this::mapRow,
 			parameters.toArray()
+		);
+		return items.stream().findFirst();
+	}
+
+	private Optional<WishlistItemResponse> findByIdempotencyKey(UUID userId, String idempotencyKey) {
+		if (!StringUtils.hasText(idempotencyKey)) {
+			return Optional.empty();
+		}
+		List<WishlistItemResponse> items = jdbcTemplate.query(
+			baseSelect() + """
+			where si.user_id = ?
+			  and si.idempotency_key = ?
+			limit 1
+			""",
+			this::mapRow,
+			userId,
+			idempotencyKey
 		);
 		return items.stream().findFirst();
 	}
