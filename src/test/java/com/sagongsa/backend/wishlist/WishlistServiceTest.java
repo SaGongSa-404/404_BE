@@ -96,6 +96,7 @@ class WishlistServiceTest extends PostgreSqlContainerTest {
 		WishlistItemResponse first = wishlistService.create(userId, request);
 		WishlistItemResponse second = wishlistService.create(userId, request);
 
+		// The second response must point at the newly inserted row, not reuse the first item.
 		assertThat(second.id()).isNotEqualTo(first.id());
 		assertThat(jdbcTemplate.queryForObject(
 			"select count(*) from saved_items where user_id = ?",
