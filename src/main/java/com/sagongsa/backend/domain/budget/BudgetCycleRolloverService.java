@@ -29,6 +29,9 @@ public class BudgetCycleRolloverService {
 			return;
 		}
 		String targetYearMonth = YearMonth.parse(yearMonth).toString();
+		if (existsBudgetCycle(userId, targetYearMonth)) {
+			return;
+		}
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		jdbcTemplate.update(
 			"""
@@ -65,5 +68,15 @@ public class BudgetCycleRolloverService {
 			userId,
 			targetYearMonth
 		);
+	}
+
+	private boolean existsBudgetCycle(UUID userId, String yearMonth) {
+		Boolean exists = jdbcTemplate.queryForObject(
+			"select exists (select 1 from budget_cycles where user_id = ? and year_month = ?)",
+			Boolean.class,
+			userId,
+			yearMonth
+		);
+		return Boolean.TRUE.equals(exists);
 	}
 }
