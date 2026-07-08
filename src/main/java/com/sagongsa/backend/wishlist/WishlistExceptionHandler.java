@@ -7,7 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = WishlistController.class)
+@RestControllerAdvice(assignableTypes = {WishlistController.class, OpportunityCostController.class})
 public class WishlistExceptionHandler {
 
 	@ExceptionHandler(BadRequestException.class)
