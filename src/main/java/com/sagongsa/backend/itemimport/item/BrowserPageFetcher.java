@@ -7,6 +7,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.Response;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
 import jakarta.annotation.PreDestroy;
@@ -14,6 +15,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -25,12 +27,18 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 			+ "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 	private final ShoppingImportProperties.BrowserFetch properties;
+	private final Supplier<Playwright> playwrightFactory;
 	private final Object browserLock = new Object();
 	private Playwright playwright;
 	private Browser browser;
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties) {
+		this(properties, Playwright::create);
+	}
+
+	BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, Supplier<Playwright> playwrightFactory) {
 		this.properties = properties;
+		this.playwrightFactory = playwrightFactory;
 	}
 
 	@Override
@@ -74,15 +82,18 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		synchronized (browserLock) {
 			if (browser == null) {
 				Playwright newPlaywright = null;
+				boolean success = false;
 				try {
-					newPlaywright = Playwright.create();
+					newPlaywright = playwrightFactory.get();
 					Browser newBrowser = newPlaywright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
 					playwright = newPlaywright;
 					browser = newBrowser;
+					success = true;
 				}
-				catch (RuntimeException exception) {
-					closeQuietly(newPlaywright);
-					throw exception;
+				finally {
+					if (!success) {
+						closeQuietly(newPlaywright);
+					}
 				}
 			}
 			return browser;
@@ -90,22 +101,32 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	}
 
 	private void installRequestSafetyGuard(BrowserContext context) {
-		context.route("**/*", route -> {
+		context.route("**/*", BrowserPageFetcher::guardRoute);
+	}
+
+	static void guardRoute(Route route) {
+		try {
 			String requestUrl = route.request().url();
-			try {
-				URI requestUri = URI.create(requestUrl);
-				String scheme = Optional.ofNullable(requestUri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
-				if (!scheme.equals("http") && !scheme.equals("https")) {
-					route.resume();
-					return;
-				}
-				ShoppingUrlSafety.validatePublicHost(requestUri);
+			URI requestUri = URI.create(requestUrl);
+			String scheme = Optional.ofNullable(requestUri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
+			if (!scheme.equals("http") && !scheme.equals("https")) {
 				route.resume();
+				return;
 			}
-			catch (IllegalArgumentException | ResponseStatusException exception) {
-				route.abort();
-			}
-		});
+			ShoppingUrlSafety.validatePublicHost(requestUri);
+			route.resume();
+		}
+		catch (IllegalArgumentException | ResponseStatusException | PlaywrightException exception) {
+			abortQuietly(route);
+		}
+	}
+
+	private static void abortQuietly(Route route) {
+		try {
+			route.abort();
+		}
+		catch (PlaywrightException ignored) {
+		}
 	}
 
 	private Browser.NewContextOptions contextOptions(URI uri) {
@@ -170,7 +191,8 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		try {
 			playwright.close();
 		}
-		catch (RuntimeException ignored) {
+		catch (Throwable ignored) {
+			// Keep the original browser startup failure visible.
 		}
 	}
 
