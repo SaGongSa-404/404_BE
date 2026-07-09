@@ -21,8 +21,17 @@ GOOGLE_CLIENT_SECRET=...
 KAKAO_CLIENT_ID=...
 KAKAO_CLIENT_SECRET=...
 APP_JWT_SECRET=...
-APP_ALLOWED_REDIRECT_URI_PREFIXES=sagongsa404://auth/callback,http://localhost,http://127.0.0.1
+APP_ALLOWED_REDIRECT_URI_PREFIXES=sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://{web-domain}/auth/callback
+APP_CORS_ALLOWED_ORIGINS=https://{web-domain}
+APP_CORS_ALLOWED_ORIGIN_PATTERNS=http://localhost:*,http://127.0.0.1:*
 ```
+
+## 웹 배포 설정
+
+- Google/Kakao 콘솔 redirect URI에는 백엔드 OAuth 콜백(`/login/oauth2/code/{registrationId}`)을 등록합니다.
+- 웹 프론트의 `/auth/callback`은 provider 콘솔이 아니라 `APP_ALLOWED_REDIRECT_URI_PREFIXES`에 등록합니다.
+- CORS origin은 path 없이 scheme + host + port까지만 등록합니다. 예: `https://web.example.com`
+- 인증 API는 Bearer 토큰을 사용하므로 `APP_CORS_ALLOW_CREDENTIALS` 기본값은 `false`로 둡니다.
 
 ## Google 설정
 
@@ -30,6 +39,7 @@ Google Cloud Console에서 Web application OAuth client를 만들고 아래 redi
 
 ```text
 http://localhost:8080/login/oauth2/code/google
+https://{backend-domain}/login/oauth2/code/google
 ```
 
 사용 scope:
@@ -43,12 +53,12 @@ Kakao Developers에서 카카오 로그인을 활성화하고 아래 redirect UR
 
 ```text
 http://localhost:8080/login/oauth2/code/kakao
+https://{backend-domain}/login/oauth2/code/kakao
 ```
 
 사용 scope:
 
 - `profile_nickname`
-- `profile_image`
 
 MVP에서는 이메일을 필수로 요구하지 않습니다. 일반 앱 상태에서 이메일 동의항목 제약이 있어 빠른 로그인 검증을 막을 수 있기 때문입니다.
 

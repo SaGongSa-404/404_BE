@@ -51,6 +51,14 @@ logging:
 app:
   admin:
     notification-token: ${APP_ADMIN_NOTIFICATION_TOKEN:}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*,http://127.0.0.1:*}
+    allowed-methods: ${APP_CORS_ALLOWED_METHODS:GET,POST,PATCH,PUT,DELETE,OPTIONS}
+    allowed-headers: ${APP_CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-User-Id,X-Admin-Token,X-Request-Id}
+    exposed-headers: ${APP_CORS_EXPOSED_HEADERS:Location,X-Request-Id}
+    allow-credentials: ${APP_CORS_ALLOW_CREDENTIALS:false}
+    max-age: ${APP_CORS_MAX_AGE:PT1H}
   auth:
     issuer: 404-backend
     jwt-secret: ${APP_JWT_SECRET:local-development-jwt-secret-change-me}

@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,9 +43,13 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
+import org.springframework.util.StringUtils;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties(AppAuthProperties.class)
+@EnableConfigurationProperties({AppAuthProperties.class, AppCorsProperties.class})
 public class SecurityConfig {
 
 	private static final String AUTHORIZATION_BASE_URI = "/oauth2/authorization";
@@ -58,12 +63,14 @@ public class SecurityConfig {
 		OAuth2AppAuthenticationFailureHandler authenticationFailureHandler,
 		Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter,
 		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedUserIdHeaderEnabled,
+		CorsConfigurationSource corsConfigurationSource,
 		Environment environment
 	) throws Exception {
 		boolean nonProd = !environment.acceptsProfiles(Profiles.of("prod"));
 		boolean trustedHeaderEnabled = trustedUserIdHeaderEnabled || nonProd;
 
 		http
+			.cors(cors -> cors.configurationSource(corsConfigurationSource))
 			.csrf(csrf -> csrf.disable())
 			.authorizeHttpRequests(auth -> {
 				auth
@@ -108,6 +115,22 @@ public class SecurityConfig {
 			.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
 		return http.build();
+	}
+
+	@Bean
+	CorsConfigurationSource corsConfigurationSource(AppCorsProperties properties) {
+		CorsConfiguration configuration = new CorsConfiguration();
+		configuration.setAllowedOrigins(nonBlankValues(properties.getAllowedOrigins()));
+		configuration.setAllowedOriginPatterns(nonBlankValues(properties.getAllowedOriginPatterns()));
+		configuration.setAllowedMethods(nonBlankValues(properties.getAllowedMethods()));
+		configuration.setAllowedHeaders(nonBlankValues(properties.getAllowedHeaders()));
+		configuration.setExposedHeaders(nonBlankValues(properties.getExposedHeaders()));
+		configuration.setAllowCredentials(properties.isAllowCredentials());
+		configuration.setMaxAge(toSeconds(properties.getMaxAge()));
+
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", configuration);
+		return source;
 	}
 
 	@Bean
@@ -156,6 +179,17 @@ public class SecurityConfig {
 		return OAuth2AuthorizationRequest.from(authorizationRequest)
 			.additionalParameters(additionalParameters)
 			.build();
+	}
+
+	private static List<String> nonBlankValues(List<String> values) {
+		return values.stream()
+			.filter(StringUtils::hasText)
+			.map(String::trim)
+			.toList();
+	}
+
+	private static Long toSeconds(Duration duration) {
+		return duration == null ? null : duration.toSeconds();
 	}
 
 	@Bean

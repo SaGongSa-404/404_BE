@@ -1,0 +1,97 @@
+package com.sagongsa.backend.config;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix = "app.cors")
+public class AppCorsProperties {
+
+	private List<String> allowedOrigins = new ArrayList<>();
+	private List<String> allowedOriginPatterns = new ArrayList<>(List.of(
+		"http://localhost:*",
+		"http://127.0.0.1:*"
+	));
+	private List<String> allowedMethods = new ArrayList<>(List.of(
+		"GET",
+		"POST",
+		"PATCH",
+		"PUT",
+		"DELETE",
+		"OPTIONS"
+	));
+	private List<String> allowedHeaders = new ArrayList<>(List.of(
+		"Authorization",
+		"Content-Type",
+		"X-User-Id",
+		"X-Admin-Token",
+		"X-Request-Id"
+	));
+	private List<String> exposedHeaders = new ArrayList<>(List.of(
+		"Location",
+		"X-Request-Id"
+	));
+	private boolean allowCredentials = false;
+	private Duration maxAge = Duration.ofHours(1);
+
+	public List<String> getAllowedOrigins() {
+		return allowedOrigins;
+	}
+
+	public void setAllowedOrigins(List<String> allowedOrigins) {
+		this.allowedOrigins = copy(allowedOrigins);
+	}
+
+	public List<String> getAllowedOriginPatterns() {
+		return allowedOriginPatterns;
+	}
+
+	public void setAllowedOriginPatterns(List<String> allowedOriginPatterns) {
+		this.allowedOriginPatterns = copy(allowedOriginPatterns);
+	}
+
+	public List<String> getAllowedMethods() {
+		return allowedMethods;
+	}
+
+	public void setAllowedMethods(List<String> allowedMethods) {
+		this.allowedMethods = copy(allowedMethods);
+	}
+
+	public List<String> getAllowedHeaders() {
+		return allowedHeaders;
+	}
+
+	public void setAllowedHeaders(List<String> allowedHeaders) {
+		this.allowedHeaders = copy(allowedHeaders);
+	}
+
+	public List<String> getExposedHeaders() {
+		return exposedHeaders;
+	}
+
+	public void setExposedHeaders(List<String> exposedHeaders) {
+		this.exposedHeaders = copy(exposedHeaders);
+	}
+
+	public boolean isAllowCredentials() {
+		return allowCredentials;
+	}
+
+	public void setAllowCredentials(boolean allowCredentials) {
+		this.allowCredentials = allowCredentials;
+	}
+
+	public Duration getMaxAge() {
+		return maxAge;
+	}
+
+	public void setMaxAge(Duration maxAge) {
+		this.maxAge = maxAge == null ? Duration.ofHours(1) : maxAge;
+	}
+
+	private static List<String> copy(List<String> values) {
+		return values == null ? new ArrayList<>() : new ArrayList<>(values);
+	}
+}
