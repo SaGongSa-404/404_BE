@@ -141,29 +141,30 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 	void returnsPlaceholderMessageWhenPriceIsNull() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", null, "SAVED");
-		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+		DeliberationSummaryResponse response = deliberationServiceWithMessageIndex(0).getSummary(userId, itemId);
+
 		assertThat(response.opportunityCostMessage())
-			.isIn(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES);
+			.isEqualTo(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES.get(0));
 	}
 
 	@Test
 	void returnsPlaceholderMessageWhenPriceIsZero() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 0, "SAVED");
-		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+		DeliberationSummaryResponse response = deliberationServiceWithMessageIndex(1).getSummary(userId, itemId);
+
 		assertThat(response.opportunityCostMessage())
-			.isIn(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES);
+			.isEqualTo(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES.get(1));
 	}
 
 	@Test
 	void returnsPriceFormattedMessageWhenPriceIsPositive() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 39000, "SAVED");
-		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+		DeliberationSummaryResponse response = deliberationServiceWithMessageIndex(2).getSummary(userId, itemId);
+
 		assertThat(response.opportunityCostMessage())
-			.isIn(DeliberationService.PRICE_OPPORTUNITY_COST_MESSAGE_FORMATS.stream()
-				.map(format -> format.formatted(39000))
-				.toList());
+			.isEqualTo(DeliberationService.PRICE_OPPORTUNITY_COST_MESSAGE_FORMATS.get(2).formatted(39000));
 	}
 
 	// ── TC5: 유사 카테고리 소비 집계 ────────────────────────────────────────
@@ -216,6 +217,10 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 
 	private UUID insertActiveUser() {
 		return insertUser("ACTIVE", "COMPLETED");
+	}
+
+	private DeliberationService deliberationServiceWithMessageIndex(int index) {
+		return new DeliberationService(jdbcTemplate, bound -> index);
 	}
 
 	private UUID insertUser(String onboardingStatus) {

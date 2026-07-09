@@ -294,6 +294,25 @@ class ReportServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 유저_기타_신고는_상세_사유가_필수() {
+		UUID reporter = insertUser();
+		UUID target = insertUser();
+
+		assertThatThrownBy(() -> reportService.reportUser(reporter, target, ReportCategory.OTHER, " "))
+			.isInstanceOf(SocialFeedBadRequestException.class);
+	}
+
+	@Test
+	void 유저_기타_신고는_상세_사유가_있으면_성공() {
+		UUID reporter = insertUser();
+		UUID target = insertUser();
+
+		assertThatNoException().isThrownBy(() ->
+			reportService.reportUser(reporter, target, ReportCategory.OTHER, "기타 상세 사유")
+		);
+	}
+
+	@Test
 	void 자기_자신_신고하면_예외() {
 		UUID reporter = insertUser();
 

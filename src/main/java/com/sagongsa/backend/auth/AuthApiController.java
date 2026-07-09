@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -26,12 +25,6 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/auth")
 @Tag(name = "Auth", description = "OAuth login session and JWT refresh APIs")
 public class AuthApiController {
-
-	private static final UUID APP_REVIEWER_USER_ID = UUID.fromString("40400000-0000-0000-0000-000000000055");
-	private static final String APP_REVIEWER_PROVIDER = "kakao";
-	private static final String APP_REVIEWER_PROVIDER_USER_ID = "app-reviewer-fixed";
-	private static final String APP_REVIEWER_NAME = "앱 심사 계정";
-	private static final String APP_REVIEWER_EMAIL = "app-reviewer@sagongsa.dev";
 
 	private final JwtTokenService jwtTokenService;
 	private final UserAccountRepository userAccountRepository;
@@ -103,19 +96,19 @@ public class AuthApiController {
 		}
 	)
 	public TokenRefreshResponse issueReviewerToken() {
-		if (!userAccountRepository.existsById(APP_REVIEWER_USER_ID)) {
+		if (!userAccountRepository.existsById(AppReviewerAccount.USER_ID)) {
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "App reviewer account is not configured.");
 		}
 
 		JwtTokenService.TokenPair tokenPair = jwtTokenService.issueTokenPair(
 			new SocialUserProfile(
-				APP_REVIEWER_PROVIDER,
-				APP_REVIEWER_PROVIDER_USER_ID,
-				APP_REVIEWER_NAME,
-				APP_REVIEWER_EMAIL,
+				AppReviewerAccount.PROVIDER,
+				AppReviewerAccount.PROVIDER_USER_ID,
+				AppReviewerAccount.NAME,
+				AppReviewerAccount.EMAIL,
 				null,
 				Map.of("purpose", "app-review"),
-				APP_REVIEWER_USER_ID
+				AppReviewerAccount.USER_ID
 			),
 			List.of(new SimpleGrantedAuthority("ROLE_USER"))
 		);
