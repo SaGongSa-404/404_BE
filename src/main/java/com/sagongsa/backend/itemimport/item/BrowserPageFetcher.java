@@ -7,6 +7,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.Response;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
 import jakarta.annotation.PreDestroy;
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -27,16 +29,30 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 
 	private final ShoppingImportProperties.BrowserFetch properties;
 	private final int maxResponseBytes;
+	private final Supplier<Playwright> playwrightFactory;
 	private final Object browserLock = new Object();
 	private Playwright playwright;
 	private Browser browser;
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties) {
-		this(properties, 1_000_000);
+		this(properties, Playwright::create, 1_000_000);
 	}
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, int maxResponseBytes) {
+		this(properties, Playwright::create, maxResponseBytes);
+	}
+
+	BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, Supplier<Playwright> playwrightFactory) {
+		this(properties, playwrightFactory, 1_000_000);
+	}
+
+	BrowserPageFetcher(
+		ShoppingImportProperties.BrowserFetch properties,
+		Supplier<Playwright> playwrightFactory,
+		int maxResponseBytes
+	) {
 		this.properties = properties;
+		this.playwrightFactory = playwrightFactory;
 		this.maxResponseBytes = maxResponseBytes <= 0 ? 1_000_000 : maxResponseBytes;
 	}
 
@@ -84,30 +100,52 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	private Browser browser() {
 		synchronized (browserLock) {
 			if (browser == null) {
-				playwright = Playwright.create();
-				browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+				Playwright newPlaywright = null;
+				boolean success = false;
+				try {
+					newPlaywright = playwrightFactory.get();
+					Browser newBrowser = newPlaywright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+					playwright = newPlaywright;
+					browser = newBrowser;
+					success = true;
+				}
+				finally {
+					if (!success) {
+						closeQuietly(newPlaywright);
+					}
+				}
 			}
 			return browser;
 		}
 	}
 
 	private void installRequestSafetyGuard(BrowserContext context) {
-		context.route("**/*", route -> {
+		context.route("**/*", BrowserPageFetcher::guardRoute);
+	}
+
+	static void guardRoute(Route route) {
+		try {
 			String requestUrl = route.request().url();
-			try {
-				URI requestUri = URI.create(requestUrl);
-				String scheme = Optional.ofNullable(requestUri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
-				if (!scheme.equals("http") && !scheme.equals("https")) {
-					route.resume();
-					return;
-				}
-				ShoppingUrlSafety.validatePublicHost(requestUri);
+			URI requestUri = URI.create(requestUrl);
+			String scheme = Optional.ofNullable(requestUri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
+			if (!scheme.equals("http") && !scheme.equals("https")) {
 				route.resume();
+				return;
 			}
-			catch (RuntimeException exception) {
-				route.abort();
-			}
-		});
+			ShoppingUrlSafety.validatePublicHost(requestUri);
+			route.resume();
+		}
+		catch (IllegalArgumentException | ResponseStatusException | PlaywrightException exception) {
+			abortQuietly(route);
+		}
+	}
+
+	private static void abortQuietly(Route route) {
+		try {
+			route.abort();
+		}
+		catch (PlaywrightException ignored) {
+		}
 	}
 
 	private Browser.NewContextOptions contextOptions(URI uri) {
@@ -163,6 +201,18 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 			return 0;
 		}
 		return duration.toMillis();
+	}
+
+	private void closeQuietly(Playwright playwright) {
+		if (playwright == null) {
+			return;
+		}
+		try {
+			playwright.close();
+		}
+		catch (Throwable ignored) {
+			// Keep the original browser startup failure visible.
+		}
 	}
 
 	@Override

@@ -11,7 +11,6 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -21,6 +20,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,7 +28,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.util.StringUtils;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -37,11 +36,6 @@ public class AuthApiController {
 
 	private static final Logger log = LoggerFactory.getLogger(AuthApiController.class);
 	private static final String REVIEWER_TOKEN_HEADER = "X-Reviewer-Token";
-	private static final UUID APP_REVIEWER_USER_ID = UUID.fromString("40400000-0000-0000-0000-000000000055");
-	private static final String APP_REVIEWER_PROVIDER = "kakao";
-	private static final String APP_REVIEWER_PROVIDER_USER_ID = "app-reviewer-fixed";
-	private static final String APP_REVIEWER_NAME = "앱 심사 계정";
-	private static final String APP_REVIEWER_EMAIL = "app-reviewer@sagongsa.dev";
 
 	private final JwtTokenService jwtTokenService;
 	private final UserAccountRepository userAccountRepository;
@@ -125,19 +119,19 @@ public class AuthApiController {
 		HttpServletRequest request
 	) {
 		assertReviewerTokenAllowed(reviewerToken, request);
-		if (!userAccountRepository.existsById(APP_REVIEWER_USER_ID)) {
+		if (!userAccountRepository.existsById(AppReviewerAccount.USER_ID)) {
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "App reviewer account is not configured.");
 		}
 
 		JwtTokenService.TokenPair tokenPair = jwtTokenService.issueTokenPair(
 			new SocialUserProfile(
-				APP_REVIEWER_PROVIDER,
-				APP_REVIEWER_PROVIDER_USER_ID,
-				APP_REVIEWER_NAME,
-				APP_REVIEWER_EMAIL,
+				AppReviewerAccount.PROVIDER,
+				AppReviewerAccount.PROVIDER_USER_ID,
+				AppReviewerAccount.NAME,
+				AppReviewerAccount.EMAIL,
 				null,
 				Map.of("purpose", "app-review"),
-				APP_REVIEWER_USER_ID
+				AppReviewerAccount.USER_ID
 			),
 			List.of(new SimpleGrantedAuthority("ROLE_USER"))
 		);

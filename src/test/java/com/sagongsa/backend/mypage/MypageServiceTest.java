@@ -207,6 +207,21 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 통계_금액_합산은_Integer_범위를_넘어도_집계() {
+		UUID userId = insertUser("너굴이", "너구리");
+		String yearMonth = YearMonth.now(KST).toString();
+		insertDecision(userId, "GO", 1_500_000_000, yearMonth);
+		insertDecision(userId, "GO", 1_000_000_000, yearMonth);
+
+		StatsResponse response = mypageService.getStats(userId, yearMonth);
+
+		assertThat(response.spentAmount()).isEqualTo(2_500_000_000L);
+		assertThat(response.categorySpendAmounts()).containsExactly(
+			new CategorySpendAmountResponse(ItemCategory.DIGITAL, 2_500_000_000L)
+		);
+	}
+
+	@Test
 	void 통계_예산_사용률_계산() {
 		UUID userId = insertUser("너굴이", "너구리");
 		String yearMonth = YearMonth.now(KST).toString();
