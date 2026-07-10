@@ -9,31 +9,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AppCorsProperties {
 
 	private List<String> allowedOrigins = new ArrayList<>();
-	private List<String> allowedOriginPatterns = new ArrayList<>(List.of(
-		"http://localhost:*",
-		"http://127.0.0.1:*"
-	));
-	private List<String> allowedMethods = new ArrayList<>(List.of(
-		"GET",
-		"POST",
-		"PATCH",
-		"PUT",
-		"DELETE",
-		"OPTIONS"
-	));
-	private List<String> allowedHeaders = new ArrayList<>(List.of(
-		"Authorization",
-		"Content-Type",
-		"X-User-Id",
-		"X-Admin-Token",
-		"X-Request-Id"
-	));
-	private List<String> exposedHeaders = new ArrayList<>(List.of(
-		"Location",
-		"X-Request-Id"
-	));
-	private boolean allowCredentials = false;
-	private Duration maxAge = Duration.ofHours(1);
+	private List<String> allowedOriginPatterns = new ArrayList<>();
+	private List<String> allowedMethods = new ArrayList<>();
+	private List<String> allowedHeaders = new ArrayList<>();
+	private List<String> exposedHeaders = new ArrayList<>();
+	private boolean allowCredentials;
+	private Duration maxAge;
 
 	public List<String> getAllowedOrigins() {
 		return allowedOrigins;
@@ -88,7 +69,7 @@ public class AppCorsProperties {
 	}
 
 	public void setMaxAge(Duration maxAge) {
-		this.maxAge = maxAge == null ? Duration.ofHours(1) : maxAge;
+		this.maxAge = maxAge;
 	}
 
 	private static List<String> copy(List<String> values) {
