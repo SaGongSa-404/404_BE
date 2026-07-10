@@ -28,8 +28,8 @@ public class OpportunityCostController {
 		}
 	)
 	public OpportunityCostResponse calculate(
-		@Parameter(required = true, example = "35000") @RequestParam Integer price,
-		@Parameter(required = true, example = "FASHION") @RequestParam String category
+		@Parameter(required = true, example = "35000") @RequestParam(required = false) Integer price,
+		@Parameter(required = true, example = "FASHION") @RequestParam(required = false) String category
 	) {
 		return opportunityCostService.calculate(price, category);
 	}

@@ -51,4 +51,22 @@ class OpportunityCostApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
 	}
+
+	@Test
+	void rejectsMissingPriceWithApiErrorResponse() throws Exception {
+		mockMvc.perform(get("/api/v1/wishlist/opportunity-cost")
+				.queryParam("category", "FASHION"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+			.andExpect(jsonPath("$.message").value("price is required."));
+	}
+
+	@Test
+	void rejectsMissingCategoryWithApiErrorResponse() throws Exception {
+		mockMvc.perform(get("/api/v1/wishlist/opportunity-cost")
+				.queryParam("price", "35000"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+			.andExpect(jsonPath("$.message").value("category is required."));
+	}
 }
