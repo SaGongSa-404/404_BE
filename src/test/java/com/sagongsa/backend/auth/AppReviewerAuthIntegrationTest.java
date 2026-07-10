@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,12 +22,20 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest(properties = "app.auth.trusted-user-id-header.enabled=false")
+@SpringBootTest(properties = {
+	"app.auth.trusted-user-id-header.enabled=false",
+	"app.auth.jwt-secret=test-jwt-secret-for-private-test-security-checks",
+	"app.auth.allowed-redirect-uri-prefixes=sagongsa404://auth/callback",
+	"app.auth.reviewer-token.secret=test-reviewer-token-secret-for-private-test",
+	"app.shopping.import.browser-fetch.enabled=true"
+})
 @ActiveProfiles("prod")
 @AutoConfigureMockMvc
 class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 
-	private static final UUID REVIEWER_USER_ID = UUID.fromString("40400000-0000-0000-0000-000000000055");
+	private static final UUID REVIEWER_USER_ID = AppReviewerAccount.USER_ID;
+	private static final UUID REVIEWER_SOCIAL_ACCOUNT_ID = UUID.fromString("40400000-0000-0000-0000-000000055001");
+	private static final String REVIEWER_TOKEN_SECRET = "test-reviewer-token-secret-for-private-test";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -54,15 +63,18 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 		jdbcTemplate.update(
 			"""
 			insert into social_accounts (id, user_id, provider, provider_user_id, email, profile_image_url, created_at, updated_at)
-			values (?, ?, 'KAKAO', 'app-reviewer-fixed', 'app-reviewer@sagongsa.dev', null, now(), now())
+			values (?, ?, ?, ?, ?, null, now(), now())
 			on conflict on constraint uk_social_accounts_provider_user do update
 			set user_id = excluded.user_id,
 			    email = excluded.email,
 			    profile_image_url = excluded.profile_image_url,
 			    updated_at = now()
 			""",
-			UUID.fromString("40400000-0000-0000-0000-000000055001"),
-			REVIEWER_USER_ID
+			REVIEWER_SOCIAL_ACCOUNT_ID,
+			REVIEWER_USER_ID,
+			AppReviewerAccount.PROVIDER_DB_VALUE,
+			AppReviewerAccount.PROVIDER_USER_ID,
+			AppReviewerAccount.EMAIL
 		);
 		jdbcTemplate.update(
 			"""
@@ -82,7 +94,8 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 
 	@Test
 	void issuesReviewerTokenInProdProfileAndAuthenticatesAsReviewer() throws Exception {
-		MvcResult tokenResult = mockMvc.perform(post("/api/auth/reviewer-token"))
+		MvcResult tokenResult = mockMvc.perform(post("/api/auth/reviewer-token")
+				.header("X-Reviewer-Token", REVIEWER_TOKEN_SECRET))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.tokenType").value("Bearer"))
 			.andExpect(jsonPath("$.accessToken").isString())
@@ -98,8 +111,8 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.authenticated").value(true))
 			.andExpect(jsonPath("$.userId").value(REVIEWER_USER_ID.toString()))
-			.andExpect(jsonPath("$.provider").value("kakao"))
-			.andExpect(jsonPath("$.providerUserId").value("app-reviewer-fixed"));
+			.andExpect(jsonPath("$.provider").value(AppReviewerAccount.PROVIDER))
+			.andExpect(jsonPath("$.providerUserId").value(AppReviewerAccount.PROVIDER_USER_ID));
 
 		mockMvc.perform(get("/api/v1/users/me")
 			.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -107,7 +120,17 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.id").value(REVIEWER_USER_ID.toString()))
 			.andExpect(jsonPath("$.nickname").value("심사너굴"));
 
+		mockMvc.perform(get("/api/auth/me")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + refreshToken))
+			.andExpect(status().isUnauthorized());
+
 		assertThat(countStoredRefreshTokens(refreshToken)).isEqualTo(1);
+	}
+
+	@Test
+	void rejectsReviewerTokenIssueWithoutReviewerSecretHeader() throws Exception {
+		mockMvc.perform(post("/api/auth/reviewer-token"))
+			.andExpect(status().isForbidden());
 	}
 
 	@Test
@@ -115,6 +138,21 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/users/me")
 			.header("X-User-Id", REVIEWER_USER_ID.toString()))
 			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void reviewerSeedMigrationMatchesApplicationConstants() throws Exception {
+		try (var stream = getClass().getResourceAsStream("/db/migration/V13__seed_app_reviewer_user.sql")) {
+			assertThat(stream).isNotNull();
+			String migration = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+
+			assertThat(migration)
+				.contains(REVIEWER_USER_ID.toString())
+				.contains(REVIEWER_SOCIAL_ACCOUNT_ID.toString())
+				.contains(AppReviewerAccount.PROVIDER_DB_VALUE)
+				.contains(AppReviewerAccount.PROVIDER_USER_ID)
+				.contains(AppReviewerAccount.EMAIL);
+		}
 	}
 
 	private int countStoredRefreshTokens(String refreshToken) {

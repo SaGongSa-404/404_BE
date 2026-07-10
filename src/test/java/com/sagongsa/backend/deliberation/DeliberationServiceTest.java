@@ -3,6 +3,7 @@ package com.sagongsa.backend.deliberation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -26,6 +27,9 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	private BudgetCycleRolloverService budgetCycleRolloverService;
 
 	@BeforeEach
 	void cleanDatabase() {
@@ -77,6 +81,24 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void doesNotCreateCurrentBudgetCycleWhenItemIsNotUsable() {
+		UUID userId = insertActiveUser();
+		YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 450_000, 120_000);
+		UUID itemId = insertSavedItem(userId, "DIGITAL", 30_000, "DROPPED");
+
+		assertThatThrownBy(() -> deliberationService.getSummary(userId, itemId))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from budget_cycles where user_id = ? and year_month = ?",
+			Integer.class,
+			userId,
+			currentMonth.toString()
+		)).isZero();
+	}
+
+	@Test
 	void returnsSummaryForSavedItem() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 50000, "SAVED");
@@ -96,6 +118,22 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 		assertThat(response.budget().monthlyBudgetAmount()).isZero();
 		assertThat(response.budget().spentAmount()).isZero();
 		assertThat(response.budget().projectedUsageRate()).isEqualByComparingTo(BigDecimal.ZERO);
+	}
+
+	@Test
+	void carriesPreviousMonthBudgetWhenCurrentCycleIsMissing() {
+		UUID userId = insertActiveUser();
+		UUID itemId = insertSavedItem(userId, "DIGITAL", 45_000, "SAVED");
+		YearMonth currentMonth = YearMonth.now(ZoneId.of("Asia/Seoul"));
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 450_000, 120_000);
+
+		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+
+		assertThat(response.budget().yearMonth()).isEqualTo(currentMonth.toString());
+		assertThat(response.budget().monthlyBudgetAmount()).isEqualTo(450_000);
+		assertThat(response.budget().spentAmount()).isZero();
+		assertThat(response.budget().projectedSpentAmount()).isEqualTo(45_000);
+		assertThat(response.budget().projectedUsageRate()).isEqualByComparingTo("10.00");
 	}
 
 	@Test
@@ -141,29 +179,30 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 	void returnsPlaceholderMessageWhenPriceIsNull() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", null, "SAVED");
-		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+		DeliberationSummaryResponse response = deliberationServiceWithMessageIndex(0).getSummary(userId, itemId);
+
 		assertThat(response.opportunityCostMessage())
-			.isIn(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES);
+			.isEqualTo(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES.get(0));
 	}
 
 	@Test
 	void returnsPlaceholderMessageWhenPriceIsZero() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 0, "SAVED");
-		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+		DeliberationSummaryResponse response = deliberationServiceWithMessageIndex(1).getSummary(userId, itemId);
+
 		assertThat(response.opportunityCostMessage())
-			.isIn(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES);
+			.isEqualTo(DeliberationService.NO_PRICE_OPPORTUNITY_COST_MESSAGES.get(1));
 	}
 
 	@Test
 	void returnsPriceFormattedMessageWhenPriceIsPositive() {
 		UUID userId = insertActiveUser();
 		UUID itemId = insertSavedItem(userId, "DIGITAL", 39000, "SAVED");
-		DeliberationSummaryResponse response = deliberationService.getSummary(userId, itemId);
+		DeliberationSummaryResponse response = deliberationServiceWithMessageIndex(2).getSummary(userId, itemId);
+
 		assertThat(response.opportunityCostMessage())
-			.isIn(DeliberationService.PRICE_OPPORTUNITY_COST_MESSAGE_FORMATS.stream()
-				.map(format -> format.formatted(39000))
-				.toList());
+			.isEqualTo(DeliberationService.PRICE_OPPORTUNITY_COST_MESSAGE_FORMATS.get(2).formatted(39000));
 	}
 
 	// ── TC5: 유사 카테고리 소비 집계 ────────────────────────────────────────
@@ -216,6 +255,10 @@ class DeliberationServiceTest extends PostgreSqlContainerTest {
 
 	private UUID insertActiveUser() {
 		return insertUser("ACTIVE", "COMPLETED");
+	}
+
+	private DeliberationService deliberationServiceWithMessageIndex(int index) {
+		return new DeliberationService(jdbcTemplate, budgetCycleRolloverService, bound -> index);
 	}
 
 	private UUID insertUser(String onboardingStatus) {

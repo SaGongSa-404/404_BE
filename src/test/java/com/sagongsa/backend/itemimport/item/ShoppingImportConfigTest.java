@@ -34,11 +34,14 @@ class ShoppingImportConfigTest {
 		contextRunner
 			.withPropertyValues(
 				"app.shopping.import.browser-fetch.enabled=true",
+				"app.shopping.import.max-response-bytes=65536",
 				"app.shopping.import.browser-fetch.render-wait=PT5S"
 			)
 			.run(context -> {
 				assertThat(context).hasSingleBean(PageFetcher.class);
 				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(FallbackPageFetcher.class);
+				assertThat(context.getBean(ShoppingImportProperties.class)
+					.getMaxResponseBytes()).isEqualTo(65536);
 				assertThat(context.getBean(ShoppingImportProperties.class)
 					.getBrowserFetch()
 					.getRenderWait()).isEqualTo(Duration.ofSeconds(5));

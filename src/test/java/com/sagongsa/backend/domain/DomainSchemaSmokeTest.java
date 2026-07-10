@@ -142,6 +142,7 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 		assertThat(rawPayloadJsonType).isEqualTo("jsonb");
 
 		assertPartialIndex("uk_saved_items_user_saved_url", "normalized_url is not null", "'saved'");
+		assertPartialIndex("uk_saved_items_user_idempotency_key", "idempotency_key is not null");
 		assertPartialIndex("idx_feed_posts_visible_created", "deleted_at is null");
 		assertNoConstraint("post_votes", "uk_post_votes_post_user");
 		assertPartialIndex("uk_post_votes_post_user_active", "canceled_at is null");
@@ -200,6 +201,7 @@ class DomainSchemaSmokeTest extends PostgreSqlContainerTest {
 			">= 0",
 			"100"
 		);
+		assertColumns("saved_items", "idempotency_key");
 		assertConstraint("purchase_decisions", "chk_decisions_yes_count", "check", "self_check_yes_count", "0", "4");
 		assertConstraint(
 			"purchase_decisions",

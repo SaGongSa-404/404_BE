@@ -5,6 +5,7 @@ import com.sagongsa.backend.domain.auth.SocialAccountRepository;
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.budget.BudgetCycle;
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import com.sagongsa.backend.domain.budget.BudgetCycleRepository;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemStatus;
@@ -55,6 +56,7 @@ class MypageService {
 	private final PostCommentRepository postCommentRepository;
 	private final SavedItemRepository savedItemRepository;
 	private final BudgetCycleRepository budgetCycleRepository;
+	private final BudgetCycleRolloverService budgetCycleRolloverService;
 	private final DevicePushTokenRepository devicePushTokenRepository;
 	private final JdbcTemplate jdbcTemplate;
 	private final BlockService blockService;
@@ -67,6 +69,7 @@ class MypageService {
 		PostCommentRepository postCommentRepository,
 		SavedItemRepository savedItemRepository,
 		BudgetCycleRepository budgetCycleRepository,
+		BudgetCycleRolloverService budgetCycleRolloverService,
 		DevicePushTokenRepository devicePushTokenRepository,
 		JdbcTemplate jdbcTemplate,
 		BlockService blockService) {
@@ -78,6 +81,7 @@ class MypageService {
 		this.postCommentRepository = postCommentRepository;
 		this.savedItemRepository = savedItemRepository;
 		this.budgetCycleRepository = budgetCycleRepository;
+		this.budgetCycleRolloverService = budgetCycleRolloverService;
 		this.devicePushTokenRepository = devicePushTokenRepository;
 		this.jdbcTemplate = jdbcTemplate;
 		this.blockService = blockService;
@@ -171,22 +175,28 @@ class MypageService {
 		user.withdraw();
 	}
 
+	@Transactional
 	AvailableMonthsResponse getAvailableMonths(UUID userId) {
 		findUserOrThrow(userId);
-		Set<String> months = new LinkedHashSet<>(budgetCycleRepository.findYearMonthsByUserId(userId));
 		String current = YearMonth.now(KST).toString();
+		budgetCycleRolloverService.ensureBudgetCycle(userId, current);
+		Set<String> months = new LinkedHashSet<>(budgetCycleRepository.findYearMonthsByUserId(userId));
 		months.add(current);
 		List<String> sorted = new ArrayList<>(months);
 		sorted.sort((a, b) -> b.compareTo(a));
 		return new AvailableMonthsResponse(sorted, current);
 	}
 
+	@Transactional
 	StatsResponse getStats(UUID userId, String yearMonth) {
 		if (yearMonth == null || yearMonth.isBlank()) {
 			yearMonth = YearMonth.now(KST).toString();
 		}
 		findUserOrThrow(userId);
 		YearMonth ym = YearMonth.parse(yearMonth);
+		if (YearMonth.now(KST).equals(ym)) {
+			budgetCycleRolloverService.ensureBudgetCycle(userId, ym.toString());
+		}
 		Instant from = ym.atDay(1).atStartOfDay(KST).toInstant();
 		Instant to = ym.atEndOfMonth().plusDays(1).atStartOfDay(KST).toInstant();
 
@@ -229,39 +239,7 @@ class MypageService {
 
 	private List<WishSummaryResponse> getWishSummaries(
 		UUID userId, ItemStatus status, Instant from, Instant to, int page, int size) {
-		if (status == null) {
-			return jdbcTemplate.query(
-				"""
-				SELECT si.id,
-				       pd.id AS decision_id,
-				       si.title,
-				       COALESCE(pd.final_price, si.listed_price) AS price,
-				       si.image_url,
-				       si.category,
-				       si.status,
-				       pr.satisfaction_score,
-				       pr.regret_level,
-				       pr.still_using,
-				       pr.reflection_note,
-				       pr.reflected_at
-				FROM purchase_decisions pd
-				JOIN saved_items si ON si.id = pd.item_id
-				LEFT JOIN purchase_reflections pr ON pr.decision_id = pd.id
-				WHERE pd.user_id = ?
-				  AND pd.decided_at >= ?
-				  AND pd.decided_at < ?
-				ORDER BY pd.decided_at DESC
-				LIMIT ? OFFSET ?
-				""",
-				this::mapWishSummary,
-				userId,
-				Timestamp.from(from),
-				Timestamp.from(to),
-				size,
-				page * size
-			);
-		}
-
+		String statusName = status == null ? null : status.name();
 		return jdbcTemplate.query(
 			"""
 			SELECT si.id,
@@ -280,7 +258,7 @@ class MypageService {
 			JOIN saved_items si ON si.id = pd.item_id
 			LEFT JOIN purchase_reflections pr ON pr.decision_id = pd.id
 			WHERE pd.user_id = ?
-			  AND si.status = ?
+			  AND (CAST(? AS varchar) IS NULL OR si.status = ?)
 			  AND pd.decided_at >= ?
 			  AND pd.decided_at < ?
 			ORDER BY pd.decided_at DESC
@@ -288,7 +266,8 @@ class MypageService {
 			""",
 			this::mapWishSummary,
 			userId,
-			status.name(),
+			statusName,
+			statusName,
 			Timestamp.from(from),
 			Timestamp.from(to),
 			size,
@@ -336,9 +315,9 @@ class MypageService {
 		return jdbcTemplate.queryForObject(
 			"""
 			SELECT COALESCE(SUM(CASE WHEN pd.result = 'GO'
-			           THEN COALESCE(pd.final_price, si.listed_price, 0) ELSE 0 END), 0)::integer AS spent_amount,
+			           THEN COALESCE(pd.final_price, si.listed_price, 0) ELSE 0 END), 0)::bigint AS spent_amount,
 			       COALESCE(SUM(CASE WHEN pd.result = 'STOP'
-			           THEN COALESCE(si.listed_price, 0) ELSE 0 END), 0)::integer AS restrained_amount,
+			           THEN COALESCE(si.listed_price, 0) ELSE 0 END), 0)::bigint AS restrained_amount,
 			       COUNT(*) FILTER (WHERE pd.result = 'GO') AS bought_count,
 			       COUNT(*) FILTER (WHERE pd.result = 'STOP') AS restrained_count,
 			       COUNT(*) AS decision_count,
@@ -356,8 +335,8 @@ class MypageService {
 					? null
 					: roundRate((double) rs.getLong("rational_count") / decisionCount * 100.0);
 				return new StatsAggregation(
-					rs.getInt("spent_amount"),
-					rs.getInt("restrained_amount"),
+					rs.getLong("spent_amount"),
+					rs.getLong("restrained_amount"),
 					rs.getLong("bought_count"),
 					rs.getLong("restrained_count"),
 					rationalChoiceRate,
@@ -374,7 +353,7 @@ class MypageService {
 		return jdbcTemplate.query(
 			"""
 			SELECT si.category,
-			       COALESCE(SUM(COALESCE(pd.final_price, si.listed_price, 0)), 0)::integer AS amount
+			       COALESCE(SUM(COALESCE(pd.final_price, si.listed_price, 0)), 0)::bigint AS amount
 			FROM purchase_decisions pd
 			JOIN saved_items si ON si.id = pd.item_id
 			WHERE pd.user_id = ?
@@ -386,7 +365,7 @@ class MypageService {
 			""",
 			(rs, rowNum) -> new CategorySpendAmountResponse(
 				ItemCategory.valueOf(rs.getString("category")),
-				rs.getInt("amount")
+				rs.getLong("amount")
 			),
 			userId,
 			Timestamp.from(from),
@@ -441,8 +420,8 @@ class MypageService {
 	}
 
 	private record StatsAggregation(
-		int spentAmount,
-		int restrainedAmount,
+		long spentAmount,
+		long restrainedAmount,
 		long boughtCount,
 		long restrainedCount,
 		Double rationalChoiceRate,

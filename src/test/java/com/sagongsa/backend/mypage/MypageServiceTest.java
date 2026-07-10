@@ -172,6 +172,25 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void 통계_현재달_예산_없으면_이전달_예산을_승계() {
+		UUID userId = insertUser("너굴이", "너구리");
+		YearMonth currentMonth = YearMonth.now(KST);
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 450_000, 120_000);
+
+		StatsResponse response = mypageService.getStats(userId, currentMonth.toString());
+
+		assertThat(response.budgetAmount()).isEqualTo(450_000);
+		assertThat(response.spentAmount()).isZero();
+		assertThat(response.usageRate()).isEqualTo(0.0);
+		assertThat(jdbcTemplate.queryForObject(
+			"SELECT spent_amount FROM budget_cycles WHERE user_id = ? AND year_month = ?",
+			Integer.class,
+			userId,
+			currentMonth.toString()
+		)).isZero();
+	}
+
+	@Test
 	void 통계_지출액_GO_결정만_집계() {
 		UUID userId = insertUser("너굴이", "너구리");
 		String yearMonth = YearMonth.now(KST).toString();
@@ -204,6 +223,21 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 		);
 		assertThat(response.rationalChoiceRate()).isEqualTo(33.3);
 		assertThat(response.irrationalChoiceCount()).isEqualTo(2);
+	}
+
+	@Test
+	void 통계_금액_합산은_Integer_범위를_넘어도_집계() {
+		UUID userId = insertUser("너굴이", "너구리");
+		String yearMonth = YearMonth.now(KST).toString();
+		insertDecision(userId, "GO", 1_500_000_000, yearMonth);
+		insertDecision(userId, "GO", 1_000_000_000, yearMonth);
+
+		StatsResponse response = mypageService.getStats(userId, yearMonth);
+
+		assertThat(response.spentAmount()).isEqualTo(2_500_000_000L);
+		assertThat(response.categorySpendAmounts()).containsExactly(
+			new CategorySpendAmountResponse(ItemCategory.DIGITAL, 2_500_000_000L)
+		);
 	}
 
 	@Test
@@ -248,6 +282,23 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 		AvailableMonthsResponse response = mypageService.getAvailableMonths(userId);
 
 		assertThat(response.months()).contains("2026-03", "2026-04");
+	}
+
+	@Test
+	void 이용_가능_월_조회시_현재달_예산_없으면_이전달_예산을_승계() {
+		UUID userId = insertUser("너굴이", "너구리");
+		YearMonth currentMonth = YearMonth.now(KST);
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 450_000, 120_000);
+
+		AvailableMonthsResponse response = mypageService.getAvailableMonths(userId);
+
+		assertThat(response.months()).contains(currentMonth.toString());
+		assertThat(jdbcTemplate.queryForObject(
+			"SELECT monthly_budget_amount FROM budget_cycles WHERE user_id = ? AND year_month = ?",
+			Integer.class,
+			userId,
+			currentMonth.toString()
+		)).isEqualTo(450_000);
 	}
 
 	@Test
