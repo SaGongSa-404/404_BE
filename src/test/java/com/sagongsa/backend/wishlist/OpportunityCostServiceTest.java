@@ -28,6 +28,15 @@ class OpportunityCostServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void expandsCandidateCountToTwentyWhenPrimaryPoolIsEmpty() {
+		OpportunityCostResponse response = opportunityCostService.calculate(5_000, "LIVING");
+
+		assertThat(response.result().itemId()).isEqualTo("ITEM_05");
+		assertThat(response.result().targetCategory()).isEqualTo("FASHION");
+		assertThat(response.result().calculatedCount()).isEqualTo(20);
+	}
+
+	@Test
 	void mapsFoodHobbyAndSubscriptionToLifeSourceGroup() {
 		for (String category : new String[] {"FOOD", "HOBBY", "SUBSCRIPTION"}) {
 			OpportunityCostResponse response = opportunityCostService.calculate(2_000_000, category);
