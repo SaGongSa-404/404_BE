@@ -22,13 +22,20 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest(properties = "app.auth.trusted-user-id-header.enabled=false")
+@SpringBootTest(properties = {
+	"app.auth.trusted-user-id-header.enabled=false",
+	"app.auth.jwt-secret=test-jwt-secret-for-private-test-security-checks",
+	"app.auth.allowed-redirect-uri-prefixes=sagongsa404://auth/callback",
+	"app.auth.reviewer-token.secret=test-reviewer-token-secret-for-private-test",
+	"app.shopping.import.browser-fetch.enabled=true"
+})
 @ActiveProfiles("prod")
 @AutoConfigureMockMvc
 class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final UUID REVIEWER_USER_ID = AppReviewerAccount.USER_ID;
 	private static final UUID REVIEWER_SOCIAL_ACCOUNT_ID = UUID.fromString("40400000-0000-0000-0000-000000055001");
+	private static final String REVIEWER_TOKEN_SECRET = "test-reviewer-token-secret-for-private-test";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -87,7 +94,8 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 
 	@Test
 	void issuesReviewerTokenInProdProfileAndAuthenticatesAsReviewer() throws Exception {
-		MvcResult tokenResult = mockMvc.perform(post("/api/auth/reviewer-token"))
+		MvcResult tokenResult = mockMvc.perform(post("/api/auth/reviewer-token")
+				.header("X-Reviewer-Token", REVIEWER_TOKEN_SECRET))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.tokenType").value("Bearer"))
 			.andExpect(jsonPath("$.accessToken").isString())
@@ -112,7 +120,17 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.id").value(REVIEWER_USER_ID.toString()))
 			.andExpect(jsonPath("$.nickname").value("심사너굴"));
 
+		mockMvc.perform(get("/api/auth/me")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + refreshToken))
+			.andExpect(status().isUnauthorized());
+
 		assertThat(countStoredRefreshTokens(refreshToken)).isEqualTo(1);
+	}
+
+	@Test
+	void rejectsReviewerTokenIssueWithoutReviewerSecretHeader() throws Exception {
+		mockMvc.perform(post("/api/auth/reviewer-token"))
+			.andExpect(status().isForbidden());
 	}
 
 	@Test
