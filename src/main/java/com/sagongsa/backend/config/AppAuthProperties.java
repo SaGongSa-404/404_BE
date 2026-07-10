@@ -13,6 +13,7 @@ public class AppAuthProperties {
 	private Duration accessTokenTtl = Duration.ofHours(2);
 	private Duration refreshTokenTtl = Duration.ofDays(30);
 	private List<String> allowedRedirectUriPrefixes = new ArrayList<>();
+	private final ReviewerToken reviewerToken = new ReviewerToken();
 
 	public String getIssuer() {
 		return issuer;
@@ -54,5 +55,49 @@ public class AppAuthProperties {
 		this.allowedRedirectUriPrefixes = allowedRedirectUriPrefixes == null
 			? new ArrayList<>()
 			: new ArrayList<>(allowedRedirectUriPrefixes);
+	}
+
+	public ReviewerToken getReviewerToken() {
+		return reviewerToken;
+	}
+
+	public static class ReviewerToken {
+
+		private boolean enabled = true;
+		private String secret = "";
+		private int rateLimitMaxAttempts = 10;
+		private Duration rateLimitWindow = Duration.ofMinutes(10);
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public void setEnabled(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+		public String getSecret() {
+			return secret;
+		}
+
+		public void setSecret(String secret) {
+			this.secret = secret;
+		}
+
+		public int getRateLimitMaxAttempts() {
+			return rateLimitMaxAttempts;
+		}
+
+		public void setRateLimitMaxAttempts(int rateLimitMaxAttempts) {
+			this.rateLimitMaxAttempts = rateLimitMaxAttempts;
+		}
+
+		public Duration getRateLimitWindow() {
+			return rateLimitWindow;
+		}
+
+		public void setRateLimitWindow(Duration rateLimitWindow) {
+			this.rateLimitWindow = rateLimitWindow;
+		}
 	}
 }

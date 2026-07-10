@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.sagongsa.backend.decision.DecisionCompleteRequest.SelfCheckAnswerRequest;
 import com.sagongsa.backend.decision.DecisionResultUpdateRequest.SelfCheckAnswerUpdateRequest;
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,12 +20,14 @@ class DecisionServiceUnitTest {
 	private static final UUID DECISION_ID = UUID.fromString("30000000-0000-0000-0000-000000000001");
 
 	private JdbcTemplate jdbcTemplate;
+	private BudgetCycleRolloverService budgetCycleRolloverService;
 	private DecisionService service;
 
 	@BeforeEach
 	void setUp() {
 		jdbcTemplate = mock(JdbcTemplate.class);
-		service = new DecisionService(jdbcTemplate);
+		budgetCycleRolloverService = mock(BudgetCycleRolloverService.class);
+		service = new DecisionService(jdbcTemplate, budgetCycleRolloverService);
 	}
 
 	@Test
@@ -39,7 +42,7 @@ class DecisionServiceUnitTest {
 		assertThatThrownBy(() -> service.complete(USER_ID, request))
 			.isInstanceOf(DecisionBadRequestException.class)
 			.hasMessage("selfCheckAnswers must not contain duplicated questionCode.");
-		verifyNoInteractions(jdbcTemplate);
+		verifyNoInteractions(jdbcTemplate, budgetCycleRolloverService);
 	}
 
 	@Test
@@ -54,7 +57,7 @@ class DecisionServiceUnitTest {
 		assertThatThrownBy(() -> service.complete(USER_ID, request))
 			.isInstanceOf(DecisionBadRequestException.class)
 			.hasMessage("questionCode must be one of NEED, BUDGET, ALTERNATIVE, DELAY.");
-		verifyNoInteractions(jdbcTemplate);
+		verifyNoInteractions(jdbcTemplate, budgetCycleRolloverService);
 	}
 
 	@Test
@@ -70,7 +73,7 @@ class DecisionServiceUnitTest {
 		assertThatThrownBy(() -> service.complete(USER_ID, request))
 			.isInstanceOf(DecisionBadRequestException.class)
 			.hasMessage("rationaleText must be 1000 characters or fewer.");
-		verifyNoInteractions(jdbcTemplate);
+		verifyNoInteractions(jdbcTemplate, budgetCycleRolloverService);
 	}
 
 	@Test
@@ -85,7 +88,7 @@ class DecisionServiceUnitTest {
 		assertThatThrownBy(() -> service.updateResult(USER_ID, DECISION_ID, request))
 			.isInstanceOf(DecisionBadRequestException.class)
 			.hasMessage("changeReason must be 1000 characters or fewer.");
-		verifyNoInteractions(jdbcTemplate);
+		verifyNoInteractions(jdbcTemplate, budgetCycleRolloverService);
 	}
 
 	@Test
@@ -105,7 +108,7 @@ class DecisionServiceUnitTest {
 		assertThatThrownBy(() -> service.updateResult(USER_ID, DECISION_ID, request))
 			.isInstanceOf(DecisionBadRequestException.class)
 			.hasMessage("selfCheckAnswers must not contain duplicated questionCode.");
-		verifyNoInteractions(jdbcTemplate);
+		verifyNoInteractions(jdbcTemplate, budgetCycleRolloverService);
 	}
 
 	@Test
@@ -125,7 +128,7 @@ class DecisionServiceUnitTest {
 		assertThatThrownBy(() -> service.updateResult(USER_ID, DECISION_ID, request))
 			.isInstanceOf(DecisionBadRequestException.class)
 			.hasMessage("questionCode must be one of NEED, BUDGET, ALTERNATIVE, DELAY.");
-		verifyNoInteractions(jdbcTemplate);
+		verifyNoInteractions(jdbcTemplate, budgetCycleRolloverService);
 	}
 
 	private static DecisionCompleteRequest completeRequest(List<SelfCheckAnswerRequest> answers) {

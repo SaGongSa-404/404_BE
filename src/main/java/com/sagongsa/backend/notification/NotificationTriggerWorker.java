@@ -1,5 +1,6 @@
 package com.sagongsa.backend.notification;
 
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalTime;
@@ -20,10 +21,16 @@ public class NotificationTriggerWorker {
 
 	private final JdbcTemplate jdbcTemplate;
 	private final NotificationPublisher notificationPublisher;
+	private final BudgetCycleRolloverService budgetCycleRolloverService;
 
-	public NotificationTriggerWorker(JdbcTemplate jdbcTemplate, NotificationPublisher notificationPublisher) {
+	public NotificationTriggerWorker(
+		JdbcTemplate jdbcTemplate,
+		NotificationPublisher notificationPublisher,
+		BudgetCycleRolloverService budgetCycleRolloverService
+	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.notificationPublisher = notificationPublisher;
+		this.budgetCycleRolloverService = budgetCycleRolloverService;
 	}
 
 	public int processDueNotifications() {
@@ -290,6 +297,7 @@ public class NotificationTriggerWorker {
 
 		int createdCount = 0;
 		for (UUID userId : userIds) {
+			budgetCycleRolloverService.ensureBudgetCycle(userId, yearMonth);
 			if (publish(new NotificationPublishRequest(
 				userId,
 				"BUDGET_RESET",

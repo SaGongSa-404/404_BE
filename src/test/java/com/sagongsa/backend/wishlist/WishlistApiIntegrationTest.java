@@ -204,6 +204,46 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void reusesCreatedItemWhenSameIdempotencyKeyHeaderIsSubmittedAgain() throws Exception {
+		UUID userId = createUser();
+		String request = """
+			{
+				"inputSource": "DIRECT_INPUT",
+				"title": "Manual no url item",
+				"category": "ETC"
+			}
+			""";
+
+		String firstResponse = mockMvc.perform(post(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.header("Idempotency-Key", "manual-create-1")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(request))
+			.andExpect(status().isCreated())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		String secondResponse = mockMvc.perform(post(WISHLIST_ITEMS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.header("Idempotency-Key", "manual-create-1")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(request))
+			.andExpect(status().isCreated())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		assertThat(objectMapper.readTree(secondResponse).path("id").asText())
+			.isEqualTo(objectMapper.readTree(firstResponse).path("id").asText());
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from saved_items where user_id = ?",
+			Integer.class,
+			userId
+		)).isEqualTo(1);
+	}
+
+	@Test
 	void rejectsNullBodyAsBadRequest() throws Exception {
 		UUID userId = createUser();
 
