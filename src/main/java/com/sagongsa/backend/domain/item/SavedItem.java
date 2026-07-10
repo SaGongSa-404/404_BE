@@ -57,6 +57,9 @@ public class SavedItem extends UserScopedEntity {
 	@Column(nullable = false)
 	private boolean categoryLockedByUser;
 
+	@Column(length = 120)
+	private String idempotencyKey;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private ItemStatus status = ItemStatus.SAVED;

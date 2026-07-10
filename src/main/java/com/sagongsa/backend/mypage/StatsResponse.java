@@ -6,8 +6,8 @@ import java.util.List;
 record StatsResponse(
 	String yearMonth,
 	Integer budgetAmount,
-	int spentAmount,
-	int restrainedAmount,
+	long spentAmount,
+	long restrainedAmount,
 	Double usageRate,
 	long boughtCount,
 	long restrainedCount,
@@ -18,5 +18,5 @@ record StatsResponse(
 
 record CategorySpendAmountResponse(
 	ItemCategory category,
-	int amount
+	long amount
 ) {}
