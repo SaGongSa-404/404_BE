@@ -1,5 +1,6 @@
 package com.sagongsa.backend.deliberation;
 
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.BudgetProjection;
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.ItemSummary;
 import com.sagongsa.backend.deliberation.DeliberationSummaryResponse.SelfCheckQuestion;
@@ -45,15 +46,21 @@ public class DeliberationService {
 	);
 
 	private final JdbcTemplate jdbcTemplate;
+	private final BudgetCycleRolloverService budgetCycleRolloverService;
 	private final IntUnaryOperator randomIndexProvider;
 
 	@Autowired
-	public DeliberationService(JdbcTemplate jdbcTemplate) {
-		this(jdbcTemplate, bound -> ThreadLocalRandom.current().nextInt(bound));
+	public DeliberationService(JdbcTemplate jdbcTemplate, BudgetCycleRolloverService budgetCycleRolloverService) {
+		this(jdbcTemplate, budgetCycleRolloverService, bound -> ThreadLocalRandom.current().nextInt(bound));
 	}
 
-	DeliberationService(JdbcTemplate jdbcTemplate, IntUnaryOperator randomIndexProvider) {
+	DeliberationService(
+		JdbcTemplate jdbcTemplate,
+		BudgetCycleRolloverService budgetCycleRolloverService,
+		IntUnaryOperator randomIndexProvider
+	) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.budgetCycleRolloverService = budgetCycleRolloverService;
 		this.randomIndexProvider = randomIndexProvider;
 	}
 
@@ -62,6 +69,7 @@ public class DeliberationService {
 		ZoneId zoneId = resolveZoneId(user.timezone());
 		String yearMonth = YearMonth.now(zoneId).toString();
 		ItemSummary item = findSavedItem(userId, itemId);
+		budgetCycleRolloverService.ensureBudgetCycle(userId, yearMonth);
 		BudgetSnapshot budget = findBudget(userId, yearMonth);
 		int itemPrice = item.listedPrice() == null ? 0 : item.listedPrice();
 		int projectedSpentAmount = budget.spentAmount() + itemPrice;

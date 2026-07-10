@@ -5,6 +5,7 @@ import com.sagongsa.backend.domain.auth.SocialAccountRepository;
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.budget.BudgetCycle;
+import com.sagongsa.backend.domain.budget.BudgetCycleRolloverService;
 import com.sagongsa.backend.domain.budget.BudgetCycleRepository;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemStatus;
@@ -55,6 +56,7 @@ class MypageService {
 	private final PostCommentRepository postCommentRepository;
 	private final SavedItemRepository savedItemRepository;
 	private final BudgetCycleRepository budgetCycleRepository;
+	private final BudgetCycleRolloverService budgetCycleRolloverService;
 	private final DevicePushTokenRepository devicePushTokenRepository;
 	private final JdbcTemplate jdbcTemplate;
 	private final BlockService blockService;
@@ -67,6 +69,7 @@ class MypageService {
 		PostCommentRepository postCommentRepository,
 		SavedItemRepository savedItemRepository,
 		BudgetCycleRepository budgetCycleRepository,
+		BudgetCycleRolloverService budgetCycleRolloverService,
 		DevicePushTokenRepository devicePushTokenRepository,
 		JdbcTemplate jdbcTemplate,
 		BlockService blockService) {
@@ -78,6 +81,7 @@ class MypageService {
 		this.postCommentRepository = postCommentRepository;
 		this.savedItemRepository = savedItemRepository;
 		this.budgetCycleRepository = budgetCycleRepository;
+		this.budgetCycleRolloverService = budgetCycleRolloverService;
 		this.devicePushTokenRepository = devicePushTokenRepository;
 		this.jdbcTemplate = jdbcTemplate;
 		this.blockService = blockService;
@@ -171,22 +175,28 @@ class MypageService {
 		user.withdraw();
 	}
 
+	@Transactional
 	AvailableMonthsResponse getAvailableMonths(UUID userId) {
 		findUserOrThrow(userId);
-		Set<String> months = new LinkedHashSet<>(budgetCycleRepository.findYearMonthsByUserId(userId));
 		String current = YearMonth.now(KST).toString();
+		budgetCycleRolloverService.ensureBudgetCycle(userId, current);
+		Set<String> months = new LinkedHashSet<>(budgetCycleRepository.findYearMonthsByUserId(userId));
 		months.add(current);
 		List<String> sorted = new ArrayList<>(months);
 		sorted.sort((a, b) -> b.compareTo(a));
 		return new AvailableMonthsResponse(sorted, current);
 	}
 
+	@Transactional
 	StatsResponse getStats(UUID userId, String yearMonth) {
 		if (yearMonth == null || yearMonth.isBlank()) {
 			yearMonth = YearMonth.now(KST).toString();
 		}
 		findUserOrThrow(userId);
 		YearMonth ym = YearMonth.parse(yearMonth);
+		if (YearMonth.now(KST).equals(ym)) {
+			budgetCycleRolloverService.ensureBudgetCycle(userId, ym.toString());
+		}
 		Instant from = ym.atDay(1).atStartOfDay(KST).toInstant();
 		Instant to = ym.atEndOfMonth().plusDays(1).atStartOfDay(KST).toInstant();
 

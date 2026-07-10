@@ -89,6 +89,34 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void completesDecisionWithPreviousMonthBudgetWhenCurrentCycleIsMissing() throws Exception {
+		UUID userId = createReadyUser();
+		YearMonth currentMonth = YearMonth.now(SEOUL_ZONE);
+		insertBudgetCycle(userId, currentMonth.minusMonths(1).toString(), 500_000, 120_000);
+		UUID itemId = insertSavedItem(userId, "Rollover target", "FASHION", "SAVED", 40_000);
+
+		mockMvc.perform(post(DECISIONS_PATH)
+				.header(USER_ID_HEADER, userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(decisionRequest(itemId, "GO", null, true, false, false, false)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.budgetYearMonth").value(currentMonth.toString()))
+			.andExpect(jsonPath("$.budgetAfterAmount").value(40_000))
+			.andExpect(jsonPath("$.budgetExhaustedAfter").value(false));
+
+		assertThat(queryInteger(
+			"select monthly_budget_amount from budget_cycles where user_id = ? and year_month = ?",
+			userId,
+			currentMonth.toString()
+		)).isEqualTo(500_000);
+		assertThat(queryInteger(
+			"select spent_amount from budget_cycles where user_id = ? and year_month = ?",
+			userId,
+			currentMonth.toString()
+		)).isEqualTo(40_000);
+	}
+
+	@Test
 	void returnsExistingDecisionResultWhenCompletingSameItemAgain() throws Exception {
 		UUID userId = createReadyUser();
 		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 90_000);
