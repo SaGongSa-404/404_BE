@@ -302,6 +302,39 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void prefersOliveYoungSalePriceOverOriginalPrice() {
+		pageFetcher.stub(
+			"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000137482",
+			"""
+				<html>
+				<head>
+				  <meta property="og:title" content="로벡틴 카밍 연꽃수 크림 60ml | 올리브영" />
+				  <meta property="og:image" content="https://image.oliveyoung.co.kr/item.png" />
+				  <meta property="product:price:amount" content="24000" />
+				  <meta property="eg:originalPrice" content="24000" />
+				  <meta property="eg:salePrice" content="18000" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000137482",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().listedPrice()).isEqualTo(18000);
+		assertThat(response.saveRequest().listedPrice()).isEqualTo(18000);
+	}
+
+	@Test
 	void rejectsOliveYoungChallengePageInsteadOfUsingChallengeTitle() {
 		pageFetcher.stub(
 			"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000230109",

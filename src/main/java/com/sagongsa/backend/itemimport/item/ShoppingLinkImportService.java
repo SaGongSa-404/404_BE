@@ -220,6 +220,9 @@ public class ShoppingLinkImportService {
 		String html = page.body();
 		String sourceDomain = sourceDomain(page.finalUri());
 		EmbeddedMetadata embeddedMetadata = embeddedMetadata(document);
+		String siteSalePrice = isOliveYoungDomain(sourceDomain)
+			? metaContent(document, "meta[property=eg:salePrice]")
+			: null;
 		String summary = firstNonBlank(
 			metaContent(document, "meta[property=og:description]"),
 			metaContent(document, "meta[name=description]"),
@@ -245,6 +248,7 @@ public class ShoppingLinkImportService {
 		);
 
 		Integer price = firstNonNull(
+			parseListedPrice(siteSalePrice),
 			parseListedPrice(metaContent(document, "meta[property=product:price:amount]")),
 			parseListedPrice(metaContent(document, "meta[property=og:price:amount]")),
 			parseListedPrice(metaContent(document, "meta[property=kakao:commerce:price]")),
@@ -254,6 +258,7 @@ public class ShoppingLinkImportService {
 			parseListedPrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
 		);
 		String rawPriceText = firstValidPriceText(
+			siteSalePrice,
 			metaContent(document, "meta[property=product:price:amount]"),
 			metaContent(document, "meta[property=og:price:amount]"),
 			metaContent(document, "meta[property=kakao:commerce:price]"),
