@@ -58,42 +58,44 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 
 	@Override
 	public FetchedPage fetch(URI uri) {
-		ShoppingUrlSafety.validatePublicHost(uri);
+		synchronized (browserLock) {
+			ShoppingUrlSafety.validatePublicHost(uri);
 
-		try (BrowserContext context = browser().newContext(contextOptions(uri))) {
-			installRequestSafetyGuard(context);
-			Page page = context.newPage();
-			try {
-				Response response = page.navigate(
-					uri.toString(),
-					new Page.NavigateOptions()
-						.setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
-						.setTimeout(toMillis(properties.getTimeout()))
-				);
-				waitForNetworkIdle(page);
-				waitForRenderDelay(page);
+			try (BrowserContext context = browser().newContext(contextOptions(uri))) {
+				installRequestSafetyGuard(context);
+				Page page = context.newPage();
+				try {
+					Response response = page.navigate(
+						uri.toString(),
+						new Page.NavigateOptions()
+							.setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
+							.setTimeout(toMillis(properties.getTimeout()))
+					);
+					waitForNetworkIdle(page);
+					waitForRenderDelay(page);
 
-				URI finalUri = URI.create(page.url());
-				ShoppingUrlSafety.validatePublicHost(finalUri);
-				String body = page.content();
-				if (body != null && body.getBytes(StandardCharsets.UTF_8).length > maxResponseBytes) {
-					throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Rendered shopping page response is too large");
+					URI finalUri = URI.create(page.url());
+					ShoppingUrlSafety.validatePublicHost(finalUri);
+					String body = page.content();
+					if (body != null && body.getBytes(StandardCharsets.UTF_8).length > maxResponseBytes) {
+						throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Rendered shopping page response is too large");
+					}
+
+					return new FetchedPage(
+						uri,
+						finalUri,
+						response == null ? 200 : response.status(),
+						response == null ? "text/html" : response.headerValue("content-type"),
+						body
+					);
+				} finally {
+					page.close();
 				}
-
-				return new FetchedPage(
-					uri,
-					finalUri,
-					response == null ? 200 : response.status(),
-					response == null ? "text/html" : response.headerValue("content-type"),
-					body
-				);
-			} finally {
-				page.close();
+			} catch (IllegalArgumentException exception) {
+				throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Invalid rendered shopping page url", exception);
+			} catch (PlaywrightException exception) {
+				throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to render shopping page", exception);
 			}
-		} catch (IllegalArgumentException exception) {
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Invalid rendered shopping page url", exception);
-		} catch (PlaywrightException exception) {
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to render shopping page", exception);
 		}
 	}
 

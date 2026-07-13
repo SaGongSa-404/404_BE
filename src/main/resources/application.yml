@@ -75,6 +75,15 @@ app:
   shopping:
     import:
       max-response-bytes: ${SHOPPING_IMPORT_MAX_RESPONSE_BYTES:1000000}
+      job-worker:
+        enabled: ${SHOPPING_IMPORT_JOB_WORKER_ENABLED:true}
+        max-queue-size: ${SHOPPING_IMPORT_JOB_MAX_QUEUE_SIZE:100}
+        max-active-per-user: ${SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER:3}
+        max-attempts: ${SHOPPING_IMPORT_JOB_MAX_ATTEMPTS:2}
+        fixed-delay-ms: ${SHOPPING_IMPORT_JOB_FIXED_DELAY_MS:500}
+        cleanup-delay-ms: ${SHOPPING_IMPORT_JOB_CLEANUP_DELAY_MS:3600000}
+        stale-timeout: ${SHOPPING_IMPORT_JOB_STALE_TIMEOUT:PT5M}
+        retention: ${SHOPPING_IMPORT_JOB_RETENTION:P7D}
       browser-fetch:
         enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:true}
         timeout: ${SHOPPING_IMPORT_BROWSER_FETCH_TIMEOUT:PT30S}

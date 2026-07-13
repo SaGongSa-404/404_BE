@@ -41,6 +41,14 @@ QA/운영 서버에서 활성화하려면 Firebase 서비스 계정 JSON을 레�
 | `APP_PUSH_FCM_ENABLED` | `false` | `true`일 때 실제 FCM sender를 사용합니다. |
 | `APP_PUSH_FCM_CREDENTIALS_LOCATION` | empty | 예: `file:/opt/wigul/secrets/firebase-adminsdk.json` |
 | `APP_ADMIN_NOTIFICATION_TOKEN` | empty | 관리자 공지/점검 알림 API의 `X-Admin-Token` 검증에 사용합니다. |
+| `SHOPPING_IMPORT_JOB_WORKER_ENABLED` | `true` | 쇼핑 링크 비동기 작업 worker를 활성화합니다. |
+| `SHOPPING_IMPORT_JOB_MAX_QUEUE_SIZE` | `100` | 전체 `PENDING`/`RUNNING` 작업 상한입니다. |
+| `SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER` | `3` | 사용자별 활성 작업 상한입니다. |
+| `SHOPPING_IMPORT_JOB_MAX_ATTEMPTS` | `2` | 중단된 작업의 최대 claim 횟수입니다. |
+| `SHOPPING_IMPORT_JOB_FIXED_DELAY_MS` | `500` | worker의 다음 작업 확인 간격입니다. |
+| `SHOPPING_IMPORT_JOB_CLEANUP_DELAY_MS` | `3600000` | 완료 작업 정리 주기입니다. |
+| `SHOPPING_IMPORT_JOB_STALE_TIMEOUT` | `PT5M` | 이 시간을 넘긴 `RUNNING` 작업을 중단된 작업으로 판단합니다. |
+| `SHOPPING_IMPORT_JOB_RETENTION` | `P7D` | 완료/실패 작업 결과 보관기간입니다. |
 
 상세 운영 절차는 `docs/FCM_PUSH_OPERATIONS.md`를 기준으로 합니다.
 

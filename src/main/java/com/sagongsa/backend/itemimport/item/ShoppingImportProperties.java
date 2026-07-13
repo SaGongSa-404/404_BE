@@ -8,6 +8,7 @@ public class ShoppingImportProperties {
 
 	private int maxResponseBytes = 1_000_000;
 	private final BrowserFetch browserFetch = new BrowserFetch();
+	private final JobWorker jobWorker = new JobWorker();
 
 	public int getMaxResponseBytes() {
 		return maxResponseBytes;
@@ -19,6 +20,86 @@ public class ShoppingImportProperties {
 
 	public BrowserFetch getBrowserFetch() {
 		return browserFetch;
+	}
+
+	public JobWorker getJobWorker() {
+		return jobWorker;
+	}
+
+	public static class JobWorker {
+
+		private boolean enabled = true;
+		private int maxQueueSize = 100;
+		private int maxActivePerUser = 3;
+		private int maxAttempts = 2;
+		private long fixedDelayMs = 500;
+		private long cleanupDelayMs = 3_600_000;
+		private Duration staleTimeout = Duration.ofMinutes(5);
+		private Duration retention = Duration.ofDays(7);
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public void setEnabled(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+		public int getMaxQueueSize() {
+			return maxQueueSize;
+		}
+
+		public void setMaxQueueSize(int maxQueueSize) {
+			this.maxQueueSize = maxQueueSize <= 0 ? 100 : maxQueueSize;
+		}
+
+		public int getMaxActivePerUser() {
+			return maxActivePerUser;
+		}
+
+		public void setMaxActivePerUser(int maxActivePerUser) {
+			this.maxActivePerUser = maxActivePerUser <= 0 ? 3 : maxActivePerUser;
+		}
+
+		public int getMaxAttempts() {
+			return maxAttempts;
+		}
+
+		public void setMaxAttempts(int maxAttempts) {
+			this.maxAttempts = maxAttempts <= 0 ? 2 : maxAttempts;
+		}
+
+		public long getFixedDelayMs() {
+			return fixedDelayMs;
+		}
+
+		public void setFixedDelayMs(long fixedDelayMs) {
+			this.fixedDelayMs = fixedDelayMs <= 0 ? 500 : fixedDelayMs;
+		}
+
+		public long getCleanupDelayMs() {
+			return cleanupDelayMs;
+		}
+
+		public void setCleanupDelayMs(long cleanupDelayMs) {
+			this.cleanupDelayMs = cleanupDelayMs <= 0 ? 3_600_000 : cleanupDelayMs;
+		}
+
+		public Duration getStaleTimeout() {
+			return staleTimeout;
+		}
+
+		public void setStaleTimeout(Duration staleTimeout) {
+			this.staleTimeout = staleTimeout == null ? Duration.ofMinutes(5) : staleTimeout;
+		}
+
+		public Duration getRetention() {
+			return retention;
+		}
+
+		public void setRetention(Duration retention) {
+			this.retention = retention == null ? Duration.ofDays(7) : retention;
+		}
 	}
 
 	public static class BrowserFetch {

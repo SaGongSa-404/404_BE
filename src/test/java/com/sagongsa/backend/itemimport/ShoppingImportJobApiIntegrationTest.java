@@ -1,0 +1,348 @@
+package com.sagongsa.backend.itemimport;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sagongsa.backend.itemimport.item.FetchedPage;
+import com.sagongsa.backend.itemimport.item.PageFetcher;
+import com.sagongsa.backend.itemimport.job.ShoppingImportJobWorker;
+import com.sagongsa.backend.support.PostgreSqlContainerTest;
+import java.net.URI;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+
+@SpringBootTest(properties = {
+	"app.notification.reminder-worker.enabled=false",
+	"app.notification.trigger-worker.enabled=false",
+	"app.shopping.import.job-worker.enabled=false",
+	"app.shopping.import.job-worker.max-queue-size=3",
+	"app.shopping.import.job-worker.max-active-per-user=2",
+	"app.shopping.import.job-worker.max-attempts=2",
+	"app.shopping.import.job-worker.stale-timeout=PT5M"
+})
+@AutoConfigureMockMvc
+class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
+
+	private static final String USER_ID_HEADER = "X-User-Id";
+	private static final String JOBS_PATH = "/api/v1/items/import-jobs";
+	private static final String SHOP_URL = "https://shop.example.com/products/100";
+
+	@Autowired
+	private MockMvc mockMvc;
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	private ObjectMapper objectMapper;
+
+	@Autowired
+	private ShoppingImportJobWorker worker;
+
+	@Autowired
+	private FakeJobPageFetcher pageFetcher;
+
+	@BeforeEach
+	void setUp() {
+		jdbcTemplate.execute("truncate table users cascade");
+		pageFetcher.reset();
+	}
+
+	@Test
+	void submitsProcessesAndReturnsAsyncImportResult() throws Exception {
+		UUID userId = createUser();
+		pageFetcher.stub(SHOP_URL, productHtml());
+
+		String acceptedBody = submit(userId, SHOP_URL)
+			.andExpect(status().isAccepted())
+			.andExpect(header().string(HttpHeaders.LOCATION, org.hamcrest.Matchers.startsWith(JOBS_PATH + "/")))
+			.andExpect(jsonPath("$.status").value("PENDING"))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		UUID jobId = UUID.fromString(objectMapper.readTree(acceptedBody).get("jobId").asText());
+
+		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("PENDING"))
+			.andExpect(jsonPath("$.result").doesNotExist());
+
+		assertThat(worker.processNextJob()).isTrue();
+
+		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("SUCCEEDED"))
+			.andExpect(jsonPath("$.attemptCount").value(1))
+			.andExpect(jsonPath("$.result.retrievalStatus").value("SUCCESS"))
+			.andExpect(jsonPath("$.result.item.title").value("Noise Canceling Headphones"))
+			.andExpect(jsonPath("$.result.item.listedPrice").value(129000))
+			.andExpect(jsonPath("$.error").doesNotExist());
+	}
+
+	@Test
+	void hidesJobFromAnotherUser() throws Exception {
+		UUID ownerId = createUser();
+		UUID otherUserId = createUser();
+		String acceptedBody = submit(ownerId, SHOP_URL)
+			.andExpect(status().isAccepted())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		UUID jobId = UUID.fromString(objectMapper.readTree(acceptedBody).get("jobId").asText());
+
+		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, otherUserId))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void rejectsSubmissionWhenBoundedQueueIsFull() throws Exception {
+		UUID userId = createUser();
+
+		submit(userId, "https://shop.example.com/products/1").andExpect(status().isAccepted());
+		submit(userId, "https://shop.example.com/products/2").andExpect(status().isAccepted());
+		submit(userId, "https://shop.example.com/products/3")
+			.andExpect(status().isTooManyRequests());
+	}
+
+	@Test
+	void reusesActiveJobForDuplicateRequest() throws Exception {
+		UUID userId = createUser();
+
+		String firstBody = submit(userId, SHOP_URL)
+			.andExpect(status().isAccepted())
+			.andReturn().getResponse().getContentAsString();
+		String secondBody = submit(userId, SHOP_URL)
+			.andExpect(status().isAccepted())
+			.andReturn().getResponse().getContentAsString();
+
+		assertThat(objectMapper.readTree(secondBody).get("jobId").asText())
+			.isEqualTo(objectMapper.readTree(firstBody).get("jobId").asText());
+		Integer count = jdbcTemplate.queryForObject("select count(*) from shopping_import_jobs", Integer.class);
+		assertThat(count).isEqualTo(1);
+	}
+
+	@Test
+	void storesSafeFailureWithoutExposingInternalException() throws Exception {
+		UUID userId = createUser();
+		pageFetcher.fail(SHOP_URL, new IllegalStateException("upstream-secret-detail"));
+		String acceptedBody = submit(userId, SHOP_URL)
+			.andExpect(status().isAccepted())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		UUID jobId = UUID.fromString(objectMapper.readTree(acceptedBody).get("jobId").asText());
+
+		assertThat(worker.processNextJob()).isTrue();
+
+		String resultBody = mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FAILED"))
+			.andExpect(jsonPath("$.error.code").value("IMPORT_FAILED"))
+			.andExpect(jsonPath("$.error.message").value("쇼핑 링크 정보를 가져오지 못했습니다."))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		assertThat(resultBody).doesNotContain("upstream-secret-detail");
+	}
+
+	@Test
+	void recoversStaleRunningJobAndRetriesIt() throws Exception {
+		UUID userId = createUser();
+		UUID jobId = UUID.randomUUID();
+		pageFetcher.stub(SHOP_URL, productHtml());
+		OffsetDateTime old = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10);
+		JsonNode request = objectMapper.readTree(requestJson(SHOP_URL));
+		jdbcTemplate.update(
+			"""
+			insert into shopping_import_jobs (
+				id, user_id, status, request_json, request_hash, attempt_count, created_at, started_at, updated_at
+			) values (?, ?, 'RUNNING', cast(? as jsonb), ?, 1, ?, ?, ?)
+			""",
+			jobId,
+			userId,
+			request.toString(),
+			"0".repeat(64),
+			old,
+			old,
+			old
+		);
+
+		assertThat(worker.processNextJob()).isTrue();
+
+		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("SUCCEEDED"))
+			.andExpect(jsonPath("$.attemptCount").value(2));
+	}
+
+	@Test
+	void failsStaleJobAfterRetryLimitIsExhausted() throws Exception {
+		UUID userId = createUser();
+		UUID jobId = insertStaleRunningJob(userId, 2, "1".repeat(64));
+
+		assertThat(worker.processNextJob()).isFalse();
+
+		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FAILED"))
+			.andExpect(jsonPath("$.attemptCount").value(2))
+			.andExpect(jsonPath("$.error.code").value("WORKER_INTERRUPTED"));
+	}
+
+	@Test
+	void cleansUpTerminalJobsAfterRetentionPeriod() {
+		UUID userId = createUser();
+		UUID jobId = UUID.randomUUID();
+		OffsetDateTime old = OffsetDateTime.now(ZoneOffset.UTC).minusDays(8);
+		jdbcTemplate.update(
+			"""
+			insert into shopping_import_jobs (
+				id, user_id, status, request_json, request_hash, result_json, attempt_count,
+				created_at, started_at, completed_at, updated_at
+			) values (?, ?, 'SUCCEEDED', cast(? as jsonb), ?, cast(? as jsonb), 1, ?, ?, ?, ?)
+			""",
+			jobId,
+			userId,
+			requestJson(SHOP_URL),
+			"2".repeat(64),
+			"{}",
+			old,
+			old,
+			old,
+			old
+		);
+
+		assertThat(worker.cleanupExpiredJobs()).isEqualTo(1);
+		Integer remaining = jdbcTemplate.queryForObject(
+			"select count(*) from shopping_import_jobs where id = ?",
+			Integer.class,
+			jobId
+		);
+		assertThat(remaining).isZero();
+	}
+
+	private UUID insertStaleRunningJob(UUID userId, int attemptCount, String requestHash) {
+		UUID jobId = UUID.randomUUID();
+		OffsetDateTime old = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10);
+		jdbcTemplate.update(
+			"""
+			insert into shopping_import_jobs (
+				id, user_id, status, request_json, request_hash, attempt_count, created_at, started_at, updated_at
+			) values (?, ?, 'RUNNING', cast(? as jsonb), ?, ?, ?, ?, ?)
+			""",
+			jobId,
+			userId,
+			requestJson(SHOP_URL),
+			requestHash,
+			attemptCount,
+			old,
+			old,
+			old
+		);
+		return jobId;
+	}
+
+	private org.springframework.test.web.servlet.ResultActions submit(UUID userId, String url) throws Exception {
+		return mockMvc.perform(post(JOBS_PATH)
+			.header(USER_ID_HEADER, userId)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(requestJson(url)));
+	}
+
+	private String requestJson(String url) {
+		return """
+			{
+				"inputSource": "SHARE",
+				"url": "%s"
+			}
+			""".formatted(url);
+	}
+
+	private UUID createUser() {
+		UUID userId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"insert into users (id, status, onboarding_status, created_at, updated_at) values (?, 'ACTIVE', 'COMPLETED', ?, ?)",
+			userId,
+			now,
+			now
+		);
+		return userId;
+	}
+
+	private String productHtml() {
+		return """
+			<html>
+			<head>
+			  <meta property="og:title" content="Noise Canceling Headphones" />
+			  <meta property="og:image" content="https://cdn.example.com/headphones.jpg" />
+			  <meta property="product:price:amount" content="129000" />
+			</head>
+			</html>
+			""";
+	}
+
+	@TestConfiguration
+	static class TestPageFetcherConfig {
+
+		@Bean
+		@Primary
+		FakeJobPageFetcher fakeJobPageFetcher() {
+			return new FakeJobPageFetcher();
+		}
+	}
+
+	static final class FakeJobPageFetcher implements PageFetcher {
+
+		private final Map<String, FetchedPage> pages = new HashMap<>();
+		private final Map<String, RuntimeException> failures = new HashMap<>();
+
+		void reset() {
+			pages.clear();
+			failures.clear();
+		}
+
+		void stub(String url, String body) {
+			URI uri = URI.create(url);
+			pages.put(url, new FetchedPage(uri, uri, 200, "text/html", body));
+		}
+
+		void fail(String url, RuntimeException failure) {
+			failures.put(url, failure);
+		}
+
+		@Override
+		public FetchedPage fetch(URI uri) {
+			RuntimeException failure = failures.get(uri.toString());
+			if (failure != null) {
+				throw failure;
+			}
+			FetchedPage page = pages.get(uri.toString());
+			if (page == null) {
+				throw new AssertionError("No stubbed page for " + uri);
+			}
+			return page;
+		}
+	}
+}
