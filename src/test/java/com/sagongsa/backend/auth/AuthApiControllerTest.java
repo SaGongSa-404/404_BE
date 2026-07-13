@@ -4,7 +4,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -18,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -76,5 +79,28 @@ class AuthApiControllerTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.tokenType").value("Bearer"))
 			.andExpect(jsonPath("$.accessToken").value("new-access-token"))
 			.andExpect(jsonPath("$.refreshToken").value("new-refresh-token"));
+	}
+
+	@Test
+	void acceptsCorsPreflightFromLocalWebOrigin() throws Exception {
+		mockMvc.perform(options("/api/auth/token/refresh")
+			.header(HttpHeaders.ORIGIN, "http://localhost:5173")
+			.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+			.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,Content-Type"))
+			.andExpect(status().isOk())
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"))
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, org.hamcrest.Matchers.nullValue()))
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, org.hamcrest.Matchers.containsString("POST")))
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, org.hamcrest.Matchers.containsString("Authorization")))
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, org.hamcrest.Matchers.containsString("Content-Type")));
+	}
+
+	@Test
+	void rejectsCorsPreflightFromUnconfiguredOrigin() throws Exception {
+		mockMvc.perform(options("/api/auth/token/refresh")
+			.header(HttpHeaders.ORIGIN, "https://evil.example")
+			.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+			.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,Content-Type"))
+			.andExpect(status().isForbidden());
 	}
 }

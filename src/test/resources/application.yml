@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: classpath:config/cors.yml
   flyway:
     enabled: true
   jpa:
