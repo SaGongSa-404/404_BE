@@ -59,23 +59,38 @@ public class JsoupPageFetcher implements PageFetcher {
 	private final int timeoutMillis;
 	private final int maxAttempts;
 	private final int maxResponseBytes;
+	private final ShoppingImportProperties.KreamProxy kreamProxy;
 
 	public JsoupPageFetcher() {
 		this(DEFAULT_MAX_RESPONSE_BYTES);
 	}
 
 	JsoupPageFetcher(int maxResponseBytes) {
-		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes);
+		this(maxResponseBytes, new ShoppingImportProperties.KreamProxy());
+	}
+
+	JsoupPageFetcher(int maxResponseBytes, ShoppingImportProperties.KreamProxy kreamProxy) {
+		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes, kreamProxy);
 	}
 
 	JsoupPageFetcher(int timeoutMillis, int maxAttempts) {
-		this(timeoutMillis, maxAttempts, DEFAULT_MAX_RESPONSE_BYTES);
+		this(timeoutMillis, maxAttempts, DEFAULT_MAX_RESPONSE_BYTES, new ShoppingImportProperties.KreamProxy());
 	}
 
 	JsoupPageFetcher(int timeoutMillis, int maxAttempts, int maxResponseBytes) {
+		this(timeoutMillis, maxAttempts, maxResponseBytes, new ShoppingImportProperties.KreamProxy());
+	}
+
+	JsoupPageFetcher(
+		int timeoutMillis,
+		int maxAttempts,
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy
+	) {
 		this.timeoutMillis = timeoutMillis <= 0 ? DEFAULT_TIMEOUT_MILLIS : timeoutMillis;
 		this.maxAttempts = maxAttempts <= 0 ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
 		this.maxResponseBytes = maxResponseBytes <= 0 ? DEFAULT_MAX_RESPONSE_BYTES : maxResponseBytes;
+		this.kreamProxy = kreamProxy == null ? new ShoppingImportProperties.KreamProxy() : kreamProxy;
 	}
 
 	@Override
@@ -123,7 +138,7 @@ public class JsoupPageFetcher implements PageFetcher {
 				currentUri = queryRedirect.get();
 				continue;
 			}
-			Connection.Response response = Jsoup.connect(currentUri.toString())
+			Connection connection = Jsoup.connect(currentUri.toString())
 				.userAgent(ANDROID_USER_AGENT)
 				.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 				.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
@@ -132,8 +147,9 @@ public class JsoupPageFetcher implements PageFetcher {
 				.ignoreContentType(true)
 				.ignoreHttpErrors(true)
 				.timeout(timeoutMillis)
-				.maxBodySize(maxResponseBytes)
-				.execute();
+				.maxBodySize(maxResponseBytes);
+			applyKreamProxy(connection, currentUri);
+			Connection.Response response = connection.execute();
 
 			if (isRedirect(response.statusCode())) {
 				String location = response.header("Location");
@@ -390,7 +406,7 @@ public class JsoupPageFetcher implements PageFetcher {
 		URI apiUri = URI.create("https://api.kream.co.kr/api/p/products/" + productId.get());
 		ShoppingUrlSafety.validatePublicHost(apiUri);
 		String deviceId = "web;" + UUID.randomUUID();
-		Connection.Response apiResponse = Jsoup.connect(apiUri.toString())
+		Connection connection = Jsoup.connect(apiUri.toString())
 			.userAgent(ANDROID_USER_AGENT)
 			.header("Accept", "application/json, text/plain, */*")
 			.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
@@ -404,8 +420,9 @@ public class JsoupPageFetcher implements PageFetcher {
 			.ignoreContentType(true)
 			.ignoreHttpErrors(true)
 			.timeout(Math.min(timeoutMillis, KREAM_API_TIMEOUT_MILLIS))
-			.maxBodySize(maxResponseBytes)
-			.execute();
+			.maxBodySize(maxResponseBytes);
+		applyKreamProxy(connection, apiUri);
+		Connection.Response apiResponse = connection.execute();
 
 		if (apiResponse.statusCode() >= 400) {
 			return Optional.empty();
@@ -423,6 +440,17 @@ public class JsoupPageFetcher implements PageFetcher {
 		String path = Optional.ofNullable(uri.getPath()).orElse("");
 		Matcher matcher = KREAM_PRODUCT_PATH_PATTERN.matcher(path);
 		return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
+	}
+
+	private void applyKreamProxy(Connection connection, URI uri) {
+		if (kreamProxy.isConfigured() && isKreamHost(uri)) {
+			connection.proxy(kreamProxy.javaProxy());
+		}
+	}
+
+	private static boolean isKreamHost(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return host.equals("kream.co.kr") || host.endsWith(".kream.co.kr");
 	}
 
 	static Optional<String> kreamProductMetadataHtml(String apiBody) {

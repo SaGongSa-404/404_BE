@@ -1,5 +1,6 @@
 package com.sagongsa.backend.itemimport.item;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -15,6 +16,22 @@ import java.net.URI;
 import org.junit.jupiter.api.Test;
 
 class BrowserPageFetcherTest {
+
+	@Test
+	void appliesConfiguredProxyOnlyToKreamContext() {
+		ShoppingImportProperties.BrowserFetch browserFetch = new ShoppingImportProperties.BrowserFetch();
+		ShoppingImportProperties.KreamProxy kreamProxy = new ShoppingImportProperties.KreamProxy();
+		kreamProxy.setEnabled(true);
+		kreamProxy.setType(ShoppingImportProperties.KreamProxy.Type.SOCKS);
+		kreamProxy.setHost("127.0.0.1");
+		kreamProxy.setPort(18080);
+		BrowserPageFetcher fetcher = new BrowserPageFetcher(browserFetch, 1_000_000, kreamProxy);
+
+		assertThat(fetcher.contextOptions(URI.create("https://kream.co.kr/products/444045")).proxy.server)
+			.isEqualTo("socks5://127.0.0.1:18080");
+		assertThat(fetcher.contextOptions(URI.create("https://zigzag.kr/catalog/products/1")).proxy)
+			.isNull();
+	}
 
 	@Test
 	void closesPlaywrightWhenBrowserLaunchFailsWithThrowable() {
