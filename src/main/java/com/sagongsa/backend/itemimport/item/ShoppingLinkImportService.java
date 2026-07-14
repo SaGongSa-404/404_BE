@@ -37,9 +37,17 @@ public class ShoppingLinkImportService {
 	private static final Pattern PRICE_WITH_CURRENCY_PATTERN = Pattern.compile("\\b([0-9]{1,3}(?:,[0-9]{3})+)\\s*원");
 	private static final Pattern WON_PRICE_AMOUNT_PATTERN = Pattern.compile("([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)\\s*원");
 	private static final Pattern PRICE_AMOUNT_PATTERN = Pattern.compile("([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)");
+	private static final Pattern MUSINSA_FINAL_PRICE_PATTERN = Pattern.compile(
+		"(?s)\\\"goodsPrice\\\"\\s*:\\s*\\{.{0,2000}?\\\"finalPrice\\\"\\s*:\\s*([0-9]+)"
+	);
 	private static final Set<String> NOISE_IMAGE_KEYWORDS = Set.of("logo", "icon", "sprite", "badge", "banner");
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
+	);
+	private static final Set<String> APP_SHARE_TRACKING_QUERY_KEYS = Set.of(
+		"source_caller", "pid", "shortlink", "short_id", "is_retargeting", "referrer",
+		"af_siteid", "af_dp", "af_referrer_uid", "af_channel", "af_force_deeplink", "af_click_lookback",
+		"deep_link_value", "tracking_content", "airbridge_referrer", "https_deeplink"
 	);
 	private static final Set<String> OLIVE_YOUNG_HOSTS = Set.of("oliveyoung.co.kr", "m.oliveyoung.co.kr");
 	private static final Set<String> VERIFIED_PRODUCT_HOSTS = Set.of(
@@ -50,7 +58,9 @@ public class ShoppingLinkImportService {
 		"oliveyoung.co.kr", "www.oliveyoung.co.kr", "m.oliveyoung.co.kr",
 		"brand.naver.com", "m.brand.naver.com",
 		"smartstore.naver.com", "m.smartstore.naver.com",
-		"kream.co.kr", "www.kream.co.kr"
+		"kream.co.kr", "www.kream.co.kr",
+		"product.29cm.co.kr", "www.29cm.co.kr",
+		"m.a-bly.com"
 	);
 	private static final double DEFAULT_CATEGORY_CONFIDENCE = 0.35d;
 
@@ -216,9 +226,20 @@ public class ShoppingLinkImportService {
 				warnings.add("쿠팡 링크를 모바일 상품 경로로 정규화했습니다.");
 			}
 		}
+		if ("store.zigzag.kr".equals(host) && uri.getPath() != null
+			&& uri.getPath().matches("/(?:app/)?catalog/products/[0-9]+/?")) {
+			normalized = rebuildUriWithHost(uri, "zigzag.kr");
+			warnings.add("지그재그 스토어 링크를 공개 상품 경로로 정규화했습니다.");
+		}
+		if ("ably.airbridge.io".equals(host) && uri.getPath() != null
+			&& uri.getPath().matches("/goods/[0-9]+/?")) {
+			String productId = uri.getPath().replaceFirst("^/goods/([0-9]+).*$", "$1");
+			normalized = URI.create("https://m.a-bly.com/goods/" + productId);
+			warnings.add("에이블리 공유 링크를 모바일 상품 경로로 정규화했습니다.");
+		}
 
 		if (normalized.getRawQuery() != null && !normalized.getRawQuery().isBlank()) {
-			String filteredQuery = removeTrackingQueryParameters(normalized.getRawQuery());
+			String filteredQuery = removeTrackingQueryParameters(normalized.getRawQuery(), normalized.getHost());
 			if (!Objects.equals(normalized.getRawQuery(), filteredQuery)) {
 				normalized = rebuildUri(normalized, filteredQuery);
 				warnings.add("추적성 query parameter를 제거했습니다.");
@@ -240,6 +261,9 @@ public class ShoppingLinkImportService {
 		String productMetaPrice = metaContent(document, "meta[property=product:price:amount]");
 		String siteSalePrice = isOliveYoungDomain(sourceDomain)
 			? metaContent(document, "meta[property=eg:salePrice]")
+			: null;
+		String musinsaFinalPrice = isMusinsaDomain(sourceDomain)
+			? findByRegex(html, MUSINSA_FINAL_PRICE_PATTERN)
 			: null;
 		String summary = firstNonBlank(
 			productJsonLdDescription,
@@ -268,6 +292,7 @@ public class ShoppingLinkImportService {
 
 		Integer price = firstNonNull(
 			parseListedPrice(siteSalePrice),
+			parseListedPrice(musinsaFinalPrice),
 			parseListedPrice(productJsonLdPrice),
 			parseListedPrice(productMetaPrice),
 			parseListedPrice(embeddedMetadata.priceText()),
@@ -278,6 +303,7 @@ public class ShoppingLinkImportService {
 		);
 		String rawPriceText = firstValidPriceText(
 			siteSalePrice,
+			musinsaFinalPrice,
 			productJsonLdPrice,
 			productMetaPrice,
 			embeddedMetadata.priceText(),
@@ -338,6 +364,18 @@ public class ShoppingLinkImportService {
 		);
 	}
 
+	private URI rebuildUriWithHost(URI uri, String host) {
+		try {
+			return new URI("https", null, host, -1, uri.getPath(), uri.getRawQuery(), null);
+		} catch (java.net.URISyntaxException exception) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid shopping url", exception);
+		}
+	}
+
+	private boolean isMusinsaDomain(String sourceDomain) {
+		return sourceDomain != null && (sourceDomain.equals("musinsa.com") || sourceDomain.equals("www.musinsa.com"));
+	}
+
 	private void validateVerifiedProduct(URI requestedUri, URI finalUri, ExtractionResult extracted) {
 		boolean requestedVerifiedHost = isVerifiedProductHost(requestedUri);
 		boolean finalVerifiedHost = isVerifiedProductHost(finalUri);
@@ -394,6 +432,15 @@ public class ShoppingLinkImportService {
 		}
 		if (host.equals("kream.co.kr") || host.equals("www.kream.co.kr")) {
 			return path.matches("/products/[0-9]+/?");
+		}
+		if (host.equals("product.29cm.co.kr")) {
+			return path.matches("/catalog/[0-9]+/?");
+		}
+		if (host.equals("www.29cm.co.kr")) {
+			return path.matches("/products/[0-9]+/?");
+		}
+		if (host.equals("m.a-bly.com")) {
+			return path.matches("/goods/[0-9]+/?");
 		}
 		return false;
 	}
@@ -966,16 +1013,19 @@ public class ShoppingLinkImportService {
 		}
 	}
 
-	private String removeTrackingQueryParameters(String rawQuery) {
+	private String removeTrackingQueryParameters(String rawQuery, String host) {
 		String filtered = Arrays.stream(rawQuery.split("&"))
-			.filter(parameter -> !isTrackingQueryParameter(parameter))
+			.filter(parameter -> !isTrackingQueryParameter(parameter, host))
 			.collect(Collectors.joining("&"));
 		return filtered.isBlank() ? null : filtered;
 	}
 
-	private boolean isTrackingQueryParameter(String parameter) {
+	private boolean isTrackingQueryParameter(String parameter, String host) {
 		String key = parameter.split("=", 2)[0].toLowerCase(Locale.ROOT);
-		return key.startsWith("utm_") || TRACKING_QUERY_KEYS.contains(key);
+		String normalizedHost = host == null ? "" : host.toLowerCase(Locale.ROOT);
+		boolean knownAppShareHost = normalizedHost.endsWith("musinsa.com") || normalizedHost.endsWith("29cm.co.kr");
+		return key.startsWith("utm_") || TRACKING_QUERY_KEYS.contains(key)
+			|| (knownAppShareHost && APP_SHARE_TRACKING_QUERY_KEYS.contains(key));
 	}
 
 	private String toJson(Map<String, Object> rawPayloadJson) {

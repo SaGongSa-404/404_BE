@@ -567,7 +567,10 @@ class ShoppingLinkImportServiceTest {
 				    "product": {
 				      "state": {
 				        "goodsNm": "코치 자켓 [블랙]",
-				        "salePrice": 129000,
+				        "goodsPrice": {
+				          "salePrice": 129000,
+				          "finalPrice": 99000
+				        },
 				        "thumbnailImageUrl": "https://image.msscdn.net/item.jpg"
 				      }
 				    }
@@ -595,13 +598,13 @@ class ShoppingLinkImportServiceTest {
 		);
 
 		assertThat(response.item().title()).isEqualTo("코치 자켓 [블랙]");
-		assertThat(response.item().listedPrice()).isEqualTo(129000);
+		assertThat(response.item().listedPrice()).isEqualTo(99000);
 		assertThat(response.item().imageUrl()).isEqualTo("https://image.msscdn.net/item.jpg");
 		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
 	}
 
 	@Test
-	void acceptsAblySearchPageWithCloudflareMarkerAndRenderedTitle() {
+	void rejectsAblySearchPageBecauseItIsNotAProductDetail() {
 		pageFetcher.stub(
 			"https://m.a-bly.com/search?keyword=%EA%B0%80%EB%94%94%EA%B1%B4",
 			"""
@@ -619,7 +622,7 @@ class ShoppingLinkImportServiceTest {
 				"""
 		);
 
-		ShoppingLinkImportResponse response = service.importLink(
+		assertThatThrownBy(() -> service.importLink(
 			new ShoppingLinkImportRequest(
 				ItemInputSource.SHARE,
 				"https://m.a-bly.com/search?keyword=%EA%B0%80%EB%94%94%EA%B1%B4",
@@ -628,11 +631,99 @@ class ShoppingLinkImportServiceTest {
 				null,
 				null
 			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	@Test
+	void acceptsCompleteAblyProductDetail() {
+		String url = "https://m.a-bly.com/goods/6070447";
+		pageFetcher.stub(url, completeProductMetadata("우유 시스루 슬림핏 가디건"));
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
 		);
 
-		assertThat(response.item().title()).isEqualTo("가디건 - 에이블리 스토어");
-		assertThat(response.item().imageUrl()).isEqualTo("https://img.a-bly.com/og_image.jpg");
-		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
+		assertThat(response.item().title()).isEqualTo("우유 시스루 슬림핏 가디건");
+		assertThat(response.item().listedPrice()).isEqualTo(12900);
+		assertThat(response.item().imageUrl()).isEqualTo("https://example.com/product.jpg");
+	}
+
+	@Test
+	void acceptsCompleteTwentyNineCmProductDetail() {
+		String url = "https://www.29cm.co.kr/products/2602166";
+		pageFetcher.stub(url, completeProductMetadata("002 BAG (BLACK)"));
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
+		);
+
+		assertThat(response.item().title()).isEqualTo("002 BAG (BLACK)");
+		assertThat(response.item().listedPrice()).isEqualTo(12900);
+		assertThat(response.item().imageUrl()).isEqualTo("https://example.com/product.jpg");
+	}
+
+	@Test
+	void normalizesZigzagStoreShareLinkToPublicProductDetail() {
+		String canonicalUrl = "https://zigzag.kr/catalog/products/136095576?catalog_product_id=136095576";
+		pageFetcher.stub(canonicalUrl, completeProductMetadata("모먼트 투커버 올데이슬랙스"));
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://store.zigzag.kr/catalog/products/136095576?catalog_product_id=136095576",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().normalizedUrl()).isEqualTo(canonicalUrl);
+		assertThat(response.warnings()).contains("지그재그 스토어 링크를 공개 상품 경로로 정규화했습니다.");
+	}
+
+	@Test
+	void normalizesAblyAirbridgeShareLinkToMobileProductDetail() {
+		String canonicalUrl = "https://m.a-bly.com/goods/70247267";
+		pageFetcher.stub(canonicalUrl, completeProductMetadata("에이블리 공유 상품"));
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://ably.airbridge.io/goods/70247267?short_id=qg7dkb",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().normalizedUrl()).isEqualTo(canonicalUrl);
+		assertThat(response.warnings()).contains("에이블리 공유 링크를 모바일 상품 경로로 정규화했습니다.");
+	}
+
+	@Test
+	void removesAppShareTrackingFromTwentyNineCmProductLink() {
+		String canonicalUrl = "https://www.29cm.co.kr/products/3853210";
+		pageFetcher.stub(canonicalUrl, completeProductMetadata("Ruby Berry Tee-Lavender"));
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				canonicalUrl + "?source_caller=api_v2&af_dp=app29cm%3A%2F%2Fweb&pid=29cm_pdp_share"
+					+ "&shortlink=04380dk4&is_retargeting=true&referrer=encoded",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().normalizedUrl()).isEqualTo(canonicalUrl);
+		assertThat(response.warnings()).contains("추적성 query parameter를 제거했습니다.");
 	}
 
 	@Test

@@ -1,6 +1,7 @@
 package com.sagongsa.backend.itemimport.item;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,7 +34,9 @@ class ShoppingLinkImportLiveAccuracyTest {
 	private static final String USER_AGENT =
 		"Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 Chrome/135.0.0.0 Mobile Safari/537.36";
 	private static final Pattern MUSINSA_TITLE = Pattern.compile("\\\"goodsNm\\\":\\\"((?:\\\\.|[^\\\"])*)\\\"");
-	private static final Pattern MUSINSA_PRICE = Pattern.compile("\\\"salePrice\\\":([0-9]+)");
+	private static final Pattern MUSINSA_FINAL_PRICE = Pattern.compile(
+		"(?s)\\\"goodsPrice\\\"\\s*:\\s*\\{.{0,2000}?\\\"finalPrice\\\"\\s*:\\s*([0-9]+)"
+	);
 	private static final Pattern WON_PRICE = Pattern.compile("([0-9][0-9,]*)\\s*원");
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final String VERIFIED_ZIGZAG_URL =
@@ -56,6 +59,7 @@ class ShoppingLinkImportLiveAccuracyTest {
 		"https://brand.naver.com/cookierun/products/13304629944"
 	);
 	private static final List<String> OLIVE_YOUNG_PRODUCT_URLS = List.of(
+		"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000171427",
 		"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000149780",
 		"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000110058",
 		"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000191160",
@@ -102,6 +106,61 @@ class ShoppingLinkImportLiveAccuracyTest {
 		"https://kream.co.kr/products/984763",
 		"https://kream.co.kr/products/984544"
 	);
+	private static final List<String> TWENTY_NINE_CM_PRODUCT_URLS = List.of(
+		"https://www.29cm.co.kr/products/3853210",
+		"https://www.29cm.co.kr/products/3307910",
+		"https://www.29cm.co.kr/products/3053978",
+		"https://product.29cm.co.kr/catalog/2602166",
+		"https://product.29cm.co.kr/catalog/3053461",
+		"https://product.29cm.co.kr/catalog/1584496",
+		"https://product.29cm.co.kr/catalog/364149?id=3264999",
+		"https://product.29cm.co.kr/catalog/2860848?id=954390",
+		"https://product.29cm.co.kr/catalog/2746240",
+		"https://product.29cm.co.kr/catalog/3918491",
+		"https://product.29cm.co.kr/catalog/3486317",
+		"https://www.29cm.co.kr/products/2070013",
+		"https://www.29cm.co.kr/products/3960939",
+		"https://www.29cm.co.kr/products/2525794",
+		"https://www.29cm.co.kr/products/4042000",
+		"https://www.29cm.co.kr/products/3304280",
+		"https://www.29cm.co.kr/products/2530414"
+	);
+	private static final List<String> ABLY_PRODUCT_URLS = List.of(
+		"https://m.a-bly.com/goods/70247267",
+		"https://m.a-bly.com/goods/62561082",
+		"https://m.a-bly.com/goods/70219189",
+		"https://m.a-bly.com/goods/6070447",
+		"https://m.a-bly.com/goods/10968940",
+		"https://m.a-bly.com/goods/68993180",
+		"https://m.a-bly.com/goods/56497725",
+		"https://m.a-bly.com/goods/19346326",
+		"https://m.a-bly.com/goods/12235563",
+		"https://m.a-bly.com/goods/7111823",
+		"https://m.a-bly.com/goods/40829813",
+		"https://m.a-bly.com/goods/46925893",
+		"https://m.a-bly.com/goods/13605337",
+		"https://m.a-bly.com/goods/36174732",
+		"https://m.a-bly.com/goods/12426697"
+	);
+	private static final List<String> REPORTED_ZIGZAG_STORE_URLS = List.of(
+		"https://store.zigzag.kr/catalog/products/136095576?catalog_product_id=136095576",
+		"https://store.zigzag.kr/catalog/products/160269610?catalog_product_id=160269610",
+		"https://store.zigzag.kr/catalog/products/140798161?catalog_product_id=140798161"
+	);
+	private static final List<String> REPORTED_ABLY_SHARE_URLS = List.of(
+		"https://ably.airbridge.io/goods/70247267",
+		"https://ably.airbridge.io/goods/62561082",
+		"https://ably.airbridge.io/goods/70219189"
+	);
+	private static final List<String> REPORTED_TWENTY_NINE_CM_URLS = List.of(
+		"https://www.29cm.co.kr/products/3853210",
+		"https://www.29cm.co.kr/products/3307910",
+		"https://www.29cm.co.kr/products/3053978"
+	);
+	private static final String REPORTED_OLIVE_YOUNG_URL =
+		"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000171427";
+	private static final String REPORTED_DAANGN_JOB_URL = "https://www.daangn.com/kr/jobs/oc89uuf1a4zo";
+	private static final String REPORTED_MUSINSA_URL = "https://www.musinsa.com/products/1855218";
 
 	@Test
 	void verifiesFiftyKoreanProductsAgainstSourceMetadata() throws Exception {
@@ -180,6 +239,67 @@ class ShoppingLinkImportLiveAccuracyTest {
 
 		assertThat(mismatches).as("Smart Store title, KRW price, and product image must match").isEmpty();
 		assertThat(smartStore).as("verified Smart Store products; unavailable=%s", unavailable).isEqualTo(10);
+	}
+
+	@Test
+	void verifiesTenApprovedTwentyNineCmProductsAgainstSourceMetadata() {
+		List<String> mismatches = new ArrayList<>();
+		List<String> unavailable = new ArrayList<>();
+
+		int verified = verifyCandidates(
+			TWENTY_NINE_CM_PRODUCT_URLS,
+			10,
+			mismatches,
+			unavailable,
+			new JsoupPageFetcher(10_000_000)
+		);
+
+		assertThat(mismatches).as("29CM title, KRW price, and product image must match").isEmpty();
+		assertThat(verified).as("verified 29CM products; unavailable=%s", unavailable).isEqualTo(10);
+	}
+
+	@Test
+	void verifiesTenApprovedAblyProductsAgainstSourceMetadata() {
+		List<String> mismatches = new ArrayList<>();
+		List<String> unavailable = new ArrayList<>();
+		ShoppingImportProperties properties = browserProperties();
+
+		int verified;
+		try (BrowserPageFetcher browser = new BrowserPageFetcher(properties.getBrowserFetch(), 20_000_000)) {
+			verified = verifyCandidates(ABLY_PRODUCT_URLS, 10, mismatches, unavailable, browser);
+		}
+
+		assertThat(mismatches).as("Ably title, KRW price, and product image must match").isEmpty();
+		assertThat(verified).as("verified Ably products; unavailable=%s", unavailable).isEqualTo(10);
+	}
+
+	@Test
+	void verifiesReportedShareLinkRegressionsAgainstSourceMetadata() {
+		List<String> mismatches = new ArrayList<>();
+		List<String> unavailable = new ArrayList<>();
+		ShoppingImportProperties properties = browserProperties();
+
+		int zigzag = verifyCandidates(REPORTED_ZIGZAG_STORE_URLS, 3, mismatches, unavailable);
+		int twentyNineCm = verifyCandidates(REPORTED_TWENTY_NINE_CM_URLS, 3, mismatches, unavailable);
+		int musinsa = verifyCandidates(List.of(REPORTED_MUSINSA_URL), 1, mismatches, unavailable);
+		int ably;
+		int oliveYoung;
+		try (BrowserPageFetcher browser = new BrowserPageFetcher(properties.getBrowserFetch(), 20_000_000)) {
+			ably = verifyCandidates(REPORTED_ABLY_SHARE_URLS, 3, mismatches, unavailable, browser);
+			oliveYoung = verifyCandidates(List.of(REPORTED_OLIVE_YOUNG_URL), 1, mismatches, unavailable, browser);
+		}
+		ShoppingLinkImportService service = new ShoppingLinkImportService(new JsoupPageFetcher(10_000_000), OBJECT_MAPPER);
+
+		assertThat(mismatches).as("reported share-link title, KRW price, and product image must match").isEmpty();
+		assertThat(zigzag).as("reported Zigzag products; unavailable=%s", unavailable).isEqualTo(3);
+		assertThat(twentyNineCm).as("reported 29CM products; unavailable=%s", unavailable).isEqualTo(3);
+		assertThat(musinsa).as("reported Musinsa product; unavailable=%s", unavailable).isEqualTo(1);
+		assertThat(ably).as("reported Ably products; unavailable=%s", unavailable).isEqualTo(3);
+		assertThat(oliveYoung).as("reported Olive Young product; unavailable=%s", unavailable).isEqualTo(1);
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, REPORTED_DAANGN_JOB_URL, null, null, null, null)
+		)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+			.hasMessageContaining("Shopping product redirected outside its verified domain");
 	}
 
 	private ShoppingImportProperties browserProperties() {
@@ -295,7 +415,7 @@ class ShoppingLinkImportLiveAccuracyTest {
 		if (host.contains("musinsa.com")) {
 			return new SourceProduct(
 				jsonString(MUSINSA_TITLE.matcher(page.body())),
-				Integer.valueOf(regexGroup(MUSINSA_PRICE.matcher(page.body()))),
+				Integer.valueOf(regexGroup(MUSINSA_FINAL_PRICE.matcher(page.body()))),
 				meta(document, "meta[property=og:image]")
 			);
 		}
@@ -351,6 +471,22 @@ class ShoppingLinkImportLiveAccuracyTest {
 				title,
 				new java.math.BigDecimal(price.replace(",", "")).intValueExact(),
 				Parser.unescapeEntities(image, false)
+			);
+		}
+		if (host.equals("www.29cm.co.kr") || host.equals("product.29cm.co.kr")) {
+			JsonNode product = productJsonLd(document);
+			return new SourceProduct(
+				product.path("name").asText(),
+				product.path("offers").path("price").decimalValue().intValueExact(),
+				meta(document, "meta[property=og:image]")
+			);
+		}
+		if (host.equals("m.a-bly.com")) {
+			JsonNode product = productJsonLd(document);
+			return new SourceProduct(
+				product.path("name").asText(),
+				product.path("offers").path("price").decimalValue().intValueExact(),
+				firstTextValue(product.path("image"))
 			);
 		}
 		throw new IllegalArgumentException("Unsupported oracle host: " + host);
