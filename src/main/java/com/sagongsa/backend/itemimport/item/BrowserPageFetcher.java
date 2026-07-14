@@ -17,12 +17,16 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 
 	private static final String ABLY_MOBILE_HOST = "m.a-bly.com";
+	private static final Pattern ABLY_PRODUCT_PRICE_META = Pattern.compile(
+		"(?is)<meta[^>]*property\\s*=\\s*[\\\"']product:price:amount[\\\"'][^>]*content\\s*=\\s*[\\\"']\\s*[1-9][0-9,]*"
+	);
 	private static final String IOS_MOBILE_USER_AGENT =
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
 			+ "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
@@ -84,6 +88,7 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 					);
 					waitForNetworkIdle(page);
 					waitForRenderDelay(page);
+					waitForAblyProductMetadata(page, uri);
 
 					URI finalUri = URI.create(page.url());
 					ShoppingUrlSafety.validatePublicHost(finalUri);
@@ -92,10 +97,15 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 						throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Rendered shopping page response is too large");
 					}
 
+					int statusCode = response == null ? 200 : response.status();
+					if (isAblyMobileUri(finalUri) && hasAblyProductMetadata(body)) {
+						statusCode = 200;
+					}
+
 					return new FetchedPage(
 						uri,
 						finalUri,
-						response == null ? 200 : response.status(),
+						statusCode,
 						response == null ? "text/html" : response.headerValue("content-type"),
 						body
 					);
@@ -214,6 +224,24 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		if (!isZeroOrNegative(renderWait)) {
 			page.waitForTimeout(toMillis(renderWait));
 		}
+	}
+
+	private void waitForAblyProductMetadata(Page page, URI uri) {
+		if (!isAblyMobileUri(uri)) {
+			return;
+		}
+		try {
+			page.waitForSelector(
+				"meta[property='product:price:amount']",
+				new Page.WaitForSelectorOptions().setTimeout(Math.min(toMillis(properties.getTimeout()), 10_000))
+			);
+		} catch (PlaywrightException ignored) {
+			// Keep the challenge page so the caller can report a normal import failure.
+		}
+	}
+
+	static boolean hasAblyProductMetadata(String body) {
+		return body != null && ABLY_PRODUCT_PRICE_META.matcher(body).find();
 	}
 
 	private boolean isZeroOrNegative(Duration duration) {

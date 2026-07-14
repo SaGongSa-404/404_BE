@@ -75,4 +75,15 @@ class BrowserPageFetcherTest {
 
 		verify(route).abort();
 	}
+
+	@Test
+	void recognizesRenderedAblyProductMetadataOnlyForPositivePrice() {
+		assertThat(BrowserPageFetcher.hasAblyProductMetadata(
+			"<meta property=\"product:price:amount\" content=\"52,110\">"
+		)).isTrue();
+		assertThat(BrowserPageFetcher.hasAblyProductMetadata(
+			"<meta property=\"product:price:amount\" content=\"0\">"
+		)).isFalse();
+		assertThat(BrowserPageFetcher.hasAblyProductMetadata("<title>보안 확인 중..</title>")).isFalse();
+	}
 }
