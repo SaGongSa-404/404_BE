@@ -23,7 +23,10 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = "app.notification.reminder-worker.enabled=false")
+@SpringBootTest(properties = {
+	"app.notification.reminder-worker.enabled=false",
+	"app.shopping.import.job-worker.enabled=false"
+})
 @AutoConfigureMockMvc
 class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 
