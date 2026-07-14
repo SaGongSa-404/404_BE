@@ -27,6 +27,8 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static final String ANDROID_USER_AGENT =
 		"Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 "
 			+ "(KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36";
+	private static final String SOCIAL_PREVIEW_USER_AGENT =
+		"facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 	private static final int DEFAULT_TIMEOUT_MILLIS = 30_000;
 	private static final int DEFAULT_MAX_ATTEMPTS = 2;
 	private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_000_000;
@@ -139,7 +141,7 @@ public class JsoupPageFetcher implements PageFetcher {
 				continue;
 			}
 			Connection connection = Jsoup.connect(currentUri.toString())
-				.userAgent(ANDROID_USER_AGENT)
+				.userAgent(userAgentFor(currentUri))
 				.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 				.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
 				.header("Upgrade-Insecure-Requests", "1")
@@ -193,6 +195,10 @@ public class JsoupPageFetcher implements PageFetcher {
 			);
 		}
 		throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page redirected too many times");
+	}
+
+	private static String userAgentFor(URI uri) {
+		return isKreamHost(uri) ? SOCIAL_PREVIEW_USER_AGENT : ANDROID_USER_AGENT;
 	}
 
 	private void enforceBodySize(String body) {

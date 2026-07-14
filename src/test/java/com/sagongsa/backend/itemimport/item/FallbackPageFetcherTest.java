@@ -53,4 +53,23 @@ class FallbackPageFetcherTest {
 		assertThat(page.statusCode()).isEqualTo(200);
 		assertThat(fallbackRequest.get()).isEqualTo(finalUri);
 	}
+
+	@Test
+	void switchesRateLimitedSmartStoreProductToMobileHost() {
+		URI originalUri = URI.create("https://smartstore.naver.com/sample/products/11933395125");
+		AtomicReference<URI> fallbackRequest = new AtomicReference<>();
+		FallbackPageFetcher fetcher = new FallbackPageFetcher(
+			requestedUri -> new FetchedPage(requestedUri, requestedUri, 429, "text/html", "<html>too many requests</html>"),
+			requestedUri -> {
+				fallbackRequest.set(requestedUri);
+				return new FetchedPage(requestedUri, requestedUri, 200, "text/html", "<html>rendered</html>");
+			}
+		);
+
+		fetcher.fetch(originalUri);
+
+		assertThat(fallbackRequest.get()).isEqualTo(
+			URI.create("https://m.smartstore.naver.com/sample/products/11933395125")
+		);
+	}
 }

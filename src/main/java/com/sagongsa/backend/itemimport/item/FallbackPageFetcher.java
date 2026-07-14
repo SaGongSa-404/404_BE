@@ -51,17 +51,20 @@ public class FallbackPageFetcher implements PageFetcher, AutoCloseable {
 	private boolean isNaverProductUri(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
 		String path = Optional.ofNullable(uri.getPath()).orElse("");
-		return (host.equals("brand.naver.com") || host.equals("m.brand.naver.com"))
+		return (host.equals("brand.naver.com") || host.equals("m.brand.naver.com")
+			|| host.equals("smartstore.naver.com") || host.equals("m.smartstore.naver.com"))
 			&& path.contains("/products/");
 	}
 
 	private URI mobileNaverUri(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
-		if (!host.equals("brand.naver.com") && !host.equals("m.brand.naver.com")) {
+		if (!host.equals("brand.naver.com") && !host.equals("m.brand.naver.com")
+			&& !host.equals("smartstore.naver.com") && !host.equals("m.smartstore.naver.com")) {
 			return uri;
 		}
 		try {
-			return new URI(uri.getScheme(), uri.getUserInfo(), "m.brand.naver.com", uri.getPort(), uri.getPath(), uri.getRawQuery(), uri.getFragment());
+			String mobileHost = host.contains("smartstore") ? "m.smartstore.naver.com" : "m.brand.naver.com";
+			return new URI(uri.getScheme(), uri.getUserInfo(), mobileHost, uri.getPort(), uri.getPath(), uri.getRawQuery(), uri.getFragment());
 		} catch (URISyntaxException exception) {
 			return uri;
 		}
@@ -70,7 +73,7 @@ public class FallbackPageFetcher implements PageFetcher, AutoCloseable {
 	private boolean isKnownErrorShell(FetchedPage page) {
 		String host = Optional.ofNullable(page.finalUri().getHost()).orElse("").toLowerCase(Locale.ROOT);
 		String body = Optional.ofNullable(page.body()).orElse("");
-		return host.equals("brand.naver.com")
+		return (host.equals("brand.naver.com") || host.equals("smartstore.naver.com"))
 			&& (body.contains("시스템오류") || body.contains("에러페이지"));
 	}
 

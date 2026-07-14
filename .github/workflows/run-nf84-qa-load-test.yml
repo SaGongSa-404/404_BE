@@ -23,7 +23,7 @@ on:
         required: true
         type: string
       expected_results_json:
-        description: JSON array with exact url, title, listedPrice, and imageUrl source expectations
+        description: JSON array with exact url, title, listedPrice, currencyCode, and imageUrl source expectations
         required: true
         type: string
       duration_seconds:

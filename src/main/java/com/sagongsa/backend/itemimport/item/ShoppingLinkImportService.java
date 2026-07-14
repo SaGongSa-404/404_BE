@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.parser.Parser;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -41,6 +42,16 @@ public class ShoppingLinkImportService {
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
 	);
 	private static final Set<String> OLIVE_YOUNG_HOSTS = Set.of("oliveyoung.co.kr", "m.oliveyoung.co.kr");
+	private static final Set<String> VERIFIED_PRODUCT_HOSTS = Set.of(
+		"musinsa.com", "www.musinsa.com",
+		"daangn.com", "www.daangn.com",
+		"bunjang.co.kr", "www.bunjang.co.kr", "m.bunjang.co.kr",
+		"zigzag.kr", "www.zigzag.kr",
+		"oliveyoung.co.kr", "www.oliveyoung.co.kr", "m.oliveyoung.co.kr",
+		"brand.naver.com", "m.brand.naver.com",
+		"smartstore.naver.com", "m.smartstore.naver.com",
+		"kream.co.kr", "www.kream.co.kr"
+	);
 	private static final double DEFAULT_CATEGORY_CONFIDENCE = 0.35d;
 
 	private final PageFetcher pageFetcher;
@@ -83,6 +94,7 @@ public class ShoppingLinkImportService {
 		}
 		ExtractionResult extracted = extractFromPage(document, page);
 		List<String> warnings = new ArrayList<>(normalized.warnings());
+		validateVerifiedProduct(originalUri, page.finalUri(), extracted);
 
 		if (extracted.isPartial()) {
 			warnings.add("상품 메타데이터가 일부만 추출되었습니다.");
@@ -105,7 +117,7 @@ public class ShoppingLinkImportService {
 			extracted.summary(),
 			extracted.imageUrl(),
 			extracted.price(),
-			"KRW",
+			extracted.currencyCode(),
 			category,
 			category == ItemCategory.ETC ? null : DEFAULT_CATEGORY_CONFIDENCE,
 			false,
@@ -220,64 +232,77 @@ public class ShoppingLinkImportService {
 		String html = page.body();
 		String sourceDomain = sourceDomain(page.finalUri());
 		EmbeddedMetadata embeddedMetadata = embeddedMetadata(document);
+		String productJsonLdTitle = productJsonLdText(document, "name");
+		String productJsonLdDescription = productJsonLdText(document, "description");
+		String productJsonLdPrice = productJsonLdText(document, "offers.price");
+		String productJsonLdCurrency = productJsonLdText(document, "offers.priceCurrency");
+		String productJsonLdImage = productJsonLdText(document, "image");
+		String productMetaPrice = metaContent(document, "meta[property=product:price:amount]");
 		String siteSalePrice = isOliveYoungDomain(sourceDomain)
 			? metaContent(document, "meta[property=eg:salePrice]")
 			: null;
 		String summary = firstNonBlank(
+			productJsonLdDescription,
+			embeddedMetadata.description(),
 			metaContent(document, "meta[property=og:description]"),
 			metaContent(document, "meta[name=description]"),
 			metaContent(document, "meta[name=twitter:description]"),
-			jsonLdText(document, "description"),
-			embeddedMetadata.description()
+			jsonLdText(document, "description")
 		);
 		String title = firstProductTitle(
 			sourceDomain,
+			productJsonLdTitle,
+			embeddedMetadata.title(),
 			metaContent(document, "meta[property=og:title]"),
 			metaContent(document, "meta[name=twitter:title]"),
-			jsonLdText(document, "name"),
-			embeddedMetadata.title(),
 			normalizeWhitespace(document.title()),
 			firstText(document, "h1", "[data-testid=productName]", ".prod-buy-header__title")
 		);
 
 		String brandName = firstNonBlank(
-			jsonLdText(document, "brand.name"),
-			jsonLdText(document, "brand"),
+			productJsonLdText(document, "brand.name"),
+			productJsonLdText(document, "brand"),
 			metaContent(document, "meta[property=kakao:commerce:brand_name]"),
 			firstText(document, "[itemprop=brand]", ".prod-brand-name", ".brand-name")
 		);
 
 		Integer price = firstNonNull(
 			parseListedPrice(siteSalePrice),
-			parseListedPrice(metaContent(document, "meta[property=product:price:amount]")),
+			parseListedPrice(productJsonLdPrice),
+			parseListedPrice(productMetaPrice),
+			parseListedPrice(embeddedMetadata.priceText()),
 			parseListedPrice(metaContent(document, "meta[property=og:price:amount]")),
 			parseListedPrice(metaContent(document, "meta[property=kakao:commerce:price]")),
-			parseListedPrice(jsonLdText(document, "offers.price")),
 			parseListedPrice(jsonLdText(document, "price")),
-			parseListedPrice(embeddedMetadata.priceText()),
 			parseListedPrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
 		);
 		String rawPriceText = firstValidPriceText(
 			siteSalePrice,
-			metaContent(document, "meta[property=product:price:amount]"),
+			productJsonLdPrice,
+			productMetaPrice,
+			embeddedMetadata.priceText(),
 			metaContent(document, "meta[property=og:price:amount]"),
 			metaContent(document, "meta[property=kakao:commerce:price]"),
-			jsonLdText(document, "offers.price"),
 			jsonLdText(document, "price"),
-			embeddedMetadata.priceText(),
 			findByRegex(html, PRICE_WITH_CURRENCY_PATTERN)
+		);
+		String currencyCode = resolveCurrencyCode(
+			sourceDomain,
+			productJsonLdCurrency,
+			metaContent(document, "meta[property=product:price:currency]"),
+			metaContent(document, "meta[property=og:price:currency]")
 		);
 
 		String imageUrl = firstNonBlank(
+			normalizeImageUrl(productJsonLdImage),
+			normalizeImageUrl(embeddedMetadata.imageUrl()),
 			normalizeImageUrl(metaContent(document, "meta[property=og:image]")),
 			normalizeImageUrl(metaContent(document, "meta[name=twitter:image]")),
-			normalizeImageUrl(jsonLdText(document, "image")),
-			normalizeImageUrl(embeddedMetadata.imageUrl()),
 			bestImage(document)
 		);
 
 		String method = "OPEN_GRAPH";
-		if (!isBlank(jsonLdText(document, "name")) || !isBlank(jsonLdText(document, "offers.price"))) {
+		if (!isBlank(productJsonLdTitle) || !isBlank(productJsonLdPrice) || !isBlank(productJsonLdImage)) {
 			method = "JSON_LD";
 		} else if (embeddedMetadata.hasAnyValue()) {
 			method = "EMBEDDED_JSON";
@@ -294,8 +319,11 @@ public class ShoppingLinkImportService {
 		rawPayloadJson.put("brandName", brandName);
 		rawPayloadJson.put("summary", summary);
 		rawPayloadJson.put("price", price);
+		rawPayloadJson.put("rawPriceText", rawPriceText);
+		rawPayloadJson.put("currencyCode", currencyCode);
 		rawPayloadJson.put("imageUrl", imageUrl);
 		rawPayloadJson.put("method", method);
+		rawPayloadJson.put("verifiedProduct", isVerifiedProductUri(page.finalUri()));
 
 		return new ExtractionResult(
 			title,
@@ -303,10 +331,81 @@ public class ShoppingLinkImportService {
 			summary,
 			price,
 			rawPriceText,
+			currencyCode,
 			imageUrl,
 			method,
 			rawPayloadJson
 		);
+	}
+
+	private void validateVerifiedProduct(URI requestedUri, URI finalUri, ExtractionResult extracted) {
+		boolean requestedVerifiedHost = isVerifiedProductHost(requestedUri);
+		boolean finalVerifiedHost = isVerifiedProductHost(finalUri);
+		if (!requestedVerifiedHost && !finalVerifiedHost) {
+			return;
+		}
+		if (requestedVerifiedHost && !finalVerifiedHost) {
+			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Shopping product redirected outside its verified domain");
+		}
+		if (!isVerifiedProductUri(finalUri)) {
+			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Only product detail URLs can be verified");
+		}
+		if (isBlank(extracted.title()) || isBlank(extracted.imageUrl()) || isBlank(extracted.currencyCode())) {
+			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Unable to verify complete shopping metadata");
+		}
+		if (extracted.price() == null || !"KRW".equals(extracted.currencyCode())) {
+			throw new ResponseStatusException(
+				HttpStatus.UNPROCESSABLE_ENTITY,
+				"Only verified integer KRW prices are supported"
+			);
+		}
+	}
+
+	private boolean isVerifiedProductHost(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return VERIFIED_PRODUCT_HOSTS.contains(host);
+	}
+
+	private boolean isVerifiedProductUri(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		String path = Optional.ofNullable(uri.getPath()).orElse("");
+		if (host.equals("musinsa.com") || host.equals("www.musinsa.com")) {
+			return path.matches("/products/[0-9]+/?");
+		}
+		if (host.equals("daangn.com") || host.equals("www.daangn.com")) {
+			return path.matches("/articles/[0-9]+/?") || path.startsWith("/kr/buy-sell/");
+		}
+		if (host.endsWith("bunjang.co.kr")) {
+			return path.matches("/products/[0-9]+/?");
+		}
+		if (host.equals("zigzag.kr") || host.equals("www.zigzag.kr")) {
+			return path.matches("/(?:app/)?catalog/products/[0-9]+/?");
+		}
+		if (host.equals("oliveyoung.co.kr") || host.equals("www.oliveyoung.co.kr") || host.equals("m.oliveyoung.co.kr")) {
+			String query = Optional.ofNullable(uri.getRawQuery()).orElse("");
+			return path.equals("/store/goods/getGoodsDetail.do")
+				&& query.matches("(?:^|.*&)goodsNo=[A-Z][0-9]+(?:&.*|$)");
+		}
+		if (host.equals("brand.naver.com") || host.equals("m.brand.naver.com")) {
+			return path.matches("/[a-zA-Z0-9_-]+/products/[0-9]+/?");
+		}
+		if (host.equals("smartstore.naver.com") || host.equals("m.smartstore.naver.com")) {
+			return path.matches("/[a-zA-Z0-9_-]+/products/[0-9]+/?");
+		}
+		if (host.equals("kream.co.kr") || host.equals("www.kream.co.kr")) {
+			return path.matches("/products/[0-9]+/?");
+		}
+		return false;
+	}
+
+	private String resolveCurrencyCode(String sourceDomain, String... candidates) {
+		for (String candidate : candidates) {
+			String normalized = normalizeWhitespace(candidate);
+			if (normalized != null && normalized.matches("(?i)[A-Z]{3}")) {
+				return normalized.toUpperCase(Locale.ROOT);
+			}
+		}
+		return "KRW";
 	}
 
 	private ItemCategory classifyCategory(String sourceDomain, String title, String summary) {
@@ -367,6 +466,56 @@ public class ShoppingLinkImportService {
 			}
 		}
 		return null;
+	}
+
+	private String productJsonLdText(Document document, String path) {
+		for (Element scriptElement : document.select("script[type=application/ld+json]")) {
+			String rawJson = firstNonBlank(scriptElement.data(), scriptElement.html());
+			if (isBlank(rawJson)) {
+				continue;
+			}
+			try {
+				JsonNode productNode = findJsonLdProduct(objectMapper.readTree(rawJson));
+				String value = productNode == null ? null : searchJson(productNode, path.split("\\."));
+				if (!isBlank(value)) {
+					return normalizeStructuredDataText(value);
+				}
+			} catch (JsonProcessingException ignored) {
+				// Ignore invalid third-party structured data and continue with other candidates.
+			}
+		}
+		return null;
+	}
+
+	private JsonNode findJsonLdProduct(JsonNode node) {
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		if (node.isObject() && isJsonLdProductType(node.get("@type"))) {
+			return node;
+		}
+		for (JsonNode child : node) {
+			JsonNode product = findJsonLdProduct(child);
+			if (product != null) {
+				return product;
+			}
+		}
+		return null;
+	}
+
+	private boolean isJsonLdProductType(JsonNode typeNode) {
+		if (typeNode == null || typeNode.isNull()) {
+			return false;
+		}
+		if (typeNode.isArray()) {
+			for (JsonNode value : typeNode) {
+				if (isJsonLdProductType(value)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		return typeNode.isTextual() && "product".equalsIgnoreCase(typeNode.asText());
 	}
 
 	private String jsonValue(String rawJson, String path) {
@@ -502,6 +651,8 @@ public class ShoppingLinkImportService {
 	private boolean isStrongImageKey(String key) {
 		return key.equals("imageurl") || key.equals("image_url")
 			|| key.equals("thumbnailurl") || key.equals("thumbnail_url")
+			|| key.equals("thumbnailimageurl") || key.equals("thumbnail_image_url")
+			|| key.equals("representativeimageurl") || key.equals("representative_image_url")
 			|| key.equals("mainimage") || key.equals("main_image");
 	}
 
@@ -693,7 +844,9 @@ public class ShoppingLinkImportService {
 			return null;
 		}
 		if (isOliveYoungDomain(sourceDomain)) {
-			title = normalizeWhitespace(title.replaceFirst("\\s*/\\s*올리브영$", ""));
+			title = normalizeWhitespace(title
+				.replaceFirst("\\s*/\\s*올리브영$", "")
+				.replaceFirst("\\s*\\|\\s*올리브영$", ""));
 			if (isOliveYoungSiteTitle(title)) {
 				return null;
 			}
@@ -756,7 +909,11 @@ public class ShoppingLinkImportService {
 			return null;
 		}
 		try {
-			URI uri = URI.create(imageUrl.trim());
+			String decodedImageUrl = normalizeStructuredDataText(imageUrl);
+			if (isBlank(decodedImageUrl)) {
+				return null;
+			}
+			URI uri = URI.create(decodedImageUrl);
 			String scheme = Optional.ofNullable(uri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
 			if ((!scheme.equals("http") && !scheme.equals("https")) || isBlank(uri.getHost())) {
 				return null;
@@ -773,6 +930,16 @@ public class ShoppingLinkImportService {
 		}
 		String normalized = value.replaceAll("\\s+", " ").trim();
 		return normalized.isBlank() ? null : normalized;
+	}
+
+	private String normalizeStructuredDataText(String value) {
+		if (value == null) {
+			return null;
+		}
+		String decoded = Parser.unescapeEntities(value, false)
+			.replace("<![CDATA[", "")
+			.replace("]]>", "");
+		return normalizeWhitespace(decoded);
 	}
 
 	private boolean isPlaceholderMetadataText(String value) {
@@ -984,6 +1151,7 @@ public class ShoppingLinkImportService {
 		String summary,
 		Integer price,
 		String rawPriceText,
+		String currencyCode,
 		String imageUrl,
 		String method,
 		Map<String, Object> rawPayloadJson
@@ -997,7 +1165,7 @@ public class ShoppingLinkImportService {
 		}
 
 		private boolean isPartial() {
-			return isBlank(title) || price == null || price <= 0 || isBlank(imageUrl);
+			return isBlank(title) || price == null || price <= 0 || isBlank(currencyCode) || isBlank(imageUrl);
 		}
 
 		private boolean isBlank(String value) {

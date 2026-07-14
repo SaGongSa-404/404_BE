@@ -168,6 +168,7 @@ function recordSuccessfulImport(requestedUrl, result) {
   const mismatchedFields = [];
   if (actual?.title !== expected.title) mismatchedFields.push("title");
   if (actual?.listedPrice !== expected.listedPrice) mismatchedFields.push("listedPrice");
+  if (actual?.currencyCode !== expected.currencyCode) mismatchedFields.push("currencyCode");
   if (actual?.imageUrl !== expected.imageUrl) mismatchedFields.push("imageUrl");
 
   if (mismatchedFields.length === 0) {
@@ -188,6 +189,7 @@ function recordSuccessfulImport(requestedUrl, result) {
       actual: {
         title: actual?.title ?? null,
         listedPrice: actual?.listedPrice ?? null,
+        currencyCode: actual?.currencyCode ?? null,
         imageUrl: actual?.imageUrl ?? null
       }
     });
@@ -316,7 +318,7 @@ function sanitizedPlan() {
     expectedMaxActivePerUser,
     tokenSource: tokenFile ? "file" : "environment",
     expandedSingleUserUrls: expandSingleUserUrls,
-    correctnessOracle: "exact-title-listedPrice-imageUrl"
+    correctnessOracle: "exact-title-price-currency-imageUrl"
   };
 }
 
@@ -400,11 +402,15 @@ async function loadExpectedResults(file) {
     if (typeof value.imageUrl !== "string" || !value.imageUrl.trim()) {
       throw new Error(`Expected result ${index + 1} requires a non-empty imageUrl`);
     }
+    if (typeof value.currencyCode !== "string" || !/^[A-Z]{3}$/.test(value.currencyCode)) {
+      throw new Error(`Expected result ${index + 1} requires a three-letter uppercase currencyCode`);
+    }
     new URL(value.imageUrl);
     if (results.has(sourceUrl)) throw new Error(`Duplicate expected result URL: ${sourceUrl}`);
     results.set(sourceUrl, {
       title: value.title,
       listedPrice: value.listedPrice,
+      currencyCode: value.currencyCode,
       imageUrl: value.imageUrl
     });
   }

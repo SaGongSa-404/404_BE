@@ -41,6 +41,7 @@ test("async scenario records queue metrics without persisting tokens", async (co
           item: {
             title: "검증 상품",
             listedPrice: 125000,
+            currencyCode: "KRW",
             imageUrl: "https://images.shop.test/product.jpg"
           }
         },
@@ -72,6 +73,7 @@ test("async scenario records queue metrics without persisting tokens", async (co
     url: "https://shop.test/products/reviewer-load-test",
     title: "검증 상품",
     listedPrice: 125000,
+    currencyCode: "KRW",
     imageUrl: "https://images.shop.test/product.jpg"
   }]), "utf8");
 
@@ -112,7 +114,7 @@ test("async scenario records queue metrics without persisting tokens", async (co
   assert.equal(report.run.authenticationMode, "single-user");
   assert.equal(report.run.tokenSource, "file");
   assert.equal(report.run.expandedSingleUserUrls, true);
-  assert.equal(report.run.correctnessOracle, "exact-title-listedPrice-imageUrl");
+  assert.equal(report.run.correctnessOracle, "exact-title-price-currency-imageUrl");
   assert.deepEqual(report.summary.import.correctnessFailureFields, {});
   assert.deepEqual(report.summary.import.correctnessMismatches, []);
 });
@@ -123,7 +125,7 @@ test("successful jobs fail the run when product fields do not exactly match the 
     if (request.method === "POST" && request.url === "/api/v1/items/import-link") {
       response.end(JSON.stringify({
         retrievalStatus: "SUCCESS",
-        item: { title: "다른 상품", listedPrice: 1, imageUrl: "https://images.shop.test/wrong.jpg" }
+        item: { title: "다른 상품", listedPrice: 1, currencyCode: "KRW", imageUrl: "https://images.shop.test/wrong.jpg" }
       }));
       return;
     }
@@ -141,6 +143,7 @@ test("successful jobs fail the run when product fields do not exactly match the 
     url: "https://shop.test/products/1",
     title: "원본 상품",
     listedPrice: 125000,
+    currencyCode: "KRW",
     imageUrl: "https://images.shop.test/product.jpg"
   }]), "utf8");
 
@@ -186,6 +189,7 @@ test("single-user mode rejects an active-job limit below the scenario demand", a
     url: "https://shop.test/products/1",
     title: "상품",
     listedPrice: 1,
+    currencyCode: "KRW",
     imageUrl: "https://images.shop.test/1.jpg"
   }]), "utf8");
 
@@ -221,6 +225,7 @@ test("single-user mode rejects URL reuse that would deduplicate active jobs", as
     url: "https://shop.test/products/1",
     title: "상품",
     listedPrice: 1,
+    currencyCode: "KRW",
     imageUrl: "https://images.shop.test/1.jpg"
   }]), "utf8");
 
