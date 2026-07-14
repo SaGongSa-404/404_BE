@@ -96,6 +96,21 @@ class AuthApiControllerTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void acceptsReviewerTokenHeaderInCorsPreflight() throws Exception {
+		mockMvc.perform(options("/api/auth/reviewer-token")
+			.header(HttpHeaders.ORIGIN, "http://localhost:5173")
+			.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+			.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type,X-Reviewer-Token"))
+			.andExpect(status().isOk())
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"))
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, org.hamcrest.Matchers.containsString("POST")))
+			.andExpect(header().string(
+				HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+				org.hamcrest.Matchers.containsString("X-Reviewer-Token")
+			));
+	}
+
+	@Test
 	void rejectsCorsPreflightFromUnconfiguredOrigin() throws Exception {
 		mockMvc.perform(options("/api/auth/token/refresh")
 			.header(HttpHeaders.ORIGIN, "https://evil.example")

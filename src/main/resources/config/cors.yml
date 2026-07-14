@@ -3,7 +3,7 @@ app:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
     allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*,http://127.0.0.1:*}
     allowed-methods: ${APP_CORS_ALLOWED_METHODS:GET,POST,PATCH,PUT,DELETE,OPTIONS}
-    allowed-headers: ${APP_CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-User-Id,X-Admin-Token,X-Request-Id}
+    allowed-headers: ${APP_CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-User-Id,X-Admin-Token,X-Request-Id,X-Reviewer-Token}
     exposed-headers: ${APP_CORS_EXPOSED_HEADERS:Location,X-Request-Id}
     allow-credentials: ${APP_CORS_ALLOW_CREDENTIALS:false}
     max-age: ${APP_CORS_MAX_AGE:PT1H}
