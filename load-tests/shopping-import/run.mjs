@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { durationBetween, errorRate, summarizeDurations } from "./metrics.mjs";
@@ -25,11 +25,20 @@ const requestTimeoutMs = positiveInt("REQUEST_TIMEOUT_MS", 40_000);
 const generalEndpoint = env("GENERAL_ENDPOINT", "/api/auth/me");
 const urlFile = path.resolve(env("URL_FILE", "urls.example.txt"));
 const outputDir = path.resolve(env("RESULT_DIR", "results"));
-const tokens = parseTokens(process.env.ACCESS_TOKENS || process.env.ACCESS_TOKEN || "");
+const tokenFile = process.env.ACCESS_TOKEN_FILE?.trim();
+const inlineTokens = process.env.ACCESS_TOKENS || process.env.ACCESS_TOKEN || "";
+if (tokenFile && inlineTokens.trim()) {
+  throw new Error("Use either ACCESS_TOKEN_FILE or ACCESS_TOKEN(S), not both");
+}
+const singleUserMode = process.env.SINGLE_USER_MODE === "YES";
+const expandSingleUserUrls = process.env.EXPAND_SINGLE_USER_URLS === "YES";
+const expectedMaxActivePerUser = positiveInt("EXPECTED_MAX_ACTIVE_PER_USER", 3);
+const tokens = await loadTokens(inlineTokens, tokenFile);
 const scenario = SCENARIOS[scenarioName];
 
 validateConfig();
-const urls = await readUrls(urlFile);
+const sourceUrls = await readUrls(urlFile);
+const urls = expandSingleUserUrls ? expandUrls(sourceUrls, scenario.crawlRequests) : sourceUrls;
 validateExecutionInputs(urls);
 const plan = sanitizedPlan();
 
@@ -260,13 +269,20 @@ function sanitizedPlan() {
     rampUpSeconds,
     pollIntervalMs,
     jobTimeoutMs,
-    generalEndpoint
+    generalEndpoint,
+    authenticationMode: singleUserMode ? "single-user" : "distinct-users",
+    expectedMaxActivePerUser,
+    tokenSource: tokenFile ? "file" : "environment",
+    expandedSingleUserUrls: expandSingleUserUrls
   };
 }
 
 function validateConfig() {
   if (!scenario) throw new Error(`SCENARIO must be one of: ${Object.keys(SCENARIOS).join(", ")}`);
   if (!new Set(["sync", "async"]).has(importMode)) throw new Error("IMPORT_MODE must be sync or async");
+  if (expandSingleUserUrls && !singleUserMode) {
+    throw new Error("EXPAND_SINGLE_USER_URLS=YES requires SINGLE_USER_MODE=YES");
+  }
   const parsedUrl = new URL(baseUrl);
   if (!SAFE_HOSTS.has(parsedUrl.hostname) && process.env.ALLOW_LOAD_TEST_HOST !== "YES") {
     throw new Error(`Refusing unapproved load-test host: ${parsedUrl.hostname}`);
@@ -275,6 +291,9 @@ function validateConfig() {
     throw new Error("Set CONFIRM_QA_LOAD_TEST=YES after confirming the QA target");
   }
   if (!dryRun && tokens.length === 0) throw new Error("ACCESS_TOKEN or ACCESS_TOKENS is required");
+  if (!dryRun && singleUserMode && tokens.length !== 1) {
+    throw new Error("SINGLE_USER_MODE=YES requires exactly one access token");
+  }
   if (!dryRun && scenario.crawlRequests > 20 && process.env.CONFIRM_EXTERNAL_TRAFFIC !== "YES") {
     throw new Error("More than 20 crawl requests requires CONFIRM_EXTERNAL_TRAFFIC=YES");
   }
@@ -289,7 +308,20 @@ function validateExecutionInputs(values) {
   }
   if (importMode === "async") {
     const minimumUsers = Math.ceil(scenario.crawlRequests / 3);
-    if (tokens.length < minimumUsers) {
+    const uniqueUrlCount = new Set(values).size;
+    if (singleUserMode && expectedMaxActivePerUser < scenario.crawlRequests) {
+      throw new Error(
+        `Single-user async ${scenarioName} requires EXPECTED_MAX_ACTIVE_PER_USER>=${scenario.crawlRequests}; `
+        + "temporarily apply the same value on QA before running"
+      );
+    }
+    if (singleUserMode && uniqueUrlCount < scenario.crawlRequests) {
+      throw new Error(
+        `Single-user async ${scenarioName} requires at least ${scenario.crawlRequests} distinct URLs `
+        + "to prevent active-job deduplication"
+      );
+    }
+    if (!singleUserMode && tokens.length < minimumUsers) {
       throw new Error(
         `Async ${scenarioName} requires at least ${minimumUsers} distinct-user tokens `
         + "to avoid measuring only the per-user active-job limit"
@@ -309,6 +341,27 @@ async function readUrls(file) {
 
 function parseTokens(value) {
   return value.split(/[\r\n,]+/).map((token) => token.trim()).filter(Boolean);
+}
+
+function expandUrls(values, count) {
+  return Array.from({ length: count }, (_, index) => {
+    const value = new URL(values[index % values.length]);
+    value.searchParams.set("nf84_request_id", String(index + 1));
+    return value.toString();
+  });
+}
+
+async function loadTokens(inlineValue, file) {
+  if (!file) {
+    return parseTokens(inlineValue);
+  }
+  const resolved = path.resolve(file);
+  const fileStat = await stat(resolved);
+  if (process.platform !== "win32" && (fileStat.mode & 0o077) !== 0) {
+    throw new Error("ACCESS_TOKEN_FILE must not be readable or writable by group/others (chmod 600)");
+  }
+  const content = await readFile(resolved, "utf8");
+  return parseTokens(content);
 }
 
 function importPayload(url) {
