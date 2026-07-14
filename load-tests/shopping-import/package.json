@@ -1,0 +1,12 @@
+{
+  "name": "wigul-shopping-import-load-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dry-run": "node run.mjs --dry-run",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
