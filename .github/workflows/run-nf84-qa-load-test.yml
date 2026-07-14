@@ -168,6 +168,9 @@ jobs:
           RESULT_DIR: ${{ runner.temp }}/nf84-results
         run: |
           set -uo pipefail
+          # Product correctness mismatches intentionally return a non-zero load exit.
+          # Keep collecting and copying server metrics before propagating that exit.
+          set +e
           mkdir -p "$RESULT_DIR"
           if [[ "$IMPORT_MODE" == "sync" ]]; then
             metrics_duration=$((DURATION_SECONDS + 120))
