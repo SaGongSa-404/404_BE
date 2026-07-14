@@ -115,6 +115,158 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void parsesDecimalJsonLdPriceWithoutAppendingFractionDigits() {
+		pageFetcher.stub(
+			"https://www.daangn.com/articles/1200892330",
+			"""
+				<html>
+				<head>
+				  <script type="application/ld+json">
+				  {
+				    "@context": "https://schema.org",
+				    "@type": "Product",
+				    "name": "나이키 운동화",
+				    "image": "https://dnvefa72aowie.cloudfront.net/product.jpg",
+				    "offers": {
+				      "@type": "Offer",
+				      "price": "18000.0"
+				    }
+				  }
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.daangn.com/articles/1200892330",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.retrievalStatus()).isEqualTo("SUCCESS");
+		assertThat(response.item().title()).isEqualTo("나이키 운동화");
+		assertThat(response.item().listedPrice()).isEqualTo(18000);
+		assertThat(response.item().imageUrl()).isEqualTo("https://dnvefa72aowie.cloudfront.net/product.jpg");
+	}
+
+	@Test
+	void reportsPartialWhenPriceIsMissing() {
+		pageFetcher.stub(
+			"https://shopping.example.com/products/missing-price",
+			"""
+				<html><head>
+				  <meta property="og:title" content="가격 누락 상품" />
+				  <meta property="og:image" content="https://cdn.example.com/item.jpg" />
+				</head><body></body></html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://shopping.example.com/products/missing-price",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.retrievalStatus()).isEqualTo("PARTIAL");
+		assertThat(response.item().listedPrice()).isNull();
+	}
+
+	@Test
+	void reportsPartialWhenImageIsMissing() {
+		pageFetcher.stub(
+			"https://shopping.example.com/products/missing-image",
+			"""
+				<html><head>
+				  <meta property="og:title" content="이미지 누락 상품" />
+				  <meta property="product:price:amount" content="18,000원" />
+				</head><body></body></html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://shopping.example.com/products/missing-image",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.retrievalStatus()).isEqualTo("PARTIAL");
+		assertThat(response.item().listedPrice()).isEqualTo(18000);
+		assertThat(response.item().imageUrl()).isNull();
+	}
+
+	@Test
+	void reportsPartialWhenImageUrlHasNoHost() {
+		pageFetcher.stub(
+			"https://shopping.example.com/products/invalid-image",
+			"""
+				<html><head>
+				  <meta property="og:title" content="잘못된 이미지 상품" />
+				  <meta property="og:image" content="https:missing-host.jpg" />
+				  <meta property="product:price:amount" content="18000" />
+				</head><body></body></html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://shopping.example.com/products/invalid-image",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.retrievalStatus()).isEqualTo("PARTIAL");
+		assertThat(response.item().imageUrl()).isNull();
+	}
+
+	@Test
+	void neverReportsSuccessWhenTitleIsMissing() {
+		pageFetcher.stub(
+			"https://shopping.example.com/products/missing-title",
+			"""
+				<html><head>
+				  <meta property="og:image" content="https://cdn.example.com/item.jpg" />
+				  <meta property="product:price:amount" content="18000" />
+				</head><body></body></html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://shopping.example.com/products/missing-title",
+				null,
+				null,
+				null,
+				null
+			)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	@Test
 	void skipsOliveYoungSiteTitleAndUsesProductTitleFallback() {
 		pageFetcher.stub(
 			"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000230109",
@@ -147,6 +299,39 @@ class ShoppingLinkImportServiceTest {
 		assertThat(response.item().title()).isEqualTo("[포켓몬 에디션] 힐링버드 헤어에센스 150ml");
 		assertThat(response.saveRequest().title()).isEqualTo("[포켓몬 에디션] 힐링버드 헤어에센스 150ml");
 		assertThat(response.item().category()).isEqualTo(ItemCategory.BEAUTY);
+	}
+
+	@Test
+	void prefersOliveYoungSalePriceOverOriginalPrice() {
+		pageFetcher.stub(
+			"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000137482",
+			"""
+				<html>
+				<head>
+				  <meta property="og:title" content="로벡틴 카밍 연꽃수 크림 60ml | 올리브영" />
+				  <meta property="og:image" content="https://image.oliveyoung.co.kr/item.png" />
+				  <meta property="product:price:amount" content="24000" />
+				  <meta property="eg:originalPrice" content="24000" />
+				  <meta property="eg:salePrice" content="18000" />
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000137482",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().listedPrice()).isEqualTo(18000);
+		assertThat(response.saveRequest().listedPrice()).isEqualTo(18000);
 	}
 
 	@Test

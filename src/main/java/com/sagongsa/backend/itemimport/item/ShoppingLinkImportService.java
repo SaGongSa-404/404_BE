@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemInputSource;
 import com.sagongsa.backend.domain.enums.ItemStatus;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
@@ -33,6 +34,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class ShoppingLinkImportService {
 
 	private static final Pattern PRICE_WITH_CURRENCY_PATTERN = Pattern.compile("\\b([0-9]{1,3}(?:,[0-9]{3})+)\\s*원");
+	private static final Pattern WON_PRICE_AMOUNT_PATTERN = Pattern.compile("([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)\\s*원");
+	private static final Pattern PRICE_AMOUNT_PATTERN = Pattern.compile("([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?)");
 	private static final Set<String> NOISE_IMAGE_KEYWORDS = Set.of("logo", "icon", "sprite", "badge", "banner");
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
@@ -217,6 +220,9 @@ public class ShoppingLinkImportService {
 		String html = page.body();
 		String sourceDomain = sourceDomain(page.finalUri());
 		EmbeddedMetadata embeddedMetadata = embeddedMetadata(document);
+		String siteSalePrice = isOliveYoungDomain(sourceDomain)
+			? metaContent(document, "meta[property=eg:salePrice]")
+			: null;
 		String summary = firstNonBlank(
 			metaContent(document, "meta[property=og:description]"),
 			metaContent(document, "meta[name=description]"),
@@ -242,6 +248,7 @@ public class ShoppingLinkImportService {
 		);
 
 		Integer price = firstNonNull(
+			parseListedPrice(siteSalePrice),
 			parseListedPrice(metaContent(document, "meta[property=product:price:amount]")),
 			parseListedPrice(metaContent(document, "meta[property=og:price:amount]")),
 			parseListedPrice(metaContent(document, "meta[property=kakao:commerce:price]")),
@@ -251,6 +258,7 @@ public class ShoppingLinkImportService {
 			parseListedPrice(findByRegex(html, PRICE_WITH_CURRENCY_PATTERN))
 		);
 		String rawPriceText = firstValidPriceText(
+			siteSalePrice,
 			metaContent(document, "meta[property=product:price:amount]"),
 			metaContent(document, "meta[property=og:price:amount]"),
 			metaContent(document, "meta[property=kakao:commerce:price]"),
@@ -614,13 +622,21 @@ public class ShoppingLinkImportService {
 		if (isBlank(rawPrice)) {
 			return null;
 		}
-		String digitsOnly = rawPrice.replaceAll("[^0-9]", "");
-		if (digitsOnly.isBlank()) {
+		Matcher wonPriceMatcher = WON_PRICE_AMOUNT_PATTERN.matcher(rawPrice);
+		Matcher priceMatcher = PRICE_AMOUNT_PATTERN.matcher(rawPrice);
+		String amount = wonPriceMatcher.find()
+			? wonPriceMatcher.group(1)
+			: priceMatcher.find() ? priceMatcher.group(1) : null;
+		if (amount == null) {
 			return null;
 		}
 		try {
-			return Integer.parseInt(digitsOnly);
-		} catch (NumberFormatException exception) {
+			BigDecimal price = new BigDecimal(amount.replace(",", "")).stripTrailingZeros();
+			if (price.scale() > 0) {
+				return null;
+			}
+			return price.intValueExact();
+		} catch (ArithmeticException | NumberFormatException exception) {
 			return null;
 		}
 	}
@@ -742,7 +758,7 @@ public class ShoppingLinkImportService {
 		try {
 			URI uri = URI.create(imageUrl.trim());
 			String scheme = Optional.ofNullable(uri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
-			if (!scheme.equals("http") && !scheme.equals("https")) {
+			if ((!scheme.equals("http") && !scheme.equals("https")) || isBlank(uri.getHost())) {
 				return null;
 			}
 			return uri.toString();
@@ -981,17 +997,7 @@ public class ShoppingLinkImportService {
 		}
 
 		private boolean isPartial() {
-			int count = 0;
-			if (!isBlank(title)) {
-				count++;
-			}
-			if (price != null) {
-				count++;
-			}
-			if (!isBlank(imageUrl)) {
-				count++;
-			}
-			return count < 3;
+			return isBlank(title) || price == null || price <= 0 || isBlank(imageUrl);
 		}
 
 		private boolean isBlank(String value) {

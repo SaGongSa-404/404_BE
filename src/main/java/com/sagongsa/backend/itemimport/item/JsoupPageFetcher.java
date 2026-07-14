@@ -8,8 +8,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jsoup.Connection;
@@ -28,8 +31,12 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static final int DEFAULT_MAX_ATTEMPTS = 2;
 	private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_000_000;
 	private static final int MAX_REDIRECTS = 5;
+	private static final int KREAM_API_TIMEOUT_MILLIS = 3_000;
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Pattern BUNJANG_PRODUCT_PATH_PATTERN = Pattern.compile("^/products/(\\d+)(?:/.*)?$");
+	private static final Pattern KREAM_PRODUCT_PATH_PATTERN = Pattern.compile("^/products/(\\d+)(?:/.*)?$");
+	private static final DateTimeFormatter KREAM_CLIENT_DATETIME_FORMATTER =
+		DateTimeFormatter.ofPattern("yyyyMMddHHmmssXX");
 	private static final Pattern JS_HTTP_ASSIGNMENT_PATTERN = Pattern.compile(
 		"(?is)\\b(?:var|let|const)\\s+(store_link|fallback_url|fallbackUrl|target_url|targetUrl|web_url|webUrl|product_url|productUrl|landing_url|landingUrl|redirect_url|redirectUrl|af_android_url|af_ios_url|af_web_dp)\\s*=\\s*(['\"])(https?://.*?)\\2"
 	);
@@ -52,27 +59,51 @@ public class JsoupPageFetcher implements PageFetcher {
 	private final int timeoutMillis;
 	private final int maxAttempts;
 	private final int maxResponseBytes;
+	private final ShoppingImportProperties.KreamProxy kreamProxy;
 
 	public JsoupPageFetcher() {
 		this(DEFAULT_MAX_RESPONSE_BYTES);
 	}
 
 	JsoupPageFetcher(int maxResponseBytes) {
-		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes);
+		this(maxResponseBytes, new ShoppingImportProperties.KreamProxy());
+	}
+
+	JsoupPageFetcher(int maxResponseBytes, ShoppingImportProperties.KreamProxy kreamProxy) {
+		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes, kreamProxy);
 	}
 
 	JsoupPageFetcher(int timeoutMillis, int maxAttempts) {
-		this(timeoutMillis, maxAttempts, DEFAULT_MAX_RESPONSE_BYTES);
+		this(timeoutMillis, maxAttempts, DEFAULT_MAX_RESPONSE_BYTES, new ShoppingImportProperties.KreamProxy());
 	}
 
 	JsoupPageFetcher(int timeoutMillis, int maxAttempts, int maxResponseBytes) {
+		this(timeoutMillis, maxAttempts, maxResponseBytes, new ShoppingImportProperties.KreamProxy());
+	}
+
+	JsoupPageFetcher(
+		int timeoutMillis,
+		int maxAttempts,
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy
+	) {
 		this.timeoutMillis = timeoutMillis <= 0 ? DEFAULT_TIMEOUT_MILLIS : timeoutMillis;
 		this.maxAttempts = maxAttempts <= 0 ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
 		this.maxResponseBytes = maxResponseBytes <= 0 ? DEFAULT_MAX_RESPONSE_BYTES : maxResponseBytes;
+		this.kreamProxy = kreamProxy == null ? new ShoppingImportProperties.KreamProxy() : kreamProxy;
 	}
 
 	@Override
 	public FetchedPage fetch(URI uri) {
+		try {
+			Optional<FetchedPage> kreamProductPage = kreamProductApiPage(uri);
+			if (kreamProductPage.isPresent()) {
+				return kreamProductPage.get();
+			}
+		} catch (IOException ignored) {
+			// Continue with the regular HTML and browser fallback path.
+		}
+
 		ResponseStatusException lastStatusException = null;
 		IOException lastIoException = null;
 
@@ -107,7 +138,7 @@ public class JsoupPageFetcher implements PageFetcher {
 				currentUri = queryRedirect.get();
 				continue;
 			}
-			Connection.Response response = Jsoup.connect(currentUri.toString())
+			Connection connection = Jsoup.connect(currentUri.toString())
 				.userAgent(ANDROID_USER_AGENT)
 				.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 				.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
@@ -116,8 +147,9 @@ public class JsoupPageFetcher implements PageFetcher {
 				.ignoreContentType(true)
 				.ignoreHttpErrors(true)
 				.timeout(timeoutMillis)
-				.maxBodySize(maxResponseBytes)
-				.execute();
+				.maxBodySize(maxResponseBytes);
+			applyKreamProxy(connection, currentUri);
+			Connection.Response response = connection.execute();
 
 			if (isRedirect(response.statusCode())) {
 				String location = response.header("Location");
@@ -363,6 +395,106 @@ public class JsoupPageFetcher implements PageFetcher {
 
 		return bunjangProductMetadataHtml(apiResponse.body())
 			.map(html -> new FetchedPage(requestedUri, finalUri, 200, "text/html; charset=UTF-8", html));
+	}
+
+	private Optional<FetchedPage> kreamProductApiPage(URI requestedUri) throws IOException {
+		Optional<String> productId = kreamProductId(requestedUri);
+		if (productId.isEmpty()) {
+			return Optional.empty();
+		}
+
+		URI apiUri = URI.create("https://api.kream.co.kr/api/p/products/" + productId.get());
+		ShoppingUrlSafety.validatePublicHost(apiUri);
+		String deviceId = "web;" + UUID.randomUUID();
+		Connection connection = Jsoup.connect(apiUri.toString())
+			.userAgent(ANDROID_USER_AGENT)
+			.header("Accept", "application/json, text/plain, */*")
+			.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+			.header("Origin", "https://kream.co.kr")
+			.header("Referer", requestedUri.toString())
+			.header("X-KREAM-DEVICE-ID", deviceId)
+			.header("X-KREAM-CLIENT-DATETIME", OffsetDateTime.now().format(KREAM_CLIENT_DATETIME_FORMATTER))
+			.header("X-KREAM-API-VERSION", "61")
+			.header("X-KREAM-WEB-REQUEST-SECRET", "kream-djscjsghdkd")
+			.header("X-KREAM-WEB-BUILD-VERSION", "26.9.3")
+			.ignoreContentType(true)
+			.ignoreHttpErrors(true)
+			.timeout(Math.min(timeoutMillis, KREAM_API_TIMEOUT_MILLIS))
+			.maxBodySize(maxResponseBytes);
+		applyKreamProxy(connection, apiUri);
+		Connection.Response apiResponse = connection.execute();
+
+		if (apiResponse.statusCode() >= 400) {
+			return Optional.empty();
+		}
+		enforceBodySize(apiResponse.body());
+		return kreamProductMetadataHtml(apiResponse.body())
+			.map(html -> new FetchedPage(requestedUri, requestedUri, 200, "text/html; charset=UTF-8", html));
+	}
+
+	private static Optional<String> kreamProductId(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if (!host.equals("kream.co.kr") && !host.equals("www.kream.co.kr")) {
+			return Optional.empty();
+		}
+		String path = Optional.ofNullable(uri.getPath()).orElse("");
+		Matcher matcher = KREAM_PRODUCT_PATH_PATTERN.matcher(path);
+		return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
+	}
+
+	private void applyKreamProxy(Connection connection, URI uri) {
+		if (kreamProxy.isConfigured() && isKreamHost(uri)) {
+			connection.proxy(kreamProxy.javaProxy());
+		}
+	}
+
+	private static boolean isKreamHost(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return host.equals("kream.co.kr") || host.endsWith(".kream.co.kr");
+	}
+
+	static Optional<String> kreamProductMetadataHtml(String apiBody) {
+		if (apiBody == null || apiBody.isBlank()) {
+			return Optional.empty();
+		}
+		try {
+			JsonNode root = OBJECT_MAPPER.readTree(apiBody);
+			JsonNode release = root.path("release");
+			String title = firstNonBlank(jsonText(release, "translated_name"), jsonText(release, "name"));
+			String price = jsonText(root, "market", "lowest_ask");
+			String imageUrl = firstJsonArrayText(release.path("image_urls"));
+			String brandName = firstNonBlank(
+				jsonText(release, "brand", "translated_name"),
+				jsonText(release, "brand", "name")
+			);
+			if (isBlank(title) && isBlank(price) && isBlank(imageUrl)) {
+				return Optional.empty();
+			}
+
+			StringBuilder html = new StringBuilder("<!doctype html><html><head>");
+			html.append("<title>").append(escapeHtml(firstNonBlank(title, "KREAM 상품"))).append("</title>");
+			appendPropertyMeta(html, "og:title", title);
+			appendPropertyMeta(html, "og:image", imageUrl);
+			appendPropertyMeta(html, "product:price:amount", price);
+			appendPropertyMeta(html, "kakao:commerce:brand_name", brandName);
+			html.append("</head><body></body></html>");
+			return Optional.of(html.toString());
+		} catch (JsonProcessingException exception) {
+			return Optional.empty();
+		}
+	}
+
+	private static String firstJsonArrayText(JsonNode node) {
+		if (!node.isArray()) {
+			return null;
+		}
+		for (JsonNode value : node) {
+			String text = value.asText();
+			if (!isBlank(text)) {
+				return text.trim();
+			}
+		}
+		return null;
 	}
 
 	private static boolean isBunjangProductShell(URI uri, String contentType, String body) {
