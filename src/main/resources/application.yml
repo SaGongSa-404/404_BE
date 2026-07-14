@@ -90,6 +90,10 @@ app:
         type: ${SHOPPING_IMPORT_KREAM_PROXY_TYPE:SOCKS}
         host: ${SHOPPING_IMPORT_KREAM_PROXY_HOST:}
         port: ${SHOPPING_IMPORT_KREAM_PROXY_PORT:1080}
+      ably-api:
+        enabled: ${SHOPPING_IMPORT_ABLY_API_ENABLED:true}
+        anonymous-token: ${SHOPPING_IMPORT_ABLY_ANONYMOUS_TOKEN:}
+        timeout: ${SHOPPING_IMPORT_ABLY_API_TIMEOUT:PT5S}
       browser-fetch:
         enabled: ${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:true}
         timeout: ${SHOPPING_IMPORT_BROWSER_FETCH_TIMEOUT:PT30S}
