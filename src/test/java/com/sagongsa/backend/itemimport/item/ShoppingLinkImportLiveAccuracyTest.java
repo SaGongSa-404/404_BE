@@ -435,11 +435,14 @@ class ShoppingLinkImportLiveAccuracyTest {
 			);
 		}
 		if (host.equals("zigzag.kr") || host.equals("www.zigzag.kr")) {
-			JsonNode product = productJsonLd(document);
+			JsonNode product = zigzagProductState(document, page.finalUri());
 			return new SourceProduct(
-				meta(document, "meta[property=og:title]"),
-				Integer.valueOf(meta(document, "meta[property=product:price:amount]").replace(",", "")),
-				Parser.unescapeEntities(firstTextValue(product.path("image")), false)
+				product.path("name").asText(),
+				product.path("product_price").path("display_final_price").path("final_price").path("price").intValue(),
+				Parser.unescapeEntities(
+					product.path("product_image_list").path(0).path("pdp_thumbnail_url").asText(),
+					false
+				)
 			);
 		}
 		if (host.endsWith("oliveyoung.co.kr")) {
@@ -524,6 +527,49 @@ class ShoppingLinkImportLiveAccuracyTest {
 			if (product != null) return product;
 		}
 		return null;
+	}
+
+	private JsonNode zigzagProductState(Document document, URI uri) throws IOException {
+		Matcher idMatcher = Pattern.compile("/(?:app/)?catalog/products/([0-9]+)").matcher(uri.getPath());
+		if (!idMatcher.find()) throw new IllegalArgumentException("Zigzag product id not found");
+		String productId = idMatcher.group(1);
+		for (Element script : document.select("script")) {
+			String raw = script.data().isBlank() ? script.html() : script.data();
+			String json = jsonCandidate(raw);
+			if (json == null) continue;
+			try {
+				JsonNode product = findZigzagProductNode(OBJECT_MAPPER.readTree(json), productId);
+				if (product != null) return product;
+			} catch (IOException ignored) {
+				// Ignore non-JSON application scripts and inspect the remaining state scripts.
+			}
+		}
+		throw new IllegalArgumentException("Zigzag product state not found: " + productId);
+	}
+
+	private JsonNode findZigzagProductNode(JsonNode node, String productId) {
+		if (node == null || node.isNull()) return null;
+		if (node.isObject()
+			&& productId.equals(node.path("id").asText())
+			&& node.has("product_price")
+			&& node.has("product_image_list")) {
+			return node;
+		}
+		Iterator<JsonNode> children = node.elements();
+		while (children.hasNext()) {
+			JsonNode product = findZigzagProductNode(children.next(), productId);
+			if (product != null) return product;
+		}
+		return null;
+	}
+
+	private String jsonCandidate(String raw) {
+		if (raw == null || raw.isBlank()) return null;
+		String trimmed = raw.trim();
+		if (trimmed.startsWith("{") || trimmed.startsWith("[")) return trimmed;
+		int start = trimmed.indexOf('{');
+		int end = trimmed.lastIndexOf('}');
+		return start >= 0 && end > start ? trimmed.substring(start, end + 1) : null;
 	}
 
 	private String firstTextValue(JsonNode node) {

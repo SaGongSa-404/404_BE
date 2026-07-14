@@ -252,6 +252,7 @@ public class ShoppingLinkImportService {
 	private ExtractionResult extractFromPage(Document document, FetchedPage page) {
 		String html = page.body();
 		String sourceDomain = sourceDomain(page.finalUri());
+		ZigzagMetadata zigzagMetadata = zigzagMetadata(document, page.finalUri());
 		EmbeddedMetadata embeddedMetadata = embeddedMetadata(document);
 		String productJsonLdTitle = productJsonLdText(document, "name");
 		String productJsonLdDescription = productJsonLdText(document, "description");
@@ -275,6 +276,7 @@ public class ShoppingLinkImportService {
 		);
 		String title = firstProductTitle(
 			sourceDomain,
+			zigzagMetadata.title(),
 			productJsonLdTitle,
 			embeddedMetadata.title(),
 			metaContent(document, "meta[property=og:title]"),
@@ -293,6 +295,7 @@ public class ShoppingLinkImportService {
 		Integer price = firstNonNull(
 			parseListedPrice(siteSalePrice),
 			parseListedPrice(musinsaFinalPrice),
+			parseListedPrice(zigzagMetadata.priceText()),
 			parseListedPrice(productJsonLdPrice),
 			parseListedPrice(productMetaPrice),
 			parseListedPrice(embeddedMetadata.priceText()),
@@ -304,6 +307,7 @@ public class ShoppingLinkImportService {
 		String rawPriceText = firstValidPriceText(
 			siteSalePrice,
 			musinsaFinalPrice,
+			zigzagMetadata.priceText(),
 			productJsonLdPrice,
 			productMetaPrice,
 			embeddedMetadata.priceText(),
@@ -320,6 +324,7 @@ public class ShoppingLinkImportService {
 		);
 
 		String imageUrl = firstNonBlank(
+			normalizeImageUrl(zigzagMetadata.imageUrl()),
 			normalizeImageUrl(productJsonLdImage),
 			normalizeImageUrl(embeddedMetadata.imageUrl()),
 			normalizeImageUrl(metaContent(document, "meta[property=og:image]")),
@@ -328,7 +333,9 @@ public class ShoppingLinkImportService {
 		);
 
 		String method = "OPEN_GRAPH";
-		if (!isBlank(productJsonLdTitle) || !isBlank(productJsonLdPrice) || !isBlank(productJsonLdImage)) {
+		if (zigzagMetadata.hasAnyValue()) {
+			method = "ZIGZAG_PRODUCT_STATE";
+		} else if (!isBlank(productJsonLdTitle) || !isBlank(productJsonLdPrice) || !isBlank(productJsonLdImage)) {
 			method = "JSON_LD";
 		} else if (embeddedMetadata.hasAnyValue()) {
 			method = "EMBEDDED_JSON";
@@ -362,6 +369,96 @@ public class ShoppingLinkImportService {
 			method,
 			rawPayloadJson
 		);
+	}
+
+	private ZigzagMetadata zigzagMetadata(Document document, URI finalUri) {
+		String host = Optional.ofNullable(finalUri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if (!host.equals("zigzag.kr") && !host.equals("www.zigzag.kr")) {
+			return ZigzagMetadata.empty();
+		}
+
+		Matcher productIdMatcher = Pattern.compile("/(?:app/)?catalog/products/([0-9]+)").matcher(
+			Optional.ofNullable(finalUri.getPath()).orElse("")
+		);
+		if (!productIdMatcher.find()) {
+			return ZigzagMetadata.empty();
+		}
+		String productId = productIdMatcher.group(1);
+
+		for (Element scriptElement : document.select("script")) {
+			String rawScript = firstNonBlank(scriptElement.data(), scriptElement.html());
+			String json = jsonCandidate(rawScript);
+			if (json == null) {
+				continue;
+			}
+			try {
+				JsonNode product = findZigzagProduct(objectMapper.readTree(json), productId);
+				if (product == null) {
+					continue;
+				}
+				String priceText = firstNonBlank(
+					textAt(product, "product_price", "display_final_price", "final_price", "price"),
+					textAt(product, "product_price", "store_discount_info", "discount_price"),
+					textAt(product, "product_price", "max_price_info", "price")
+				);
+				String imageUrl = firstZigzagProductImage(product.path("product_image_list"));
+				return new ZigzagMetadata(
+					normalizeWhitespace(product.path("name").asText(null)),
+					priceText,
+					imageUrl
+				);
+			} catch (JsonProcessingException ignored) {
+				// Continue until the target product state is found in another script.
+			}
+		}
+		return ZigzagMetadata.empty();
+	}
+
+	private JsonNode findZigzagProduct(JsonNode node, String productId) {
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		if (node.isObject()
+			&& productId.equals(node.path("id").asText())
+			&& (node.has("product_price") || node.has("product_image_list"))) {
+			return node;
+		}
+		for (JsonNode child : node) {
+			JsonNode product = findZigzagProduct(child, productId);
+			if (product != null) {
+				return product;
+			}
+		}
+		return null;
+	}
+
+	private String textAt(JsonNode node, String... path) {
+		JsonNode current = node;
+		for (String segment : path) {
+			current = current.path(segment);
+			if (current.isMissingNode() || current.isNull()) {
+				return null;
+			}
+		}
+		return current.isValueNode() ? normalizeWhitespace(current.asText()) : null;
+	}
+
+	private String firstZigzagProductImage(JsonNode images) {
+		if (!images.isArray()) {
+			return null;
+		}
+		for (JsonNode image : images) {
+			String imageUrl = firstNonBlank(
+				textAt(image, "pdp_thumbnail_url"),
+				textAt(image, "pdp_static_image_url"),
+				textAt(image, "url"),
+				textAt(image, "origin_url")
+			);
+			if (!isBlank(imageUrl)) {
+				return imageUrl;
+			}
+		}
+		return null;
 	}
 
 	private URI rebuildUriWithHost(URI uri, String host) {
@@ -1192,6 +1289,17 @@ public class ShoppingLinkImportService {
 				return nextPriority;
 			}
 			return currentPriority;
+		}
+	}
+
+	private record ZigzagMetadata(String title, String priceText, String imageUrl) {
+
+		private static ZigzagMetadata empty() {
+			return new ZigzagMetadata(null, null, null);
+		}
+
+		private boolean hasAnyValue() {
+			return title != null || priceText != null || imageUrl != null;
 		}
 	}
 
