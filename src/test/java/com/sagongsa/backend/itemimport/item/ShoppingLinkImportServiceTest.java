@@ -303,6 +303,52 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void importsReportedZigzagProductUsingDisplayedPriceAndItsOwnProductImage() {
+		String requestedUrl = "https://store.zigzag.kr/catalog/products/136095576?catalog_product_id=136095576";
+		String canonicalUrl = "https://zigzag.kr/catalog/products/136095576?catalog_product_id=136095576";
+		pageFetcher.stub(
+			canonicalUrl,
+			"""
+				<html><head>
+				  <meta property="og:title" content="지그재그" />
+				  <meta property="product:price:amount" content="53,900" />
+				  <meta property="product:price:currency" content="KRW" />
+				  <meta property="og:image" content="https://cf.shop.s.zigzag.kr/common.jpg" />
+				  <script>
+				  window.__NEXT_DATA__ = {
+				    "queries": [{"data": {"product": {
+				      "id": "136095576",
+				      "name": "[🧊여름바지/3기장선택!] made. 모먼트 투커버 올데이슬랙스 (+숏/베이직/롱ver) - 4 size",
+				      "product_image_list": [{
+				        "url": "https://cf.product-image.s.zigzag.kr/original/product-136095576.jpeg",
+				        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/product-136095576.jpeg?width=720&height=720"
+				      }],
+				      "product_price": {
+				        "max_price_info": {"price": 53900},
+				        "display_final_price": {
+				          "final_price": {"price": 29800},
+				          "final_price_additional": {"price": 26820}
+				        }
+				      }
+				    }}}]
+				  };
+				  </script>
+				</head><body></body></html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(new ShoppingLinkImportRequest(
+			ItemInputSource.SHARE, requestedUrl, null, null, null, null
+		));
+
+		assertThat(response.retrievalStatus()).isEqualTo("SUCCESS");
+		assertThat(response.item().title()).contains("여름바지/3기장선택");
+		assertThat(response.item().listedPrice()).isEqualTo(29800);
+		assertThat(response.item().imageUrl())
+			.isEqualTo("https://cf.product-image.s.zigzag.kr/original/product-136095576.jpeg?width=720&height=720");
+	}
+
+	@Test
 	void reportsPartialWhenPriceIsMissing() {
 		pageFetcher.stub(
 			"https://shopping.example.com/products/missing-price",
