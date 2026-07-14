@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URI;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/items")
 @Tag(name = "Item Import", description = "Shopping link preview API before saving an item to wishlist")
 public class ItemImportController {
+
+	private static final Logger log = LoggerFactory.getLogger(ItemImportController.class);
 
 	private final ShoppingLinkImportService shoppingLinkImportService;
 	private final ShoppingImportJobService shoppingImportJobService;
@@ -48,7 +52,22 @@ public class ItemImportController {
 		}
 	)
 	public ShoppingLinkImportResponse importLink(@RequestBody ShoppingLinkImportRequest request) {
-		return shoppingLinkImportService.importLink(request);
+		ShoppingLinkImportResponse response = shoppingLinkImportService.importLink(request);
+		logImportResult(response);
+		return response;
+	}
+
+	private void logImportResult(ShoppingLinkImportResponse response) {
+		var item = response.item();
+		var sourceMetadata = response.sourceMetadata();
+		log.info(
+			"shopping link import completed retrievalStatus={} sourceDomain={} listedPrice={} currencyCode={} extractionMethod={}",
+			response.retrievalStatus(),
+			sourceMetadata == null ? null : sourceMetadata.sourceDomain(),
+			item == null ? null : item.listedPrice(),
+			item == null ? null : item.currencyCode(),
+			sourceMetadata == null ? null : sourceMetadata.extractionMethod()
+		);
 	}
 
 	@PostMapping("/import-jobs")
