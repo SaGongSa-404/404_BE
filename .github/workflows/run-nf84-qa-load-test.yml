@@ -22,6 +22,10 @@ on:
         description: Comma or newline separated public product URLs approved for this load test
         required: true
         type: string
+      expected_results_json:
+        description: JSON array with exact url, title, listedPrice, and imageUrl source expectations
+        required: true
+        type: string
       duration_seconds:
         description: General API traffic duration
         required: true
@@ -100,7 +104,7 @@ jobs:
           worker_concurrency="${remaining%%|*}"
           backup_exists="${remaining##*|}"
           if [[ "$IMPORT_MODE" == "async" ]]; then
-            if [[ "$active_limit" != "101" || "$worker_concurrency" != "2" || "$backup_exists" != "yes" ]]; then
+            if [[ "$active_limit" != "101" || "$worker_concurrency" != "3" || "$backup_exists" != "yes" ]]; then
               echo "::error::Run Configure NF-84 QA Load Test with action=apply and wait for QA deploy success first"
               exit 1
             fi
@@ -113,7 +117,9 @@ jobs:
       - name: Prepare approved URLs
         env:
           APPROVED_URLS: ${{ inputs.approved_urls }}
+          EXPECTED_RESULTS_JSON: ${{ inputs.expected_results_json }}
           URL_FILE: ${{ runner.temp }}/nf84-approved-urls.txt
+          EXPECTED_RESULTS_FILE: ${{ runner.temp }}/nf84-expected-results.json
         run: |
           set -euo pipefail
           node <<'NODE'
@@ -126,10 +132,22 @@ jobs:
             if (!new Set(["http:", "https:"]).has(parsed.protocol)) throw new Error("Only HTTP(S) URLs are allowed");
             if (parsed.hostname === "example.com") throw new Error("example.com is not an approved load-test target");
           }
+          const expectations = JSON.parse(process.env.EXPECTED_RESULTS_JSON);
+          if (!Array.isArray(expectations) || expectations.length === 0) {
+            throw new Error("Expected results must be a non-empty JSON array");
+          }
+          const expectedUrls = new Set(expectations.map((item) => new URL(item.url).toString()));
+          const approvedUrlSet = new Set(values.map((value) => new URL(value).toString()));
+          if (expectedUrls.size !== approvedUrlSet.size
+            || [...approvedUrlSet].some((value) => !expectedUrls.has(value))) {
+            throw new Error("Expected result URLs must exactly match approved URLs");
+          }
           fs.writeFileSync(process.env.URL_FILE, values.join("\n") + "\n", { mode: 0o600 });
+          fs.writeFileSync(process.env.EXPECTED_RESULTS_FILE, JSON.stringify(expectations), { mode: 0o600 });
           console.log(`APPROVED_URL_COUNT=${values.length}`);
           NODE
           echo "URL_FILE=$URL_FILE" >> "$GITHUB_ENV"
+          echo "EXPECTED_RESULTS_FILE=$EXPECTED_RESULTS_FILE" >> "$GITHUB_ENV"
 
       - name: Issue ephemeral QA reviewer access token
         env:
@@ -174,6 +192,7 @@ jobs:
           EXPAND_SINGLE_USER_URLS=YES \
           EXPECTED_MAX_ACTIVE_PER_USER=101 \
           URL_FILE="$URL_FILE" \
+          EXPECTED_RESULTS_FILE="$EXPECTED_RESULTS_FILE" \
           RESULT_DIR="$RESULT_DIR" \
           SCENARIO="$SCENARIO" \
           IMPORT_MODE="$IMPORT_MODE" \

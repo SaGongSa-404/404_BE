@@ -24,6 +24,9 @@ const jobTimeoutMs = positiveInt("JOB_TIMEOUT_MS", 90_000);
 const requestTimeoutMs = positiveInt("REQUEST_TIMEOUT_MS", 40_000);
 const generalEndpoint = env("GENERAL_ENDPOINT", "/api/auth/me");
 const urlFile = path.resolve(env("URL_FILE", "urls.example.txt"));
+const expectedResultsFile = process.env.EXPECTED_RESULTS_FILE?.trim()
+  ? path.resolve(process.env.EXPECTED_RESULTS_FILE.trim())
+  : null;
 const outputDir = path.resolve(env("RESULT_DIR", "results"));
 const tokenFile = process.env.ACCESS_TOKEN_FILE?.trim();
 const inlineTokens = process.env.ACCESS_TOKENS || process.env.ACCESS_TOKEN || "";
@@ -38,8 +41,9 @@ const scenario = SCENARIOS[scenarioName];
 
 validateConfig();
 const sourceUrls = await readUrls(urlFile);
+const expectedResults = await loadExpectedResults(expectedResultsFile);
 const urls = expandSingleUserUrls ? expandUrls(sourceUrls, scenario.crawlRequests) : sourceUrls;
-validateExecutionInputs(urls);
+validateExecutionInputs(urls, expectedResults);
 const plan = sanitizedPlan();
 
 if (dryRun) {
@@ -65,7 +69,9 @@ await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(report.summary, null, 2));
 console.log(`[NF-84] result=${outputPath}`);
 
-if (report.summary.general.errorRate > 0.01 || metrics.unexpectedErrors.length > 0) {
+if (report.summary.general.errorRate > 0.01
+  || metrics.unexpectedErrors.length > 0
+  || metrics.import.correctnessMismatches.length > 0) {
   process.exitCode = 2;
 }
 
@@ -106,7 +112,7 @@ async function runSyncImport(token, url) {
   metrics.import.submitDurations.push(sample.durationMs);
   metrics.statuses[sample.status] = (metrics.statuses[sample.status] || 0) + 1;
   if (sample.status === 200) {
-    metrics.import.succeeded++;
+    recordSuccessfulImport(url, sample.body);
   } else {
     metrics.import.failed++;
     metrics.unexpectedErrors.push({ phase: "sync", status: sample.status, message: sample.error });
@@ -144,7 +150,7 @@ async function runAsyncImport(token, url) {
     }
     captureJobDurations(polled.body);
     if (polled.body.status === "SUCCEEDED") {
-      metrics.import.succeeded++;
+      recordSuccessfulImport(url, polled.body.result);
     } else {
       metrics.import.failed++;
       const code = polled.body.error?.code || "UNKNOWN";
@@ -154,6 +160,38 @@ async function runAsyncImport(token, url) {
   }
   metrics.import.timedOut++;
   metrics.import.failed++;
+}
+
+function recordSuccessfulImport(requestedUrl, result) {
+  const expected = expectedResults.get(canonicalSourceUrl(requestedUrl));
+  const actual = result?.item;
+  const mismatchedFields = [];
+  if (actual?.title !== expected.title) mismatchedFields.push("title");
+  if (actual?.listedPrice !== expected.listedPrice) mismatchedFields.push("listedPrice");
+  if (actual?.imageUrl !== expected.imageUrl) mismatchedFields.push("imageUrl");
+
+  if (mismatchedFields.length === 0) {
+    metrics.import.succeeded++;
+    return;
+  }
+
+  metrics.import.failed++;
+  for (const field of mismatchedFields) {
+    metrics.import.correctnessFailureFields[field] =
+      (metrics.import.correctnessFailureFields[field] || 0) + 1;
+  }
+  if (metrics.import.correctnessMismatches.length < 20) {
+    metrics.import.correctnessMismatches.push({
+      sourceUrl: canonicalSourceUrl(requestedUrl),
+      mismatchedFields,
+      expected,
+      actual: {
+        title: actual?.title ?? null,
+        listedPrice: actual?.listedPrice ?? null,
+        imageUrl: actual?.imageUrl ?? null
+      }
+    });
+  }
 }
 
 function captureJobDurations(job) {
@@ -198,7 +236,7 @@ async function request(method, endpoint, token, body) {
 
 function buildReport(started, completed) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     run: {
       ...plan,
       startedAt: started.toISOString(),
@@ -221,6 +259,8 @@ function buildReport(started, completed) {
         failed: metrics.import.failed,
         timedOut: metrics.import.timedOut,
         backpressure429: metrics.import.backpressure,
+        correctnessFailureFields: metrics.import.correctnessFailureFields,
+        correctnessMismatches: metrics.import.correctnessMismatches,
         submit: summarizeDurations(metrics.import.submitDurations),
         poll: summarizeDurations(metrics.import.pollDurations),
         queueWait: summarizeDurations(metrics.import.queueWaitDurations),
@@ -248,7 +288,9 @@ function createMetrics() {
       pollDurations: [],
       queueWaitDurations: [],
       processingDurations: [],
-      totalDurations: []
+      totalDurations: [],
+      correctnessFailureFields: {},
+      correctnessMismatches: []
     },
     statuses: {},
     failureCodes: {},
@@ -273,7 +315,8 @@ function sanitizedPlan() {
     authenticationMode: singleUserMode ? "single-user" : "distinct-users",
     expectedMaxActivePerUser,
     tokenSource: tokenFile ? "file" : "environment",
-    expandedSingleUserUrls: expandSingleUserUrls
+    expandedSingleUserUrls: expandSingleUserUrls,
+    correctnessOracle: "exact-title-listedPrice-imageUrl"
   };
 }
 
@@ -299,12 +342,17 @@ function validateConfig() {
   }
 }
 
-function validateExecutionInputs(values) {
+function validateExecutionInputs(values, expectations) {
   if (dryRun) {
     return;
   }
   if (values.some((value) => new URL(value).hostname === "example.com")) {
     throw new Error("Replace urls.example.txt placeholders with a QA-approved URL_FILE");
+  }
+  const missingExpectations = [...new Set(values.map(canonicalSourceUrl))]
+    .filter((value) => !expectations.has(value));
+  if (missingExpectations.length > 0) {
+    throw new Error(`EXPECTED_RESULTS_FILE is missing ${missingExpectations.length} source URL(s)`);
   }
   if (importMode === "async") {
     const minimumUsers = Math.ceil(scenario.crawlRequests / 3);
@@ -328,6 +376,45 @@ function validateExecutionInputs(values) {
       );
     }
   }
+}
+
+async function loadExpectedResults(file) {
+  if (!file) {
+    if (dryRun) return new Map();
+    throw new Error("EXPECTED_RESULTS_FILE is required for exact product correctness validation");
+  }
+  const parsed = JSON.parse(await readFile(file, "utf8"));
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("EXPECTED_RESULTS_FILE must contain a non-empty JSON array");
+  }
+  const results = new Map();
+  for (const [index, value] of parsed.entries()) {
+    if (!value || typeof value !== "object") throw new Error(`Expected result ${index + 1} must be an object`);
+    const sourceUrl = canonicalSourceUrl(value.url);
+    if (typeof value.title !== "string" || !value.title.trim()) {
+      throw new Error(`Expected result ${index + 1} requires a non-empty title`);
+    }
+    if (typeof value.listedPrice !== "number" || !Number.isFinite(value.listedPrice) || value.listedPrice <= 0) {
+      throw new Error(`Expected result ${index + 1} requires a positive numeric listedPrice`);
+    }
+    if (typeof value.imageUrl !== "string" || !value.imageUrl.trim()) {
+      throw new Error(`Expected result ${index + 1} requires a non-empty imageUrl`);
+    }
+    new URL(value.imageUrl);
+    if (results.has(sourceUrl)) throw new Error(`Duplicate expected result URL: ${sourceUrl}`);
+    results.set(sourceUrl, {
+      title: value.title,
+      listedPrice: value.listedPrice,
+      imageUrl: value.imageUrl
+    });
+  }
+  return results;
+}
+
+function canonicalSourceUrl(rawUrl) {
+  const value = new URL(rawUrl);
+  value.searchParams.delete("nf84_request_id");
+  return value.toString();
 }
 
 async function readUrls(file) {

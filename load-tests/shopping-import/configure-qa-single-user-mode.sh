@@ -35,18 +35,18 @@ if [[ "$action" == "apply" ]]; then
   awk -v key="$key" -v concurrency_key="$concurrency_key" '
     BEGIN { replaced = 0; concurrency_replaced = 0 }
     index($0, key "=") == 1 { print key "=101"; replaced = 1; next }
-    index($0, concurrency_key "=") == 1 { print concurrency_key "=2"; concurrency_replaced = 1; next }
+    index($0, concurrency_key "=") == 1 { print concurrency_key "=3"; concurrency_replaced = 1; next }
     { print }
     END {
       if (!replaced) print key "=101"
-      if (!concurrency_replaced) print concurrency_key "=2"
+      if (!concurrency_replaced) print concurrency_key "=3"
     }
   ' "$env_file" > "$temp_file"
   chmod 600 "$temp_file"
   mv "$temp_file" "$env_file"
   trap - EXIT
   echo "QA_SINGLE_USER_LIMIT=101"
-  echo "QA_WORKER_CONCURRENCY=2"
+  echo "QA_WORKER_CONCURRENCY=3"
 else
   if [[ ! -f "$backup_file" ]]; then
     echo "Backup not found; refusing an unsafe restore: $backup_file" >&2
