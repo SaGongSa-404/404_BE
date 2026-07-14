@@ -69,6 +69,24 @@ class ShoppingImportConfigTest {
 	}
 
 	@Test
+	void bindsAblyApiSettingsWithoutExposingThemToOtherFetchers() {
+		contextRunner
+			.withPropertyValues(
+				"app.shopping.import.ably-api.enabled=true",
+				"app.shopping.import.ably-api.anonymous-token=test-anonymous-token",
+				"app.shopping.import.ably-api.timeout=PT4S"
+			)
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				ShoppingImportProperties.AblyApi ablyApi = context.getBean(ShoppingImportProperties.class)
+					.getAblyApi();
+				assertThat(ablyApi.isEnabled()).isTrue();
+				assertThat(ablyApi.getAnonymousToken()).isEqualTo("test-anonymous-token");
+				assertThat(ablyApi.getTimeout()).isEqualTo(Duration.ofSeconds(4));
+			});
+	}
+
+	@Test
 	void rejectsEnabledKreamProxyWithoutHost() {
 		contextRunner
 			.withPropertyValues("app.shopping.import.kream-proxy.enabled=true")

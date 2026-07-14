@@ -37,6 +37,7 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Pattern BUNJANG_PRODUCT_PATH_PATTERN = Pattern.compile("^/products/(\\d+)(?:/.*)?$");
 	private static final Pattern KREAM_PRODUCT_PATH_PATTERN = Pattern.compile("^/products/(\\d+)(?:/.*)?$");
+	private static final Pattern ABLY_PRODUCT_PATH_PATTERN = Pattern.compile("^/goods/(\\d+)(?:/.*)?$");
 	private static final DateTimeFormatter KREAM_CLIENT_DATETIME_FORMATTER =
 		DateTimeFormatter.ofPattern("yyyyMMddHHmmssXX");
 	private static final Pattern JS_HTTP_ASSIGNMENT_PATTERN = Pattern.compile(
@@ -62,6 +63,7 @@ public class JsoupPageFetcher implements PageFetcher {
 	private final int maxAttempts;
 	private final int maxResponseBytes;
 	private final ShoppingImportProperties.KreamProxy kreamProxy;
+	private final ShoppingImportProperties.AblyApi ablyApi;
 
 	public JsoupPageFetcher() {
 		this(DEFAULT_MAX_RESPONSE_BYTES);
@@ -72,7 +74,15 @@ public class JsoupPageFetcher implements PageFetcher {
 	}
 
 	JsoupPageFetcher(int maxResponseBytes, ShoppingImportProperties.KreamProxy kreamProxy) {
-		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes, kreamProxy);
+		this(maxResponseBytes, kreamProxy, new ShoppingImportProperties.AblyApi());
+	}
+
+	JsoupPageFetcher(
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy,
+		ShoppingImportProperties.AblyApi ablyApi
+	) {
+		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes, kreamProxy, ablyApi);
 	}
 
 	JsoupPageFetcher(int timeoutMillis, int maxAttempts) {
@@ -89,14 +99,34 @@ public class JsoupPageFetcher implements PageFetcher {
 		int maxResponseBytes,
 		ShoppingImportProperties.KreamProxy kreamProxy
 	) {
+		this(timeoutMillis, maxAttempts, maxResponseBytes, kreamProxy, new ShoppingImportProperties.AblyApi());
+	}
+
+	JsoupPageFetcher(
+		int timeoutMillis,
+		int maxAttempts,
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy,
+		ShoppingImportProperties.AblyApi ablyApi
+	) {
 		this.timeoutMillis = timeoutMillis <= 0 ? DEFAULT_TIMEOUT_MILLIS : timeoutMillis;
 		this.maxAttempts = maxAttempts <= 0 ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
 		this.maxResponseBytes = maxResponseBytes <= 0 ? DEFAULT_MAX_RESPONSE_BYTES : maxResponseBytes;
 		this.kreamProxy = kreamProxy == null ? new ShoppingImportProperties.KreamProxy() : kreamProxy;
+		this.ablyApi = ablyApi == null ? new ShoppingImportProperties.AblyApi() : ablyApi;
 	}
 
 	@Override
 	public FetchedPage fetch(URI uri) {
+		try {
+			Optional<FetchedPage> ablyProductPage = ablyProductApiPage(uri);
+			if (ablyProductPage.isPresent()) {
+				return ablyProductPage.get();
+			}
+		} catch (IOException ignored) {
+			// Continue with the regular HTML and browser fallback path.
+		}
+
 		try {
 			Optional<FetchedPage> kreamProductPage = kreamProductApiPage(uri);
 			if (kreamProductPage.isPresent()) {
@@ -436,6 +466,78 @@ public class JsoupPageFetcher implements PageFetcher {
 		enforceBodySize(apiResponse.body());
 		return kreamProductMetadataHtml(apiResponse.body())
 			.map(html -> new FetchedPage(requestedUri, requestedUri, 200, "text/html; charset=UTF-8", html));
+	}
+
+	private Optional<FetchedPage> ablyProductApiPage(URI requestedUri) throws IOException {
+		Optional<String> productId = ablyProductId(requestedUri);
+		if (productId.isEmpty() || !ablyApi.isConfigured()) {
+			return Optional.empty();
+		}
+
+		URI apiUri = URI.create("https://api.a-bly.com/api/v3/goods/" + productId.get() + "/basic/");
+		ShoppingUrlSafety.validatePublicHost(apiUri);
+		int apiTimeoutMillis = (int) Math.max(1, Math.min(ablyApi.getTimeout().toMillis(), timeoutMillis));
+		Connection.Response apiResponse = Jsoup.connect(apiUri.toString())
+			.userAgent(ANDROID_USER_AGENT)
+			.header("Accept", "application/json, text/plain, */*")
+			.header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+			.header("Origin", "https://m.a-bly.com")
+			.header("Referer", requestedUri.toString())
+			.header("X-Anonymous-Token", ablyApi.getAnonymousToken())
+			.header("X-Device-Id", UUID.randomUUID().toString())
+			.header("X-Web-Type", "Web")
+			.header("X-Device-Type", "MobileWeb")
+			.header("X-App-Version", "0.1.0")
+			.ignoreContentType(true)
+			.ignoreHttpErrors(true)
+			.timeout(apiTimeoutMillis)
+			.maxBodySize(maxResponseBytes)
+			.execute();
+
+		if (apiResponse.statusCode() >= 400) {
+			return Optional.empty();
+		}
+		enforceBodySize(apiResponse.body());
+		return ablyProductMetadataHtml(apiResponse.body())
+			.map(html -> new FetchedPage(requestedUri, requestedUri, 200, "text/html; charset=UTF-8", html));
+	}
+
+	private static Optional<String> ablyProductId(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		if (!host.equals("m.a-bly.com")) {
+			return Optional.empty();
+		}
+		String path = Optional.ofNullable(uri.getPath()).orElse("");
+		Matcher matcher = ABLY_PRODUCT_PATH_PATTERN.matcher(path);
+		return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
+	}
+
+	static Optional<String> ablyProductMetadataHtml(String apiBody) {
+		if (apiBody == null || apiBody.isBlank()) {
+			return Optional.empty();
+		}
+		try {
+			JsonNode goods = OBJECT_MAPPER.readTree(apiBody).path("goods");
+			String title = jsonText(goods, "name");
+			String price = jsonText(goods, "price_info", "thumbnail_price");
+			String imageUrl = firstJsonArrayText(goods.path("cover_images"));
+			String brandName = jsonText(goods, "market", "name");
+			if (isBlank(title) || isBlank(price) || isBlank(imageUrl) || "0".equals(price)) {
+				return Optional.empty();
+			}
+
+			StringBuilder html = new StringBuilder("<!doctype html><html><head>");
+			html.append("<title>").append(escapeHtml(title)).append("</title>");
+			appendPropertyMeta(html, "og:title", title);
+			appendPropertyMeta(html, "og:image", imageUrl);
+			appendPropertyMeta(html, "product:price:amount", price);
+			appendPropertyMeta(html, "product:price:currency", "KRW");
+			appendPropertyMeta(html, "kakao:commerce:brand_name", brandName);
+			html.append("</head><body></body></html>");
+			return Optional.of(html.toString());
+		} catch (JsonProcessingException exception) {
+			return Optional.empty();
+		}
 	}
 
 	private static Optional<String> kreamProductId(URI uri) {

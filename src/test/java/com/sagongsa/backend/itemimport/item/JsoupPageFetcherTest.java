@@ -278,4 +278,45 @@ class JsoupPageFetcherTest {
 		assertThat(document.selectFirst("meta[property=kakao:commerce:brand_name]").attr("content"))
 			.isEqualTo("나이키");
 	}
+
+	@Test
+	void buildsAblyProductMetadataHtmlFromPublicProductApiResponse() {
+		String apiBody = """
+			{
+			  "goods": {
+			    "sno": 70247267,
+			    "name": "made 엣지 올브러쉬 부츠컷 데님",
+			    "cover_images": ["https://d3ha2047wt6x28.cloudfront.net/product.jpg"],
+			    "price_info": {
+			      "consumer": 65000,
+			      "thumbnail_price": 52110
+			    },
+			    "market": {"name": "홀리"}
+			  }
+			}
+			""";
+
+		String html = JsoupPageFetcher.ablyProductMetadataHtml(apiBody).orElseThrow();
+		Document document = Jsoup.parse(html);
+
+		assertThat(document.selectFirst("meta[property=og:title]").attr("content"))
+			.isEqualTo("made 엣지 올브러쉬 부츠컷 데님");
+		assertThat(document.selectFirst("meta[property=product:price:amount]").attr("content"))
+			.isEqualTo("52110");
+		assertThat(document.selectFirst("meta[property=product:price:currency]").attr("content"))
+			.isEqualTo("KRW");
+		assertThat(document.selectFirst("meta[property=og:image]").attr("content"))
+			.isEqualTo("https://d3ha2047wt6x28.cloudfront.net/product.jpg");
+		assertThat(document.selectFirst("meta[property=kakao:commerce:brand_name]").attr("content"))
+			.isEqualTo("홀리");
+	}
+
+	@Test
+	void rejectsAblyProductApiMetadataWhenCurrentPriceIsZero() {
+		String apiBody = """
+			{"goods":{"name":"상품","cover_images":["https://example.com/product.jpg"],"price_info":{"thumbnail_price":0}}}
+			""";
+
+		assertThat(JsoupPageFetcher.ablyProductMetadataHtml(apiBody)).isEmpty();
+	}
 }

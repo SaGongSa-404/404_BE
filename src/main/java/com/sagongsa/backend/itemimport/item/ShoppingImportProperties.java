@@ -12,6 +12,7 @@ public class ShoppingImportProperties {
 	private final BrowserFetch browserFetch = new BrowserFetch();
 	private final JobWorker jobWorker = new JobWorker();
 	private final KreamProxy kreamProxy = new KreamProxy();
+	private final AblyApi ablyApi = new AblyApi();
 
 	public int getMaxResponseBytes() {
 		return maxResponseBytes;
@@ -31,6 +32,45 @@ public class ShoppingImportProperties {
 
 	public KreamProxy getKreamProxy() {
 		return kreamProxy;
+	}
+
+	public AblyApi getAblyApi() {
+		return ablyApi;
+	}
+
+	public static class AblyApi {
+
+		private boolean enabled = true;
+		private String anonymousToken;
+		private Duration timeout = Duration.ofSeconds(5);
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public void setEnabled(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+		public String getAnonymousToken() {
+			return anonymousToken;
+		}
+
+		public void setAnonymousToken(String anonymousToken) {
+			this.anonymousToken = anonymousToken == null ? null : anonymousToken.trim();
+		}
+
+		public Duration getTimeout() {
+			return timeout;
+		}
+
+		public void setTimeout(Duration timeout) {
+			this.timeout = timeout == null ? Duration.ofSeconds(5) : timeout;
+		}
+
+		boolean isConfigured() {
+			return enabled && anonymousToken != null && !anonymousToken.isBlank();
+		}
 	}
 
 	public static class JobWorker {

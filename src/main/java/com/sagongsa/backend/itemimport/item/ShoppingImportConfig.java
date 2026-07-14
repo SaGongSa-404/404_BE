@@ -13,7 +13,11 @@ public class ShoppingImportConfig {
 		ShoppingImportProperties.BrowserFetch browserFetch = properties.getBrowserFetch();
 		ShoppingImportProperties.KreamProxy kreamProxy = properties.getKreamProxy();
 		kreamProxy.validate();
-		JsoupPageFetcher jsoupPageFetcher = new JsoupPageFetcher(properties.getMaxResponseBytes(), kreamProxy);
+		JsoupPageFetcher jsoupPageFetcher = new JsoupPageFetcher(
+			properties.getMaxResponseBytes(),
+			kreamProxy,
+			properties.getAblyApi()
+		);
 		if (browserFetch.isEnabled()) {
 			return new FallbackPageFetcher(
 				jsoupPageFetcher,
