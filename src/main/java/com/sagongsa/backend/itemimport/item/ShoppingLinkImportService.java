@@ -40,6 +40,9 @@ public class ShoppingLinkImportService {
 	private static final Pattern MUSINSA_FINAL_PRICE_PATTERN = Pattern.compile(
 		"(?s)\\\"goodsPrice\\\"\\s*:\\s*\\{.{0,2000}?\\\"finalPrice\\\"\\s*:\\s*([0-9]+)"
 	);
+	private static final Pattern TWENTY_NINE_CM_DISPLAYED_PRICE_PATTERN = Pattern.compile(
+		"(?s)\"id\"\\s*:\\s*\"pdp_product_price\".{0,500}?\"children\"\\s*:\\s*\\[\"([0-9][0-9,]*)\""
+	);
 	private static final Set<String> NOISE_IMAGE_KEYWORDS = Set.of("logo", "icon", "sprite", "badge", "banner");
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
@@ -263,12 +266,16 @@ public class ShoppingLinkImportService {
 		String productJsonLdCurrency = productJsonLdText(document, "offers.priceCurrency");
 		String productJsonLdImage = productJsonLdText(document, "image");
 		String productMetaPrice = metaContent(document, "meta[property=product:price:amount]");
+		String ablyDisplayedPrice = isAblyDomain(sourceDomain) && isPositivePrice(productMetaPrice)
+			? productMetaPrice
+			: null;
 		String siteSalePrice = isOliveYoungDomain(sourceDomain)
 			? metaContent(document, "meta[property=eg:salePrice]")
 			: null;
 		String musinsaFinalPrice = isMusinsaDomain(sourceDomain)
 			? findByRegex(html, MUSINSA_FINAL_PRICE_PATTERN)
 			: null;
+		String twentyNineCmDisplayedPrice = twentyNineCmDisplayedPrice(document, html, sourceDomain);
 		String summary = firstNonBlank(
 			productJsonLdDescription,
 			embeddedMetadata.description(),
@@ -299,6 +306,8 @@ public class ShoppingLinkImportService {
 			parseListedPrice(siteSalePrice),
 			parseListedPrice(musinsaFinalPrice),
 			parseListedPrice(zigzagMetadata.priceText()),
+			parseListedPrice(twentyNineCmDisplayedPrice),
+			parseListedPrice(ablyDisplayedPrice),
 			parseListedPrice(productJsonLdPrice),
 			parseListedPrice(productMetaPrice),
 			parseListedPrice(embeddedMetadata.priceText()),
@@ -311,6 +320,8 @@ public class ShoppingLinkImportService {
 			siteSalePrice,
 			musinsaFinalPrice,
 			zigzagMetadata.priceText(),
+			twentyNineCmDisplayedPrice,
+			ablyDisplayedPrice,
 			productJsonLdPrice,
 			productMetaPrice,
 			embeddedMetadata.priceText(),
@@ -338,6 +349,10 @@ public class ShoppingLinkImportService {
 		String method = "OPEN_GRAPH";
 		if (zigzagMetadata.hasAnyValue()) {
 			method = "ZIGZAG_PRODUCT_STATE";
+		} else if (!isBlank(twentyNineCmDisplayedPrice)) {
+			method = "TWENTY_NINE_CM_PAGE_STATE";
+		} else if (!isBlank(ablyDisplayedPrice)) {
+			method = "ABLY_PRODUCT_META";
 		} else if (!isBlank(productJsonLdTitle) || !isBlank(productJsonLdPrice) || !isBlank(productJsonLdImage)) {
 			method = "JSON_LD";
 		} else if (embeddedMetadata.hasAnyValue()) {
@@ -372,6 +387,26 @@ public class ShoppingLinkImportService {
 			method,
 			rawPayloadJson
 		);
+	}
+
+	private String twentyNineCmDisplayedPrice(Document document, String html, String sourceDomain) {
+		if (!"29cm.co.kr".equals(sourceDomain) && !"product.29cm.co.kr".equals(sourceDomain)) {
+			return null;
+		}
+		String renderedPrice = firstText(document, "#pdp_product_price");
+		if (!isBlank(renderedPrice)) {
+			return renderedPrice;
+		}
+		return findByRegex(html.replace("\\\"", "\""), TWENTY_NINE_CM_DISPLAYED_PRICE_PATTERN);
+	}
+
+	private boolean isPositivePrice(String value) {
+		Integer parsed = parseListedPrice(value);
+		return parsed != null && parsed > 0;
+	}
+
+	private boolean isAblyDomain(String sourceDomain) {
+		return "m.a-bly.com".equals(sourceDomain);
 	}
 
 	private ZigzagMetadata zigzagMetadata(Document document, URI finalUri) {

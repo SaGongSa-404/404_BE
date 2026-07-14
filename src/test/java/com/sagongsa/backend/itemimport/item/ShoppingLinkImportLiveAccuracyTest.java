@@ -37,6 +37,9 @@ class ShoppingLinkImportLiveAccuracyTest {
 	private static final Pattern MUSINSA_FINAL_PRICE = Pattern.compile(
 		"(?s)\\\"goodsPrice\\\"\\s*:\\s*\\{.{0,2000}?\\\"finalPrice\\\"\\s*:\\s*([0-9]+)"
 	);
+	private static final Pattern TWENTY_NINE_CM_DISPLAYED_PRICE = Pattern.compile(
+		"(?s)\"id\"\\s*:\\s*\"pdp_product_price\".{0,500}?\"children\"\\s*:\\s*\\[\"([0-9][0-9,]*)\""
+	);
 	private static final Pattern WON_PRICE = Pattern.compile("([0-9][0-9,]*)\\s*원");
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final String VERIFIED_ZIGZAG_URL =
@@ -267,7 +270,8 @@ class ShoppingLinkImportLiveAccuracyTest {
 
 		int verified;
 		try (BrowserPageFetcher browser = new BrowserPageFetcher(properties.getBrowserFetch(), 20_000_000)) {
-			verified = verifyCandidates(ABLY_PRODUCT_URLS, 10, mismatches, unavailable, browser);
+			PageFetcher fetcher = new FallbackPageFetcher(new JsoupPageFetcher(20_000_000), browser);
+			verified = verifyCandidates(ABLY_PRODUCT_URLS, 10, mismatches, unavailable, fetcher);
 		}
 
 		assertThat(mismatches).as("Ably title, KRW price, and product image must match").isEmpty();
@@ -286,7 +290,8 @@ class ShoppingLinkImportLiveAccuracyTest {
 		int ably;
 		int oliveYoung;
 		try (BrowserPageFetcher browser = new BrowserPageFetcher(properties.getBrowserFetch(), 20_000_000)) {
-			ably = verifyCandidates(REPORTED_ABLY_SHARE_URLS, 3, mismatches, unavailable, browser);
+			PageFetcher ablyFetcher = new FallbackPageFetcher(new JsoupPageFetcher(20_000_000), browser);
+			ably = verifyCandidates(REPORTED_ABLY_SHARE_URLS, 3, mismatches, unavailable, ablyFetcher);
 			oliveYoung = verifyCandidates(List.of(REPORTED_OLIVE_YOUNG_URL), 1, mismatches, unavailable, browser);
 		}
 		ShoppingLinkImportService service = new ShoppingLinkImportService(new JsoupPageFetcher(10_000_000), OBJECT_MAPPER);
@@ -479,9 +484,12 @@ class ShoppingLinkImportLiveAccuracyTest {
 		}
 		if (host.equals("www.29cm.co.kr") || host.equals("product.29cm.co.kr")) {
 			JsonNode product = productJsonLd(document);
+			String displayedPrice = regexGroup(
+				TWENTY_NINE_CM_DISPLAYED_PRICE.matcher(page.body().replace("\\\"", "\""))
+			);
 			return new SourceProduct(
 				product.path("name").asText(),
-				product.path("offers").path("price").decimalValue().intValueExact(),
+				Integer.valueOf(displayedPrice.replace(",", "")),
 				meta(document, "meta[property=og:image]")
 			);
 		}
@@ -489,7 +497,7 @@ class ShoppingLinkImportLiveAccuracyTest {
 			JsonNode product = productJsonLd(document);
 			return new SourceProduct(
 				product.path("name").asText(),
-				product.path("offers").path("price").decimalValue().intValueExact(),
+				Integer.valueOf(meta(document, "meta[property=product:price:amount]").replace(",", "")),
 				firstTextValue(product.path("image"))
 			);
 		}

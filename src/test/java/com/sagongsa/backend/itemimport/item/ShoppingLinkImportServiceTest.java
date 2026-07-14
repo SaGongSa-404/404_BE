@@ -748,6 +748,41 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void prefersTwentyNineCmDisplayedPriceOverJsonLdPrice() {
+		String url = "https://www.29cm.co.kr/products/3853210";
+		pageFetcher.stub(
+			url,
+			"""
+				<html>
+				<head>
+				  <meta property="og:image" content="https://img.29cm.co.kr/product.jpg" />
+				  <script type="application/ld+json">
+				  {
+				    "@type": "Product",
+				    "name": "Ruby Berry Tee-Lavender",
+				    "image": "https://img.29cm.co.kr/product.jpg",
+				    "offers": {"price": 41800, "priceCurrency": "KRW"}
+				  }
+				  </script>
+				</head>
+				<body>
+				  <strong id="pdp_product_price">31,980<span>원</span></strong>
+				</body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
+		);
+
+		assertThat(response.item().listedPrice()).isEqualTo(31980);
+		assertThat(response.item().title()).isEqualTo("Ruby Berry Tee-Lavender");
+		assertThat(response.item().imageUrl()).isEqualTo("https://img.29cm.co.kr/product.jpg");
+		assertThat(response.sourceMetadata().extractionMethod()).isEqualTo("TWENTY_NINE_CM_PAGE_STATE");
+	}
+
+	@Test
 	void normalizesZigzagStoreShareLinkToPublicProductDetail() {
 		String canonicalUrl = "https://zigzag.kr/catalog/products/136095576?catalog_product_id=136095576";
 		pageFetcher.stub(canonicalUrl, completeProductMetadata("모먼트 투커버 올데이슬랙스"));
@@ -785,6 +820,40 @@ class ShoppingLinkImportServiceTest {
 
 		assertThat(response.item().normalizedUrl()).isEqualTo(canonicalUrl);
 		assertThat(response.warnings()).contains("에이블리 공유 링크를 모바일 상품 경로로 정규화했습니다.");
+	}
+
+	@Test
+	void prefersPositiveAblyProductMetaPriceOverZeroJsonLdPrice() {
+		String url = "https://m.a-bly.com/goods/70247267";
+		pageFetcher.stub(
+			url,
+			"""
+				<html>
+				<head>
+				  <meta property="product:price:amount" content="52,110" />
+				  <meta property="og:image" content="https://d3ha2047wt6x28.cloudfront.net/product.jpg" />
+				  <script type="application/ld+json">
+				  {
+				    "@type": "Product",
+				    "name": "made 엣지 여름 슬랙스",
+				    "image": "https://d3ha2047wt6x28.cloudfront.net/product.jpg",
+				    "offers": {"price": 0, "priceCurrency": "KRW"}
+				  }
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
+		);
+
+		assertThat(response.item().listedPrice()).isEqualTo(52110);
+		assertThat(response.item().title()).isEqualTo("made 엣지 여름 슬랙스");
+		assertThat(response.item().imageUrl()).isEqualTo("https://d3ha2047wt6x28.cloudfront.net/product.jpg");
+		assertThat(response.sourceMetadata().extractionMethod()).isEqualTo("ABLY_PRODUCT_META");
 	}
 
 	@Test

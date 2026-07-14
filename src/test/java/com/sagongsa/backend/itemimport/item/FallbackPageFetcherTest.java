@@ -72,4 +72,28 @@ class FallbackPageFetcherTest {
 			URI.create("https://m.smartstore.naver.com/sample/products/11933395125")
 		);
 	}
+
+	@Test
+	void usesBrowserFallbackForAblyCloudflareChallengeShell() {
+		URI uri = URI.create("https://m.a-bly.com/goods/70247267");
+		AtomicReference<URI> fallbackRequest = new AtomicReference<>();
+		FallbackPageFetcher fetcher = new FallbackPageFetcher(
+			requestedUri -> new FetchedPage(
+				requestedUri,
+				requestedUri,
+				200,
+				"text/html",
+				"<html><title>보안 확인 중..</title><body>에이블리에 연결하고 있습니다</body></html>"
+			),
+			requestedUri -> {
+				fallbackRequest.set(requestedUri);
+				return new FetchedPage(requestedUri, requestedUri, 200, "text/html", "<html>rendered product</html>");
+			}
+		);
+
+		FetchedPage page = fetcher.fetch(uri);
+
+		assertThat(fallbackRequest.get()).isEqualTo(uri);
+		assertThat(page.body()).contains("rendered product");
+	}
 }

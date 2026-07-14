@@ -73,8 +73,15 @@ public class FallbackPageFetcher implements PageFetcher, AutoCloseable {
 	private boolean isKnownErrorShell(FetchedPage page) {
 		String host = Optional.ofNullable(page.finalUri().getHost()).orElse("").toLowerCase(Locale.ROOT);
 		String body = Optional.ofNullable(page.body()).orElse("");
-		return (host.equals("brand.naver.com") || host.equals("smartstore.naver.com"))
+		boolean naverErrorShell = (host.equals("brand.naver.com") || host.equals("smartstore.naver.com"))
 			&& (body.contains("시스템오류") || body.contains("에러페이지"));
+		boolean ablyChallengeShell = host.equals("m.a-bly.com")
+			&& (body.contains("보안 확인 중")
+				|| body.contains("에이블리에 연결하고 있습니다")
+				|| body.contains("challenge-error-text")
+				|| body.contains("/cdn-cgi/challenge-platform/")
+				|| body.contains("Enable JavaScript and cookies to continue"));
+		return naverErrorShell || ablyChallengeShell;
 	}
 
 	private boolean shouldFallback(HttpStatusCode statusCode) {
