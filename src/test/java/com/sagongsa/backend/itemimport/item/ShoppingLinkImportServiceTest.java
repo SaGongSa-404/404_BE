@@ -823,6 +823,50 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void normalizesAblyAirbridgeShareLinkWithEncodedProductPath() {
+		String canonicalUrl = "https://m.a-bly.com/goods/70247267";
+		pageFetcher.stub(canonicalUrl, completeProductMetadata("에이블리 인코딩 공유 상품"));
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://ably.airbridge.io/goods%252F70247267%253Ftracking_content%253D59cb49ec48",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().normalizedUrl()).isEqualTo(canonicalUrl);
+		assertThat(response.item().listedPrice()).isPositive();
+		assertThat(response.warnings()).contains("에이블리 공유 링크를 모바일 상품 경로로 정규화했습니다.");
+	}
+
+	@Test
+	void normalizesAblyAirbridgeShareLinkWithNestedEncodedProductUrl() {
+		String canonicalUrl = "https://m.a-bly.com/goods/62561082";
+		pageFetcher.stub(canonicalUrl, completeProductMetadata("에이블리 중첩 공유 상품"));
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://ably.airbridge.io/redirect?deep_link_value="
+					+ "app%25253A%25252F%25252Fweb%25252Fhttps%2525253A%2525252F%2525252Fm.a-bly.com"
+					+ "%2525252Fgoods%2525252F62561082",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.item().normalizedUrl()).isEqualTo(canonicalUrl);
+		assertThat(response.item().listedPrice()).isPositive();
+		assertThat(response.warnings()).contains("에이블리 공유 링크를 모바일 상품 경로로 정규화했습니다.");
+	}
+
+	@Test
 	void prefersPositiveAblyProductMetaPriceOverZeroJsonLdPrice() {
 		String url = "https://m.a-bly.com/goods/70247267";
 		pageFetcher.stub(

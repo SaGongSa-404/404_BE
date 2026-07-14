@@ -312,6 +312,22 @@ class JsoupPageFetcherTest {
 	}
 
 	@Test
+	void extractsAblyProductIdFromEncodedAirbridgeProductPath() {
+		assertThat(JsoupPageFetcher.ablyProductId(URI.create(
+			"https://ably.airbridge.io/goods%252F70247267%253Ftracking_content%253D59cb49ec48"
+		))).contains("70247267");
+	}
+
+	@Test
+	void extractsAblyProductIdFromNestedAirbridgeDeepLink() {
+		assertThat(JsoupPageFetcher.ablyProductId(URI.create(
+			"https://ably.airbridge.io/redirect?deep_link_value="
+				+ "app%25253A%25252F%25252Fweb%25252Fhttps%2525253A%2525252F%2525252Fm.a-bly.com"
+				+ "%2525252Fgoods%2525252F62561082"
+		))).contains("62561082");
+	}
+
+	@Test
 	void rejectsAblyProductApiMetadataWhenCurrentPriceIsZero() {
 		String apiBody = """
 			{"goods":{"name":"상품","cover_images":["https://example.com/product.jpg"],"price_info":{"thumbnail_price":0}}}
