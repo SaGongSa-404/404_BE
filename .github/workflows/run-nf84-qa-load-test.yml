@@ -94,11 +94,13 @@ jobs:
             echo "::error::backpressure requires confirm_external_traffic=true"
             exit 1
           fi
-          qa_state="$(ssh nf-qa-be 'printf "%s|%s\n" "$(sed -n "s/^SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER=//p" "$HOME/404_BE/.env.systemd" | tail -n 1)" "$([[ -f "$HOME/404_BE/.env.systemd.nf84-single-user-backup" ]] && echo yes || echo no)"')"
+          qa_state="$(ssh nf-qa-be 'printf "%s|%s|%s\n" "$(sed -n "s/^SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER=//p" "$HOME/404_BE/.env.systemd" | tail -n 1)" "$(sed -n "s/^SHOPPING_IMPORT_JOB_CONCURRENCY=//p" "$HOME/404_BE/.env.systemd" | tail -n 1)" "$([[ -f "$HOME/404_BE/.env.systemd.nf84-single-user-backup" ]] && echo yes || echo no)"')"
           active_limit="${qa_state%%|*}"
-          backup_exists="${qa_state##*|}"
+          remaining="${qa_state#*|}"
+          worker_concurrency="${remaining%%|*}"
+          backup_exists="${remaining##*|}"
           if [[ "$IMPORT_MODE" == "async" ]]; then
-            if [[ "$active_limit" != "101" || "$backup_exists" != "yes" ]]; then
+            if [[ "$active_limit" != "101" || "$worker_concurrency" != "2" || "$backup_exists" != "yes" ]]; then
               echo "::error::Run Configure NF-84 QA Load Test with action=apply and wait for QA deploy success first"
               exit 1
             fi

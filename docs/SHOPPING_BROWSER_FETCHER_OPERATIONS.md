@@ -16,7 +16,8 @@
 - 작업은 PostgreSQL `shopping_import_jobs`에 저장하며 사용자 본인의 작업만 조회할 수 있다.
 - 전체 queue 기본 상한은 100개, 사용자별 활성 작업 기본 상한은 3개다. 초과 요청은 `429`로 거절한다.
 - 동일 사용자의 진행 중 동일 요청은 새 작업을 만들지 않고 기존 `jobId`를 반환한다.
-- worker 기본 동시성은 1이다. Playwright 처리량을 높이기 전에 독립 인스턴스와 QA 부하 테스트가 선행되어야 한다.
+- worker 기본 동시성은 1이며 `SHOPPING_IMPORT_JOB_CONCURRENCY`로 최대 8까지 제한 병렬화할 수 있다.
+- Playwright 호출은 worker 수와 관계없이 단일 브라우저 lock으로 직렬화된다. 동시성을 높이기 전에 QA 부하 테스트가 선행되어야 한다.
 - 5분 이상 `RUNNING`인 작업은 재시도하고 최대 2회 claim 이후에는 `FAILED`로 종료한다.
 - 완료/실패 작업은 기본 7일 보관 후 배치 삭제한다.
 
