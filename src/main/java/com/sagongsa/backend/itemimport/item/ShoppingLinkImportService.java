@@ -9,6 +9,8 @@ import com.sagongsa.backend.domain.enums.ItemStatus;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +45,9 @@ public class ShoppingLinkImportService {
 	private static final Pattern TWENTY_NINE_CM_DISPLAYED_PRICE_PATTERN = Pattern.compile(
 		"(?s)\"id\"\\s*:\\s*\"pdp_product_price\".{0,500}?\"children\"\\s*:\\s*\\[\"([0-9][0-9,]*)\""
 	);
+	private static final Pattern ABLY_GOODS_PATH_PATTERN = Pattern.compile(
+		"(?:^|/)goods/([0-9]+)(?![0-9])"
+	);
 	private static final Set<String> NOISE_IMAGE_KEYWORDS = Set.of("logo", "icon", "sprite", "badge", "banner");
 	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
 		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
@@ -69,6 +74,7 @@ public class ShoppingLinkImportService {
 		"m.a-bly.com"
 	);
 	private static final double DEFAULT_CATEGORY_CONFIDENCE = 0.35d;
+	private static final int MAX_NESTED_URL_DECODE_COUNT = 6;
 
 	private final PageFetcher pageFetcher;
 	private final ObjectMapper objectMapper;
@@ -237,10 +243,11 @@ public class ShoppingLinkImportService {
 			normalized = rebuildUriWithHost(uri, "zigzag.kr");
 			warnings.add("지그재그 스토어 링크를 공개 상품 경로로 정규화했습니다.");
 		}
-		if ("ably.airbridge.io".equals(host) && uri.getPath() != null
-			&& uri.getPath().matches("/goods/[0-9]+/?")) {
-			String productId = uri.getPath().replaceFirst("^/goods/([0-9]+).*$", "$1");
-			normalized = URI.create("https://m.a-bly.com/goods/" + productId);
+		Optional<String> ablyProductId = "ably.airbridge.io".equals(host)
+			? extractAblyShareProductId(uri)
+			: Optional.empty();
+		if (ablyProductId.isPresent()) {
+			normalized = URI.create("https://m.a-bly.com/goods/" + ablyProductId.get());
 			warnings.add("에이블리 공유 링크를 모바일 상품 경로로 정규화했습니다.");
 		}
 
@@ -253,6 +260,34 @@ public class ShoppingLinkImportService {
 		}
 
 		return new NormalizationResult(normalized, List.copyOf(warnings));
+	}
+
+	private Optional<String> extractAblyShareProductId(URI uri) {
+		Optional<String> pathProductId = extractAblyProductIdFromEncodedValue(uri.getRawPath());
+		if (pathProductId.isPresent()) {
+			return pathProductId;
+		}
+		return extractAblyProductIdFromEncodedValue(uri.getRawQuery());
+	}
+
+	private Optional<String> extractAblyProductIdFromEncodedValue(String rawValue) {
+		String candidate = rawValue;
+		for (int decodeCount = 0; decodeCount <= MAX_NESTED_URL_DECODE_COUNT && !isBlank(candidate); decodeCount++) {
+			Matcher matcher = ABLY_GOODS_PATH_PATTERN.matcher(candidate);
+			if (matcher.find()) {
+				return Optional.of(matcher.group(1));
+			}
+			try {
+				String decoded = URLDecoder.decode(candidate, StandardCharsets.UTF_8);
+				if (decoded.equals(candidate)) {
+					break;
+				}
+				candidate = decoded;
+			} catch (IllegalArgumentException exception) {
+				break;
+			}
+		}
+		return Optional.empty();
 	}
 
 	private ExtractionResult extractFromPage(Document document, FetchedPage page) {

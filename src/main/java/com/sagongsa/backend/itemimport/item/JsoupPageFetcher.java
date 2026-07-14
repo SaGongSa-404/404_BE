@@ -33,11 +33,12 @@ public class JsoupPageFetcher implements PageFetcher {
 	private static final int DEFAULT_MAX_ATTEMPTS = 2;
 	private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_000_000;
 	private static final int MAX_REDIRECTS = 5;
+	private static final int MAX_NESTED_URL_DECODE_COUNT = 6;
 	private static final int KREAM_API_TIMEOUT_MILLIS = 3_000;
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Pattern BUNJANG_PRODUCT_PATH_PATTERN = Pattern.compile("^/products/(\\d+)(?:/.*)?$");
 	private static final Pattern KREAM_PRODUCT_PATH_PATTERN = Pattern.compile("^/products/(\\d+)(?:/.*)?$");
-	private static final Pattern ABLY_PRODUCT_PATH_PATTERN = Pattern.compile("^/goods/(\\d+)(?:/.*)?$");
+	private static final Pattern ABLY_PRODUCT_PATH_PATTERN = Pattern.compile("(?:^|/)goods/(\\d+)(?!\\d)");
 	private static final DateTimeFormatter KREAM_CLIENT_DATETIME_FORMATTER =
 		DateTimeFormatter.ofPattern("yyyyMMddHHmmssXX");
 	private static final Pattern JS_HTTP_ASSIGNMENT_PATTERN = Pattern.compile(
@@ -205,6 +206,21 @@ public class JsoupPageFetcher implements PageFetcher {
 			}
 
 			URI finalUri = URI.create(response.url().toString());
+			try {
+				Optional<FetchedPage> ablyProductPage = ablyProductApiPage(finalUri);
+				if (ablyProductPage.isPresent()) {
+					FetchedPage productPage = ablyProductPage.get();
+					return new FetchedPage(
+						uri,
+						productPage.finalUri(),
+						productPage.statusCode(),
+						productPage.contentType(),
+						productPage.body()
+					);
+				}
+			} catch (IOException ignored) {
+				// Continue with the resolved landing page when the product API is unavailable.
+			}
 			Optional<FetchedPage> bunjangProductPage = bunjangProductApiPage(
 				uri,
 				finalUri,
@@ -474,6 +490,7 @@ public class JsoupPageFetcher implements PageFetcher {
 			return Optional.empty();
 		}
 
+		URI productUri = URI.create("https://m.a-bly.com/goods/" + productId.get());
 		URI apiUri = URI.create("https://api.a-bly.com/api/v3/goods/" + productId.get() + "/basic/");
 		ShoppingUrlSafety.validatePublicHost(apiUri);
 		int apiTimeoutMillis = (int) Math.max(1, Math.min(ablyApi.getTimeout().toMillis(), timeoutMillis));
@@ -499,17 +516,38 @@ public class JsoupPageFetcher implements PageFetcher {
 		}
 		enforceBodySize(apiResponse.body());
 		return ablyProductMetadataHtml(apiResponse.body())
-			.map(html -> new FetchedPage(requestedUri, requestedUri, 200, "text/html; charset=UTF-8", html));
+			.map(html -> new FetchedPage(requestedUri, productUri, 200, "text/html; charset=UTF-8", html));
 	}
 
-	private static Optional<String> ablyProductId(URI uri) {
+	static Optional<String> ablyProductId(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
-		if (!host.equals("m.a-bly.com")) {
+		if (!host.equals("m.a-bly.com") && !host.equals("ably.airbridge.io")) {
 			return Optional.empty();
 		}
-		String path = Optional.ofNullable(uri.getPath()).orElse("");
-		Matcher matcher = ABLY_PRODUCT_PATH_PATTERN.matcher(path);
-		return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
+		Optional<String> pathProductId = ablyProductIdFromEncodedValue(uri.getRawPath());
+		return pathProductId.isPresent()
+			? pathProductId
+			: ablyProductIdFromEncodedValue(uri.getRawQuery());
+	}
+
+	private static Optional<String> ablyProductIdFromEncodedValue(String rawValue) {
+		String candidate = rawValue;
+		for (int decodeCount = 0; decodeCount <= MAX_NESTED_URL_DECODE_COUNT && !isBlank(candidate); decodeCount++) {
+			Matcher matcher = ABLY_PRODUCT_PATH_PATTERN.matcher(candidate);
+			if (matcher.find()) {
+				return Optional.of(matcher.group(1));
+			}
+			try {
+				String decoded = urlDecode(candidate);
+				if (decoded.equals(candidate)) {
+					break;
+				}
+				candidate = decoded;
+			} catch (IllegalArgumentException exception) {
+				break;
+			}
+		}
+		return Optional.empty();
 	}
 
 	static Optional<String> ablyProductMetadataHtml(String apiBody) {
