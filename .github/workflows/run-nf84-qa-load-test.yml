@@ -1,0 +1,219 @@
+name: Run NF-84 QA Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Load scenario
+        required: true
+        type: choice
+        options:
+          - baseline
+          - peak
+          - backpressure
+      import_mode:
+        description: Shopping import API mode
+        required: true
+        type: choice
+        options:
+          - async
+          - sync
+      approved_urls:
+        description: Comma or newline separated public product URLs approved for this load test
+        required: true
+        type: string
+      duration_seconds:
+        description: General API traffic duration
+        required: true
+        default: "60"
+        type: string
+      job_timeout_seconds:
+        description: Maximum wait for async jobs
+        required: true
+        default: "600"
+        type: string
+      confirm_external_traffic:
+        description: Confirm approved external traffic when the scenario submits more than 20 crawl requests
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: nf84-qa-load-test
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Prepare SSH
+        env:
+          GCP_VM_HOST: ${{ secrets.GCP_VM_HOST }}
+          GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+          GCP_VM_SSH_KEY_B64: ${{ secrets.GCP_VM_SSH_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$GCP_VM_SSH_KEY_B64" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$GCP_VM_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host nf-qa-be
+            HostName $GCP_VM_HOST
+            User $GCP_VM_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Validate inputs and QA temporary setting
+        env:
+          SCENARIO: ${{ inputs.scenario }}
+          IMPORT_MODE: ${{ inputs.import_mode }}
+          DURATION_SECONDS: ${{ inputs.duration_seconds }}
+          JOB_TIMEOUT_SECONDS: ${{ inputs.job_timeout_seconds }}
+          CONFIRM_EXTERNAL_TRAFFIC: ${{ inputs.confirm_external_traffic }}
+        run: |
+          set -euo pipefail
+          [[ "$DURATION_SECONDS" =~ ^[1-9][0-9]*$ ]]
+          [[ "$JOB_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]
+          if [[ "$SCENARIO" == "backpressure" && "$CONFIRM_EXTERNAL_TRAFFIC" != "true" ]]; then
+            echo "::error::backpressure requires confirm_external_traffic=true"
+            exit 1
+          fi
+          qa_state="$(ssh nf-qa-be 'printf "%s|%s\n" "$(sed -n "s/^SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER=//p" "$HOME/404_BE/.env.systemd" | tail -n 1)" "$([[ -f "$HOME/404_BE/.env.systemd.nf84-single-user-backup" ]] && echo yes || echo no)"')"
+          active_limit="${qa_state%%|*}"
+          backup_exists="${qa_state##*|}"
+          if [[ "$IMPORT_MODE" == "async" ]]; then
+            if [[ "$active_limit" != "101" || "$backup_exists" != "yes" ]]; then
+              echo "::error::Run Configure NF-84 QA Load Test with action=apply and wait for QA deploy success first"
+              exit 1
+            fi
+            echo "NF84_RESTORE_REQUIRED=true" >> "$GITHUB_ENV"
+          elif [[ "$active_limit" == "101" ]]; then
+            echo "::error::Restore the temporary async limit before running the sync baseline"
+            exit 1
+          fi
+
+      - name: Prepare approved URLs
+        env:
+          APPROVED_URLS: ${{ inputs.approved_urls }}
+          URL_FILE: ${{ runner.temp }}/nf84-approved-urls.txt
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+          const values = process.env.APPROVED_URLS.split(/[\r\n,]+/)
+            .map((value) => value.trim()).filter(Boolean);
+          if (values.length === 0) throw new Error("At least one approved URL is required");
+          for (const value of values) {
+            const parsed = new URL(value);
+            if (!new Set(["http:", "https:"]).has(parsed.protocol)) throw new Error("Only HTTP(S) URLs are allowed");
+            if (parsed.hostname === "example.com") throw new Error("example.com is not an approved load-test target");
+          }
+          fs.writeFileSync(process.env.URL_FILE, values.join("\n") + "\n", { mode: 0o600 });
+          console.log(`APPROVED_URL_COUNT=${values.length}`);
+          NODE
+          echo "URL_FILE=$URL_FILE" >> "$GITHUB_ENV"
+
+      - name: Issue ephemeral QA reviewer access token
+        env:
+          SSH_TARGET: nf-qa-be
+          OUTPUT_FILE: ${{ runner.temp }}/nf84-reviewer.token
+        run: |
+          set -euo pipefail
+          load-tests/shopping-import/fetch-qa-reviewer-token.sh
+          echo "TOKEN_FILE=$OUTPUT_FILE" >> "$GITHUB_ENV"
+
+      - name: Run load and collect server metrics
+        env:
+          SCENARIO: ${{ inputs.scenario }}
+          IMPORT_MODE: ${{ inputs.import_mode }}
+          DURATION_SECONDS: ${{ inputs.duration_seconds }}
+          JOB_TIMEOUT_SECONDS: ${{ inputs.job_timeout_seconds }}
+          CONFIRM_EXTERNAL_TRAFFIC_INPUT: ${{ inputs.confirm_external_traffic }}
+          RESULT_DIR: ${{ runner.temp }}/nf84-results
+        run: |
+          set -uo pipefail
+          mkdir -p "$RESULT_DIR"
+          if [[ "$IMPORT_MODE" == "sync" ]]; then
+            metrics_duration=$((DURATION_SECONDS + 120))
+          else
+            metrics_duration=$((DURATION_SECONDS + JOB_TIMEOUT_SECONDS + 60))
+          fi
+          remote_metrics="/tmp/nf84-server-metrics-${GITHUB_RUN_ID}.csv"
+          remote_collector="/tmp/nf84-collect-server-metrics-${GITHUB_RUN_ID}.sh"
+          scp load-tests/shopping-import/collect-server-metrics.sh "nf-qa-be:$remote_collector"
+          ssh nf-qa-be "chmod 700 '$remote_collector' && set -a && . \"\$HOME/404_BE/.env.systemd\" && set +a && OUTPUT_FILE='$remote_metrics' DURATION_SECONDS='$metrics_duration' '$remote_collector'" &
+          metrics_pid=$!
+
+          external_confirmation="NO"
+          if [[ "$CONFIRM_EXTERNAL_TRAFFIC_INPUT" == "true" ]]; then
+            external_confirmation="YES"
+          fi
+
+          CONFIRM_QA_LOAD_TEST=YES \
+          CONFIRM_EXTERNAL_TRAFFIC="$external_confirmation" \
+          ACCESS_TOKEN_FILE="$TOKEN_FILE" \
+          SINGLE_USER_MODE=YES \
+          EXPAND_SINGLE_USER_URLS=YES \
+          EXPECTED_MAX_ACTIVE_PER_USER=101 \
+          URL_FILE="$URL_FILE" \
+          RESULT_DIR="$RESULT_DIR" \
+          SCENARIO="$SCENARIO" \
+          IMPORT_MODE="$IMPORT_MODE" \
+          DURATION_SECONDS="$DURATION_SECONDS" \
+          JOB_TIMEOUT_MS="$((JOB_TIMEOUT_SECONDS * 1000))" \
+          node load-tests/shopping-import/run.mjs
+          load_exit=$?
+
+          wait "$metrics_pid"
+          metrics_exit=$?
+          scp "nf-qa-be:$remote_metrics" "$RESULT_DIR/server-metrics.csv"
+          copy_exit=$?
+          ssh nf-qa-be "rm -f '$remote_metrics' '$remote_collector'"
+          cleanup_exit=$?
+
+          if ((load_exit != 0)); then
+            exit "$load_exit"
+          fi
+          if ((metrics_exit != 0)); then
+            exit "$metrics_exit"
+          fi
+          if ((copy_exit != 0)); then
+            exit "$copy_exit"
+          fi
+          exit "$cleanup_exit"
+
+      - name: Remove ephemeral token
+        if: always()
+        run: rm -f "${TOKEN_FILE:-}"
+
+      - name: Upload sanitized results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nf84-${{ inputs.scenario }}-${{ inputs.import_mode }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/nf84-results/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Restore QA single-user limit and redeploy
+        if: always() && env.NF84_RESTORE_REQUIRED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SSH_TARGET: nf-qa-be
+        run: load-tests/shopping-import/configure-qa-single-user-mode.sh restore

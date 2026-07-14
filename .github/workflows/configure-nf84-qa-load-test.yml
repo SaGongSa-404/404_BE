@@ -1,0 +1,56 @@
+name: Configure NF-84 QA Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Apply the temporary single-user limit or restore the saved QA configuration
+        required: true
+        type: choice
+        options:
+          - apply
+          - restore
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: nf84-qa-load-test
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        env:
+          GCP_VM_HOST: ${{ secrets.GCP_VM_HOST }}
+          GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+          GCP_VM_SSH_KEY_B64: ${{ secrets.GCP_VM_SSH_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$GCP_VM_SSH_KEY_B64" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$GCP_VM_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host nf-qa-be
+            HostName $GCP_VM_HOST
+            User $GCP_VM_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Apply or restore temporary QA setting
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SSH_TARGET: nf-qa-be
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          load-tests/shopping-import/configure-qa-single-user-mode.sh "$ACTION"

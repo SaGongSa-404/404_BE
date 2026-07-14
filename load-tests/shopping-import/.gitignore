@@ -1,2 +1,4 @@
 results/*.json
 !results/.gitkeep
+.secrets/
+*.token

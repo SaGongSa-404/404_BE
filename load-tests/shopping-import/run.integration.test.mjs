@@ -53,11 +53,13 @@ test("async scenario records queue metrics without persisting tokens", async (co
   const port = server.address().port;
   const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-load-test-"));
   const urlFile = path.join(tempDirectory, "urls.txt");
+  const tokenFile = path.join(tempDirectory, "reviewer.token");
   await writeFile(
     urlFile,
-    Array.from({ length: 10 }, (_, index) => `https://shop.test/products/${index + 1}`).join("\n"),
+    "https://shop.test/products/reviewer-load-test\n",
     "utf8"
   );
+  await writeFile(tokenFile, "single-reviewer-access-token\n", { encoding: "utf8", mode: 0o600 });
 
   await execFileAsync(process.execPath, ["run.mjs"], {
     cwd: directory,
@@ -65,7 +67,10 @@ test("async scenario records queue metrics without persisting tokens", async (co
       ...process.env,
       BASE_URL: `http://127.0.0.1:${port}`,
       CONFIRM_QA_LOAD_TEST: "YES",
-      ACCESS_TOKENS: "token-a,token-b,token-c,token-d",
+      ACCESS_TOKEN_FILE: tokenFile,
+      SINGLE_USER_MODE: "YES",
+      EXPAND_SINGLE_USER_URLS: "YES",
+      EXPECTED_MAX_ACTIVE_PER_USER: "10",
       URL_FILE: urlFile,
       RESULT_DIR: tempDirectory,
       SCENARIO: "baseline",
@@ -88,5 +93,62 @@ test("async scenario records queue metrics without persisting tokens", async (co
   assert.equal(report.summary.import.failed, 0);
   assert.equal(report.summary.import.queueWait.count, 10);
   assert.ok(report.summary.general.successes > 0);
-  assert.equal(rawReport.includes("token-a"), false);
+  assert.equal(rawReport.includes("single-reviewer-access-token"), false);
+  assert.equal(report.run.authenticationMode, "single-user");
+  assert.equal(report.run.tokenSource, "file");
+  assert.equal(report.run.expandedSingleUserUrls, true);
+});
+
+test("single-user mode rejects an active-job limit below the scenario demand", async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-load-test-limit-"));
+  const urlFile = path.join(tempDirectory, "urls.txt");
+  const tokenFile = path.join(tempDirectory, "reviewer.token");
+  await writeFile(urlFile, "https://shop.test/products/1\n", "utf8");
+  await writeFile(tokenFile, "single-reviewer-access-token\n", { encoding: "utf8", mode: 0o600 });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, ["run.mjs"], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        BASE_URL: "http://127.0.0.1:9",
+        CONFIRM_QA_LOAD_TEST: "YES",
+        ACCESS_TOKEN_FILE: tokenFile,
+        SINGLE_USER_MODE: "YES",
+        EXPECTED_MAX_ACTIVE_PER_USER: "3",
+        URL_FILE: urlFile,
+        SCENARIO: "baseline",
+        IMPORT_MODE: "async"
+      },
+      timeout: 5_000
+    }),
+    (error) => error.stderr.includes("EXPECTED_MAX_ACTIVE_PER_USER>=10")
+  );
+});
+
+test("single-user mode rejects URL reuse that would deduplicate active jobs", async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-load-test-urls-"));
+  const urlFile = path.join(tempDirectory, "urls.txt");
+  const tokenFile = path.join(tempDirectory, "reviewer.token");
+  await writeFile(urlFile, "https://shop.test/products/1\n", "utf8");
+  await writeFile(tokenFile, "single-reviewer-access-token\n", { encoding: "utf8", mode: 0o600 });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, ["run.mjs"], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        BASE_URL: "http://127.0.0.1:9",
+        CONFIRM_QA_LOAD_TEST: "YES",
+        ACCESS_TOKEN_FILE: tokenFile,
+        SINGLE_USER_MODE: "YES",
+        EXPECTED_MAX_ACTIVE_PER_USER: "10",
+        URL_FILE: urlFile,
+        SCENARIO: "baseline",
+        IMPORT_MODE: "async"
+      },
+      timeout: 5_000
+    }),
+    (error) => error.stderr.includes("at least 10 distinct URLs")
+  );
 });
