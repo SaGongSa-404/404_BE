@@ -28,6 +28,7 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 			+ "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 	private final ShoppingImportProperties.BrowserFetch properties;
+	private final ShoppingImportProperties.KreamProxy kreamProxy;
 	private final int maxResponseBytes;
 	private final Supplier<Playwright> playwrightFactory;
 	private final Object browserLock = new Object();
@@ -35,25 +36,35 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	private Browser browser;
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties) {
-		this(properties, Playwright::create, 1_000_000);
+		this(properties, Playwright::create, 1_000_000, new ShoppingImportProperties.KreamProxy());
 	}
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, int maxResponseBytes) {
-		this(properties, Playwright::create, maxResponseBytes);
+		this(properties, Playwright::create, maxResponseBytes, new ShoppingImportProperties.KreamProxy());
+	}
+
+	public BrowserPageFetcher(
+		ShoppingImportProperties.BrowserFetch properties,
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy
+	) {
+		this(properties, Playwright::create, maxResponseBytes, kreamProxy);
 	}
 
 	BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, Supplier<Playwright> playwrightFactory) {
-		this(properties, playwrightFactory, 1_000_000);
+		this(properties, playwrightFactory, 1_000_000, new ShoppingImportProperties.KreamProxy());
 	}
 
 	BrowserPageFetcher(
 		ShoppingImportProperties.BrowserFetch properties,
 		Supplier<Playwright> playwrightFactory,
-		int maxResponseBytes
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy
 	) {
 		this.properties = properties;
 		this.playwrightFactory = playwrightFactory;
 		this.maxResponseBytes = maxResponseBytes <= 0 ? 1_000_000 : maxResponseBytes;
+		this.kreamProxy = kreamProxy == null ? new ShoppingImportProperties.KreamProxy() : kreamProxy;
 	}
 
 	@Override
@@ -150,25 +161,36 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		}
 	}
 
-	private Browser.NewContextOptions contextOptions(URI uri) {
+	Browser.NewContextOptions contextOptions(URI uri) {
+		Browser.NewContextOptions options;
 		if (isAblyMobileUri(uri)) {
-			return new Browser.NewContextOptions()
+			options = new Browser.NewContextOptions()
 				.setUserAgent(IOS_MOBILE_USER_AGENT)
 				.setLocale(properties.getLocale())
 				.setViewportSize(390, 844)
 				.setDeviceScaleFactor(3)
 				.setIsMobile(true)
 				.setHasTouch(true);
+		} else {
+			options = new Browser.NewContextOptions()
+				.setUserAgent(properties.getUserAgent())
+				.setLocale(properties.getLocale())
+				.setViewportSize(properties.getViewportWidth(), properties.getViewportHeight());
 		}
-		return new Browser.NewContextOptions()
-			.setUserAgent(properties.getUserAgent())
-			.setLocale(properties.getLocale())
-			.setViewportSize(properties.getViewportWidth(), properties.getViewportHeight());
+		if (kreamProxy.isConfigured() && isKreamUri(uri)) {
+			options.setProxy(kreamProxy.browserServer());
+		}
+		return options;
 	}
 
 	private boolean isAblyMobileUri(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
 		return ABLY_MOBILE_HOST.equals(host);
+	}
+
+	private boolean isKreamUri(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return host.equals("kream.co.kr") || host.endsWith(".kream.co.kr");
 	}
 
 	private void waitForNetworkIdle(Page page) {

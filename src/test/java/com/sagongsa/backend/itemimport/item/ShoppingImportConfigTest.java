@@ -47,4 +47,31 @@ class ShoppingImportConfigTest {
 					.getRenderWait()).isEqualTo(Duration.ofSeconds(5));
 			});
 	}
+
+	@Test
+	void bindsKreamProxySettings() {
+		contextRunner
+			.withPropertyValues(
+				"app.shopping.import.kream-proxy.enabled=true",
+				"app.shopping.import.kream-proxy.type=http",
+				"app.shopping.import.kream-proxy.host=proxy.internal",
+				"app.shopping.import.kream-proxy.port=3128"
+			)
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				ShoppingImportProperties.KreamProxy proxy = context.getBean(ShoppingImportProperties.class)
+					.getKreamProxy();
+				assertThat(proxy.isEnabled()).isTrue();
+				assertThat(proxy.getType()).isEqualTo(ShoppingImportProperties.KreamProxy.Type.HTTP);
+				assertThat(proxy.getHost()).isEqualTo("proxy.internal");
+				assertThat(proxy.getPort()).isEqualTo(3128);
+			});
+	}
+
+	@Test
+	void rejectsEnabledKreamProxyWithoutHost() {
+		contextRunner
+			.withPropertyValues("app.shopping.import.kream-proxy.enabled=true")
+			.run(context -> assertThat(context).hasFailed());
+	}
 }

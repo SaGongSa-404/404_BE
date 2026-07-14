@@ -1,5 +1,7 @@
 package com.sagongsa.backend.itemimport.item;
 
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -9,6 +11,7 @@ public class ShoppingImportProperties {
 	private int maxResponseBytes = 1_000_000;
 	private final BrowserFetch browserFetch = new BrowserFetch();
 	private final JobWorker jobWorker = new JobWorker();
+	private final KreamProxy kreamProxy = new KreamProxy();
 
 	public int getMaxResponseBytes() {
 		return maxResponseBytes;
@@ -24,6 +27,10 @@ public class ShoppingImportProperties {
 
 	public JobWorker getJobWorker() {
 		return jobWorker;
+	}
+
+	public KreamProxy getKreamProxy() {
+		return kreamProxy;
 	}
 
 	public static class JobWorker {
@@ -99,6 +106,71 @@ public class ShoppingImportProperties {
 
 		public void setRetention(Duration retention) {
 			this.retention = retention == null ? Duration.ofDays(7) : retention;
+		}
+	}
+
+	public static class KreamProxy {
+
+		private boolean enabled;
+		private Type type = Type.SOCKS;
+		private String host;
+		private int port = 1080;
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public void setEnabled(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+		public Type getType() {
+			return type;
+		}
+
+		public void setType(Type type) {
+			this.type = type == null ? Type.SOCKS : type;
+		}
+
+		public String getHost() {
+			return host;
+		}
+
+		public void setHost(String host) {
+			this.host = host == null ? null : host.trim();
+		}
+
+		public int getPort() {
+			return port;
+		}
+
+		public void setPort(int port) {
+			this.port = port;
+		}
+
+		boolean isConfigured() {
+			return enabled && host != null && !host.isBlank() && port > 0 && port <= 65_535;
+		}
+
+		void validate() {
+			if (enabled && !isConfigured()) {
+				throw new IllegalStateException("KREAM proxy requires a host and a valid port");
+			}
+		}
+
+		Proxy javaProxy() {
+			Proxy.Type proxyType = type == Type.HTTP ? Proxy.Type.HTTP : Proxy.Type.SOCKS;
+			return new Proxy(proxyType, InetSocketAddress.createUnresolved(host, port));
+		}
+
+		String browserServer() {
+			String scheme = type == Type.HTTP ? "http" : "socks5";
+			return scheme + "://" + host + ":" + port;
+		}
+
+		public enum Type {
+			HTTP,
+			SOCKS
 		}
 	}
 

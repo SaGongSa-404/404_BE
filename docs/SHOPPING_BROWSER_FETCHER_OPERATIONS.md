@@ -35,6 +35,14 @@
 - 이미지 빌드 단계에서 Playwright CLI로 Chromium을 미리 설치해 첫 요청 지연을 피한다.
 - 브라우저 수집은 정적 HTML 수집보다 비용이 크므로, 운영 활성화 전 응답 시간과 실패율을 별도 샘플로 확인한다.
 
+## KREAM 전용 프록시
+
+- KREAM이 배포 서버의 출구 IP에 빈 5xx를 반환하는 환경에서만 전용 프록시를 활성화한다.
+- `SHOPPING_IMPORT_KREAM_PROXY_ENABLED=true`, `SHOPPING_IMPORT_KREAM_PROXY_TYPE=SOCKS|HTTP`, `SHOPPING_IMPORT_KREAM_PROXY_HOST`, `SHOPPING_IMPORT_KREAM_PROXY_PORT`를 설정한다.
+- 프록시는 KREAM 및 KREAM API 호스트에만 적용되며 다른 쇼핑몰 요청은 기존 출구를 유지한다.
+- 인증 없는 내부 프록시를 전제로 하므로 방화벽에서 백엔드 서버 IP만 접근 가능하게 제한한다.
+- 활성화 전후로 동일 상품을 순차/동시 호출해 제목, 양수 가격, 유효 이미지와 5xx/429 여부를 확인한다.
+
 ## 검증 포인트
 
 - 플래그를 끄면 `JsoupPageFetcher`만 선택된다.

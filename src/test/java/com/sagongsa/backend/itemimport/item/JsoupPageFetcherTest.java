@@ -245,4 +245,37 @@ class JsoupPageFetcherTest {
 		assertThat(document.selectFirst("meta[property=kakao:commerce:brand_name]").attr("content"))
 			.isEqualTo("아디다스");
 	}
+
+	@Test
+	void buildsKreamProductMetadataHtmlFromWebApiResponse() {
+		String apiBody = """
+			{
+			  "release": {
+			    "id": 444045,
+			    "name": "(W) Nike LD-1000 Summit White Sail",
+			    "translated_name": "(W) 나이키 LD-1000 서밋 화이트 세일",
+			    "image_urls": ["https://kream-phinf.pstatic.net/product.png"],
+			    "brand": {
+			      "name": "Nike",
+			      "translated_name": "나이키"
+			    }
+			  },
+			  "market": {
+			    "lowest_ask": 33000.0
+			  }
+			}
+			""";
+
+		String html = JsoupPageFetcher.kreamProductMetadataHtml(apiBody).orElseThrow();
+		Document document = Jsoup.parse(html);
+
+		assertThat(document.selectFirst("meta[property=og:title]").attr("content"))
+			.isEqualTo("(W) 나이키 LD-1000 서밋 화이트 세일");
+		assertThat(document.selectFirst("meta[property=product:price:amount]").attr("content"))
+			.isEqualTo("33000.0");
+		assertThat(document.selectFirst("meta[property=og:image]").attr("content"))
+			.isEqualTo("https://kream-phinf.pstatic.net/product.png");
+		assertThat(document.selectFirst("meta[property=kakao:commerce:brand_name]").attr("content"))
+			.isEqualTo("나이키");
+	}
 }
