@@ -143,6 +143,7 @@ class ShoppingLinkImportLiveAccuracyTest {
 		"https://m.a-bly.com/goods/12426697"
 	);
 	private static final List<String> REPORTED_ZIGZAG_STORE_URLS = List.of(
+		"https://s.zigzag.kr/hsiVNfPqd4",
 		"https://store.zigzag.kr/catalog/products/136095576?catalog_product_id=136095576",
 		"https://store.zigzag.kr/catalog/products/160269610?catalog_product_id=160269610",
 		"https://store.zigzag.kr/catalog/products/140798161?catalog_product_id=140798161"
@@ -279,7 +280,7 @@ class ShoppingLinkImportLiveAccuracyTest {
 		List<String> unavailable = new ArrayList<>();
 		ShoppingImportProperties properties = browserProperties();
 
-		int zigzag = verifyCandidates(REPORTED_ZIGZAG_STORE_URLS, 3, mismatches, unavailable);
+		int zigzag = verifyCandidates(REPORTED_ZIGZAG_STORE_URLS, 4, mismatches, unavailable);
 		int twentyNineCm = verifyCandidates(REPORTED_TWENTY_NINE_CM_URLS, 3, mismatches, unavailable);
 		int musinsa = verifyCandidates(List.of(REPORTED_MUSINSA_URL), 1, mismatches, unavailable);
 		int ably;
@@ -291,7 +292,7 @@ class ShoppingLinkImportLiveAccuracyTest {
 		ShoppingLinkImportService service = new ShoppingLinkImportService(new JsoupPageFetcher(10_000_000), OBJECT_MAPPER);
 
 		assertThat(mismatches).as("reported share-link title, KRW price, and product image must match").isEmpty();
-		assertThat(zigzag).as("reported Zigzag products; unavailable=%s", unavailable).isEqualTo(3);
+		assertThat(zigzag).as("reported Zigzag products; unavailable=%s", unavailable).isEqualTo(4);
 		assertThat(twentyNineCm).as("reported 29CM products; unavailable=%s", unavailable).isEqualTo(3);
 		assertThat(musinsa).as("reported Musinsa product; unavailable=%s", unavailable).isEqualTo(1);
 		assertThat(ably).as("reported Ably products; unavailable=%s", unavailable).isEqualTo(3);
@@ -434,7 +435,7 @@ class ShoppingLinkImportLiveAccuracyTest {
 				meta(document, "meta[property=og:image]")
 			);
 		}
-		if (host.equals("zigzag.kr") || host.equals("www.zigzag.kr")) {
+		if (host.equals("zigzag.kr") || host.equals("www.zigzag.kr") || host.equals("store.zigzag.kr")) {
 			JsonNode product = zigzagProductState(document, page.finalUri());
 			return new SourceProduct(
 				product.path("name").asText(),

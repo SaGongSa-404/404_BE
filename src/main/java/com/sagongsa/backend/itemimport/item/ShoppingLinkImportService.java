@@ -50,11 +50,14 @@ public class ShoppingLinkImportService {
 		"deep_link_value", "tracking_content", "airbridge_referrer", "https_deeplink"
 	);
 	private static final Set<String> OLIVE_YOUNG_HOSTS = Set.of("oliveyoung.co.kr", "m.oliveyoung.co.kr");
+	private static final Set<String> ZIGZAG_PRODUCT_STATE_HOSTS = Set.of(
+		"zigzag.kr", "www.zigzag.kr", "store.zigzag.kr"
+	);
 	private static final Set<String> VERIFIED_PRODUCT_HOSTS = Set.of(
 		"musinsa.com", "www.musinsa.com",
 		"daangn.com", "www.daangn.com",
 		"bunjang.co.kr", "www.bunjang.co.kr", "m.bunjang.co.kr",
-		"zigzag.kr", "www.zigzag.kr",
+		"zigzag.kr", "www.zigzag.kr", "store.zigzag.kr", "s.zigzag.kr", "link.zigzag.kr",
 		"oliveyoung.co.kr", "www.oliveyoung.co.kr", "m.oliveyoung.co.kr",
 		"brand.naver.com", "m.brand.naver.com",
 		"smartstore.naver.com", "m.smartstore.naver.com",
@@ -373,7 +376,7 @@ public class ShoppingLinkImportService {
 
 	private ZigzagMetadata zigzagMetadata(Document document, URI finalUri) {
 		String host = Optional.ofNullable(finalUri.getHost()).orElse("").toLowerCase(Locale.ROOT);
-		if (!host.equals("zigzag.kr") && !host.equals("www.zigzag.kr")) {
+		if (!ZIGZAG_PRODUCT_STATE_HOSTS.contains(host)) {
 			return ZigzagMetadata.empty();
 		}
 
@@ -513,7 +516,7 @@ public class ShoppingLinkImportService {
 		if (host.endsWith("bunjang.co.kr")) {
 			return path.matches("/products/[0-9]+/?");
 		}
-		if (host.equals("zigzag.kr") || host.equals("www.zigzag.kr")) {
+		if (ZIGZAG_PRODUCT_STATE_HOSTS.contains(host)) {
 			return path.matches("/(?:app/)?catalog/products/[0-9]+/?");
 		}
 		if (host.equals("oliveyoung.co.kr") || host.equals("www.oliveyoung.co.kr") || host.equals("m.oliveyoung.co.kr")) {

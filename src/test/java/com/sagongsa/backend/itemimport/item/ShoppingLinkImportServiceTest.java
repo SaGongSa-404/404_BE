@@ -349,6 +349,42 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void importsZigzagShortShareLinkAfterRedirectToStoreProduct() {
+		String shortUrl = "https://s.zigzag.kr/hsiVNfPqd4";
+		String finalUrl = "https://store.zigzag.kr/catalog/products/136095576?catalog_product_id=136095576";
+		pageFetcher.stubRedirect(
+			shortUrl,
+			finalUrl,
+			"""
+				<html><head><script>
+				window.__NEXT_DATA__ = {"product": {
+				  "id": "136095576",
+				  "name": "[🧊여름바지/3기장선택!] made. 모먼트 투커버 올데이슬랙스",
+				  "product_image_list": [{
+				    "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/product-136095576.jpeg?width=720&height=720"
+				  }],
+				  "product_price": {
+				    "max_price_info": {"price": 53900},
+				    "display_final_price": {"final_price": {"price": 29800}}
+				  }
+				}};
+				</script></head><body></body></html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(new ShoppingLinkImportRequest(
+			ItemInputSource.SHARE, shortUrl, null, null, null, null
+		));
+
+		assertThat(response.retrievalStatus()).isEqualTo("SUCCESS");
+		assertThat(response.item().listedPrice()).isEqualTo(29800);
+		assertThat(response.item().imageUrl())
+			.isEqualTo("https://cf.product-image.s.zigzag.kr/product-136095576.jpeg?width=720&height=720");
+		assertThat(response.sourceMetadata().sourceDomain()).isEqualTo("store.zigzag.kr");
+		assertThat(response.sourceMetadata().extractionMethod()).isEqualTo("ZIGZAG_PRODUCT_STATE");
+	}
+
+	@Test
 	void reportsPartialWhenPriceIsMissing() {
 		pageFetcher.stub(
 			"https://shopping.example.com/products/missing-price",
@@ -1298,19 +1334,30 @@ class ShoppingLinkImportServiceTest {
 
 	private static final class FakePageFetcher implements PageFetcher {
 
-		private final Map<String, String> pages = new java.util.HashMap<>();
+		private final Map<String, FetchedPage> pages = new java.util.HashMap<>();
 
 		private void stub(String url, String body) {
-			pages.put(url, body);
+			URI uri = URI.create(url);
+			pages.put(url, new FetchedPage(uri, uri, 200, "text/html", body));
+		}
+
+		private void stubRedirect(String requestedUrl, String finalUrl, String body) {
+			pages.put(requestedUrl, new FetchedPage(
+				URI.create(requestedUrl),
+				URI.create(finalUrl),
+				200,
+				"text/html",
+				body
+			));
 		}
 
 		@Override
 		public FetchedPage fetch(URI uri) {
-			String body = pages.get(uri.toString());
-			if (body == null) {
+			FetchedPage page = pages.get(uri.toString());
+			if (page == null) {
 				throw new AssertionError("No stubbed page for " + uri);
 			}
-			return new FetchedPage(uri, uri, 200, "text/html", body);
+			return page;
 		}
 	}
 }
