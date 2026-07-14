@@ -43,6 +43,8 @@ app:
       enabled: true
   shopping:
     import:
+      job-worker:
+        enabled: false
       browser-fetch:
         enabled: false
   notification:
