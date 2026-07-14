@@ -157,6 +157,152 @@ class ShoppingLinkImportServiceTest {
 	}
 
 	@Test
+	void prefersDaangnProductJsonLdOverSocialCardMetadata() {
+		pageFetcher.stub(
+			"https://www.daangn.com/kr/buy-sell/orute-coffee-machine-r5fvp77gm767/",
+			"""
+				<html>
+				<head>
+				  <meta property="og:title" content="오르테 커피머신 OCK-352B | 생활가전 | 당근 중고거래" />
+				  <meta property="og:image" content="https://dnvefa72aowie.cloudfront.net/cover.jpg?s=1200x630&amp;t=cover" />
+				  <script type="application/ld+json">
+				  {
+				    "@context": "https://schema.org",
+				    "@type": "Product",
+				    "name": "오르테 커피머신 OCK-352B",
+				    "image": "https://dnvefa72aowie.cloudfront.net/product.jpg?s=1440x1440&t=inside",
+				    "offers": {
+				      "@type": "Offer",
+				      "price": "95000",
+				      "priceCurrency": "KRW"
+				    }
+				  }
+				  </script>
+				</head>
+				<body></body>
+				</html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(
+			new ShoppingLinkImportRequest(
+				ItemInputSource.SHARE,
+				"https://www.daangn.com/kr/buy-sell/orute-coffee-machine-r5fvp77gm767/",
+				null,
+				null,
+				null,
+				null
+			)
+		);
+
+		assertThat(response.retrievalStatus()).isEqualTo("SUCCESS");
+		assertThat(response.item().title()).isEqualTo("오르테 커피머신 OCK-352B");
+		assertThat(response.item().listedPrice()).isEqualTo(95000);
+		assertThat(response.item().currencyCode()).isEqualTo("KRW");
+		assertThat(response.item().imageUrl()).isEqualTo("https://dnvefa72aowie.cloudfront.net/product.jpg?s=1440x1440&t=inside");
+		assertThat(response.sourceMetadata().extractionMethod()).isEqualTo("JSON_LD");
+	}
+
+	@Test
+	void rejectsForeignCurrencyForVerifiedKoreanProductUrl() {
+		pageFetcher.stub(
+			"https://www.daangn.com/kr/buy-sell/foreign-currency-product/",
+			"""
+				<html><head>
+				  <script type="application/ld+json">
+				  {
+				    "@type": "Product",
+				    "name": "외화 상품",
+				    "image": "https://images.example.com/product.jpg",
+				    "offers": {"price": "100", "priceCurrency": "USD"}
+				  }
+				  </script>
+				</head></html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(new ShoppingLinkImportRequest(
+			ItemInputSource.SHARE,
+			"https://www.daangn.com/kr/buy-sell/foreign-currency-product/",
+			null, null, null, null
+		)))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	@Test
+	void rejectsDecimalKrwPriceForVerifiedKoreanProductUrl() {
+		pageFetcher.stub(
+			"https://www.daangn.com/kr/buy-sell/decimal-price-product/",
+			"""
+				<html><head>
+				  <script type="application/ld+json">
+				  {
+				    "@type": "Product",
+				    "name": "소수 가격 상품",
+				    "image": "https://images.example.com/product.jpg",
+				    "offers": {"price": "100.50", "priceCurrency": "KRW"}
+				  }
+				  </script>
+				</head></html>
+				"""
+		);
+
+		assertThatThrownBy(() -> service.importLink(new ShoppingLinkImportRequest(
+			ItemInputSource.SHARE,
+			"https://www.daangn.com/kr/buy-sell/decimal-price-product/",
+			null, null, null, null
+		)))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	@Test
+	void importsVerifiedZigzagProductUsingCleanTitleCurrentKrwPriceAndProductImage() {
+		String url = "https://zigzag.kr/catalog/products/141911042?catalog_product_id=141911042";
+		pageFetcher.stub(
+			url,
+			"""
+				<html><head>
+				  <meta property="og:title" content="리얼코코 [S-XL/5만장돌파🏆/made] 모티브 핀턱 슬랙스 (숏/기본)" />
+				  <meta property="product:price:amount" content="24,010" />
+				  <meta property="product:price:currency" content="KRW" />
+				  <script type="application/ld+json">
+				  {
+				    "@type": "Product",
+				    "name": "리얼코코 [S-XL/5만장돌파]]>&#x1f3c6;<![CDATA[/made] 모티브 핀턱 슬랙스 (숏/기본)",
+				    "image": ["https://cf.product-image.s.zigzag.kr/product.jpeg?width=720&amp;height=720"]
+				  }
+				  </script>
+				  <script>
+				  window.__STATE__ = {
+				    "product": {
+				      "name": "[S-XL/5만장돌파🏆/made] 모티브 핀턱 슬랙스 (숏/기본)",
+				      "max_price_info": {"price": 63000},
+				      "display_final_price": {"final_price": {"price": 30020}}
+				    }
+				  };
+				  </script>
+				</head><body></body></html>
+				"""
+		);
+
+		ShoppingLinkImportResponse response = service.importLink(new ShoppingLinkImportRequest(
+			ItemInputSource.SHARE, url, null, null, null, null
+		));
+
+		assertThat(response.retrievalStatus()).isEqualTo("SUCCESS");
+		assertThat(response.item().title())
+			.isEqualTo("리얼코코 [S-XL/5만장돌파🏆/made] 모티브 핀턱 슬랙스 (숏/기본)");
+		assertThat(response.item().listedPrice()).isEqualTo(24010);
+		assertThat(response.item().currencyCode()).isEqualTo("KRW");
+		assertThat(response.item().imageUrl())
+			.isEqualTo("https://cf.product-image.s.zigzag.kr/product.jpeg?width=720&height=720");
+	}
+
+	@Test
 	void reportsPartialWhenPriceIsMissing() {
 		pageFetcher.stub(
 			"https://shopping.example.com/products/missing-price",
@@ -415,6 +561,18 @@ class ShoppingLinkImportServiceTest {
 				  <meta property="og:title" content="키르시 코치 자켓 [블랙] - 사이즈 & 후기 | 무신사" />
 				  <meta property="og:image" content="https://image.msscdn.net/item.jpg" />
 				  <meta property="product:price:amount" content="129000" />
+				  <meta property="product:price:currency" content="KRW" />
+				  <script>
+				  window.__MSS_FE__ = {
+				    "product": {
+				      "state": {
+				        "goodsNm": "코치 자켓 [블랙]",
+				        "salePrice": 129000,
+				        "thumbnailImageUrl": "https://image.msscdn.net/item.jpg"
+				      }
+				    }
+				  };
+				  </script>
 				  <script src="/cdn-cgi/challenge-platform/h/b/scripts/jsd/main.js"></script>
 				</head>
 				<body>
@@ -436,7 +594,7 @@ class ShoppingLinkImportServiceTest {
 			)
 		);
 
-		assertThat(response.item().title()).isEqualTo("키르시 코치 자켓 [블랙] - 사이즈 & 후기 | 무신사");
+		assertThat(response.item().title()).isEqualTo("코치 자켓 [블랙]");
 		assertThat(response.item().listedPrice()).isEqualTo(129000);
 		assertThat(response.item().imageUrl()).isEqualTo("https://image.msscdn.net/item.jpg");
 		assertThat(response.item().category()).isEqualTo(ItemCategory.FASHION);
@@ -509,6 +667,101 @@ class ShoppingLinkImportServiceTest {
 		assertThat(response.item().brandName()).isEqualTo("쿠키런");
 		assertThat(response.item().listedPrice()).isEqualTo(17910);
 		assertThat(response.item().category()).isEqualTo(ItemCategory.DIGITAL);
+	}
+
+	@Test
+	void rejectsOliveYoungDetailPathWithoutGoodsNumber() {
+		String url = "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do";
+		pageFetcher.stub(url, completeProductMetadata("올리브영 테스트 상품"));
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	@Test
+	void rejectsNaverBrandStorePageThatIsNotAProductDetail() {
+		String url = "https://brand.naver.com/cookierun/category/all";
+		pageFetcher.stub(url, completeProductMetadata("네이버 테스트 상품"));
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
+		))
+			.isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	@Test
+	void acceptsSmartStoreAndKreamProductDetailPaths() {
+		String smartStoreUrl = "https://smartstore.naver.com/sample/products/11933395125";
+		String kreamUrl = "https://kream.co.kr/products/444045";
+		pageFetcher.stub(smartStoreUrl, completeProductMetadata("스마트스토어 테스트 상품"));
+		pageFetcher.stub(kreamUrl, completeProductMetadata("크림 테스트 상품"));
+
+		ShoppingLinkImportResponse smartStore = service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, smartStoreUrl, null, null, null, null)
+		);
+		ShoppingLinkImportResponse kream = service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, kreamUrl, null, null, null, null)
+		);
+
+		assertThat(smartStore.item().title()).isEqualTo("스마트스토어 테스트 상품");
+		assertThat(kream.item().title()).isEqualTo("크림 테스트 상품");
+	}
+
+	@Test
+	void rejectsSmartStoreAndKreamPagesThatAreNotProductDetails() {
+		String smartStoreUrl = "https://smartstore.naver.com/sample/category/all";
+		String kreamUrl = "https://kream.co.kr/search?keyword=nike";
+		pageFetcher.stub(smartStoreUrl, completeProductMetadata("스마트스토어 목록"));
+		pageFetcher.stub(kreamUrl, completeProductMetadata("크림 검색"));
+
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, smartStoreUrl, null, null, null, null)
+		)).isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+		assertThatThrownBy(() -> service.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, kreamUrl, null, null, null, null)
+		)).isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	@Test
+	void rejectsVerifiedProductThatRedirectsToLoginDomain() {
+		String url = "https://smartstore.naver.com/sample/products/11933395125";
+		ShoppingLinkImportService redirectingService = new ShoppingLinkImportService(
+			requestedUri -> new FetchedPage(
+				requestedUri,
+				URI.create("https://nid.naver.com/nidlogin.login"),
+				200,
+				"text/html",
+				completeProductMetadata("네이버 로그인")
+			),
+			new ObjectMapper()
+		);
+
+		assertThatThrownBy(() -> redirectingService.importLink(
+			new ShoppingLinkImportRequest(ItemInputSource.SHARE, url, null, null, null, null)
+		)).isInstanceOf(ResponseStatusException.class)
+			.satisfies(exception -> assertThat(((ResponseStatusException) exception).getStatusCode())
+				.isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+	}
+
+	private String completeProductMetadata(String title) {
+		return """
+			<html><head>
+			<meta property="og:title" content="%s" />
+			<meta property="og:image" content="https://example.com/product.jpg" />
+			<meta property="product:price:amount" content="12900" />
+			<meta property="product:price:currency" content="KRW" />
+			</head><body></body></html>
+			""".formatted(title);
 	}
 
 	@Test

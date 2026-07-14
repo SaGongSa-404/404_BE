@@ -16,9 +16,15 @@ import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.net.URI;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,6 +104,45 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.result.item.title").value("Noise Canceling Headphones"))
 			.andExpect(jsonPath("$.result.item.listedPrice").value(129000))
 			.andExpect(jsonPath("$.error").doesNotExist());
+	}
+
+	@Test
+	void concurrentWorkersClaimDifferentJobsExactlyOnce() throws Exception {
+		UUID userId = createUser();
+		String firstUrl = "https://shop.example.com/products/201";
+		String secondUrl = "https://shop.example.com/products/202";
+		pageFetcher.stub(firstUrl, productHtml());
+		pageFetcher.stub(secondUrl, productHtml());
+		pageFetcher.waitForConcurrentFetches(2);
+		submit(userId, firstUrl).andExpect(status().isAccepted());
+		submit(userId, secondUrl).andExpect(status().isAccepted());
+
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			Future<Boolean> first = executor.submit(worker::processNextJob);
+			Future<Boolean> second = executor.submit(worker::processNextJob);
+
+			assertThat(first.get(3, TimeUnit.SECONDS)).isTrue();
+			assertThat(second.get(3, TimeUnit.SECONDS)).isTrue();
+		}
+
+		Map<String, Integer> statusCounts = jdbcTemplate.query(
+			"select status, count(*) as count from shopping_import_jobs group by status",
+			rs -> {
+				Map<String, Integer> counts = new ConcurrentHashMap<>();
+				while (rs.next()) {
+					counts.put(rs.getString("status"), rs.getInt("count"));
+				}
+				return counts;
+			}
+		);
+		Integer maxAttemptCount = jdbcTemplate.queryForObject(
+			"select max(attempt_count) from shopping_import_jobs",
+			Integer.class
+		);
+		assertThat(statusCounts).containsEntry("SUCCEEDED", 2).hasSize(1);
+		assertThat(maxAttemptCount).isEqualTo(1);
+		assertThat(pageFetcher.fetchCount(firstUrl)).isEqualTo(1);
+		assertThat(pageFetcher.fetchCount(secondUrl)).isEqualTo(1);
 	}
 
 	@Test
@@ -315,12 +360,16 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 
 	static final class FakeJobPageFetcher implements PageFetcher {
 
-		private final Map<String, FetchedPage> pages = new HashMap<>();
-		private final Map<String, RuntimeException> failures = new HashMap<>();
+		private final Map<String, FetchedPage> pages = new ConcurrentHashMap<>();
+		private final Map<String, RuntimeException> failures = new ConcurrentHashMap<>();
+		private final Map<String, AtomicInteger> fetchCounts = new ConcurrentHashMap<>();
+		private volatile CyclicBarrier fetchBarrier;
 
 		void reset() {
 			pages.clear();
 			failures.clear();
+			fetchCounts.clear();
+			fetchBarrier = null;
 		}
 
 		void stub(String url, String body) {
@@ -332,8 +381,26 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			failures.put(url, failure);
 		}
 
+		void waitForConcurrentFetches(int count) {
+			fetchBarrier = new CyclicBarrier(count);
+		}
+
+		int fetchCount(String url) {
+			AtomicInteger count = fetchCounts.get(url);
+			return count == null ? 0 : count.get();
+		}
+
 		@Override
 		public FetchedPage fetch(URI uri) {
+			fetchCounts.computeIfAbsent(uri.toString(), ignored -> new AtomicInteger()).incrementAndGet();
+			CyclicBarrier barrier = fetchBarrier;
+			if (barrier != null) {
+				try {
+					barrier.await(2, TimeUnit.SECONDS);
+				} catch (Exception exception) {
+					throw new AssertionError("Workers did not fetch concurrently", exception);
+				}
+			}
 			RuntimeException failure = failures.get(uri.toString());
 			if (failure != null) {
 				throw failure;

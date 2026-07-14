@@ -36,7 +36,15 @@ test("async scenario records queue metrics without persisting tokens", async (co
       response.end(JSON.stringify({
         jobId: match[1],
         status: "SUCCEEDED",
-        result: { retrievalStatus: "SUCCESS" },
+        result: {
+          retrievalStatus: "SUCCESS",
+          item: {
+            title: "검증 상품",
+            listedPrice: 125000,
+            currencyCode: "KRW",
+            imageUrl: "https://images.shop.test/product.jpg"
+          }
+        },
         attemptCount: 1,
         submittedAt,
         startedAt,
@@ -54,12 +62,20 @@ test("async scenario records queue metrics without persisting tokens", async (co
   const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-load-test-"));
   const urlFile = path.join(tempDirectory, "urls.txt");
   const tokenFile = path.join(tempDirectory, "reviewer.token");
+  const expectedResultsFile = path.join(tempDirectory, "expected-results.json");
   await writeFile(
     urlFile,
     "https://shop.test/products/reviewer-load-test\n",
     "utf8"
   );
   await writeFile(tokenFile, "single-reviewer-access-token\n", { encoding: "utf8", mode: 0o600 });
+  await writeFile(expectedResultsFile, JSON.stringify([{
+    url: "https://shop.test/products/reviewer-load-test",
+    title: "검증 상품",
+    listedPrice: 125000,
+    currencyCode: "KRW",
+    imageUrl: "https://images.shop.test/product.jpg"
+  }]), "utf8");
 
   await execFileAsync(process.execPath, ["run.mjs"], {
     cwd: directory,
@@ -72,6 +88,7 @@ test("async scenario records queue metrics without persisting tokens", async (co
       EXPAND_SINGLE_USER_URLS: "YES",
       EXPECTED_MAX_ACTIVE_PER_USER: "10",
       URL_FILE: urlFile,
+      EXPECTED_RESULTS_FILE: expectedResultsFile,
       RESULT_DIR: tempDirectory,
       SCENARIO: "baseline",
       IMPORT_MODE: "async",
@@ -97,14 +114,84 @@ test("async scenario records queue metrics without persisting tokens", async (co
   assert.equal(report.run.authenticationMode, "single-user");
   assert.equal(report.run.tokenSource, "file");
   assert.equal(report.run.expandedSingleUserUrls, true);
+  assert.equal(report.run.correctnessOracle, "exact-title-price-currency-imageUrl");
+  assert.deepEqual(report.summary.import.correctnessFailureFields, {});
+  assert.deepEqual(report.summary.import.correctnessMismatches, []);
+});
+
+test("successful jobs fail the run when product fields do not exactly match the source oracle", async (context) => {
+  const server = createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.method === "POST" && request.url === "/api/v1/items/import-link") {
+      response.end(JSON.stringify({
+        retrievalStatus: "SUCCESS",
+        item: { title: "다른 상품", listedPrice: 1, currencyCode: "KRW", imageUrl: "https://images.shop.test/wrong.jpg" }
+      }));
+      return;
+    }
+    response.statusCode = 404;
+    response.end('{"message":"not found"}');
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  context.after(() => server.close());
+
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-load-test-mismatch-"));
+  const urlFile = path.join(tempDirectory, "urls.txt");
+  const expectedResultsFile = path.join(tempDirectory, "expected-results.json");
+  await writeFile(urlFile, "https://shop.test/products/1\n", "utf8");
+  await writeFile(expectedResultsFile, JSON.stringify([{
+    url: "https://shop.test/products/1",
+    title: "원본 상품",
+    listedPrice: 125000,
+    currencyCode: "KRW",
+    imageUrl: "https://images.shop.test/product.jpg"
+  }]), "utf8");
+
+  await assert.rejects(execFileAsync(process.execPath, ["run.mjs"], {
+    cwd: directory,
+    env: {
+      ...process.env,
+      BASE_URL: `http://127.0.0.1:${server.address().port}`,
+      CONFIRM_QA_LOAD_TEST: "YES",
+      ACCESS_TOKEN: "test-token",
+      URL_FILE: urlFile,
+      EXPECTED_RESULTS_FILE: expectedResultsFile,
+      RESULT_DIR: tempDirectory,
+      SCENARIO: "baseline",
+      IMPORT_MODE: "sync",
+      DURATION_SECONDS: "1",
+      RAMP_UP_SECONDS: "1",
+      REQUEST_TIMEOUT_MS: "1000"
+    },
+    timeout: 15_000
+  }), (error) => error.code === 2);
+
+  const reportFile = (await readdir(tempDirectory)).find((name) => name.endsWith("-baseline-sync.json"));
+  const report = JSON.parse(await readFile(path.join(tempDirectory, reportFile), "utf8"));
+  assert.equal(report.summary.import.succeeded, 0);
+  assert.equal(report.summary.import.failed, 10);
+  assert.deepEqual(report.summary.import.correctnessFailureFields, {
+    title: 10,
+    listedPrice: 10,
+    imageUrl: 10
+  });
+  assert.equal(report.summary.import.correctnessMismatches.length, 10);
 });
 
 test("single-user mode rejects an active-job limit below the scenario demand", async () => {
   const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-load-test-limit-"));
   const urlFile = path.join(tempDirectory, "urls.txt");
   const tokenFile = path.join(tempDirectory, "reviewer.token");
+  const expectedResultsFile = path.join(tempDirectory, "expected-results.json");
   await writeFile(urlFile, "https://shop.test/products/1\n", "utf8");
   await writeFile(tokenFile, "single-reviewer-access-token\n", { encoding: "utf8", mode: 0o600 });
+  await writeFile(expectedResultsFile, JSON.stringify([{
+    url: "https://shop.test/products/1",
+    title: "상품",
+    listedPrice: 1,
+    currencyCode: "KRW",
+    imageUrl: "https://images.shop.test/1.jpg"
+  }]), "utf8");
 
   await assert.rejects(
     execFileAsync(process.execPath, ["run.mjs"], {
@@ -117,6 +204,7 @@ test("single-user mode rejects an active-job limit below the scenario demand", a
         SINGLE_USER_MODE: "YES",
         EXPECTED_MAX_ACTIVE_PER_USER: "3",
         URL_FILE: urlFile,
+        EXPECTED_RESULTS_FILE: expectedResultsFile,
         SCENARIO: "baseline",
         IMPORT_MODE: "async"
       },
@@ -130,8 +218,16 @@ test("single-user mode rejects URL reuse that would deduplicate active jobs", as
   const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-load-test-urls-"));
   const urlFile = path.join(tempDirectory, "urls.txt");
   const tokenFile = path.join(tempDirectory, "reviewer.token");
+  const expectedResultsFile = path.join(tempDirectory, "expected-results.json");
   await writeFile(urlFile, "https://shop.test/products/1\n", "utf8");
   await writeFile(tokenFile, "single-reviewer-access-token\n", { encoding: "utf8", mode: 0o600 });
+  await writeFile(expectedResultsFile, JSON.stringify([{
+    url: "https://shop.test/products/1",
+    title: "상품",
+    listedPrice: 1,
+    currencyCode: "KRW",
+    imageUrl: "https://images.shop.test/1.jpg"
+  }]), "utf8");
 
   await assert.rejects(
     execFileAsync(process.execPath, ["run.mjs"], {
@@ -144,6 +240,7 @@ test("single-user mode rejects URL reuse that would deduplicate active jobs", as
         SINGLE_USER_MODE: "YES",
         EXPECTED_MAX_ACTIVE_PER_USER: "10",
         URL_FILE: urlFile,
+        EXPECTED_RESULTS_FILE: expectedResultsFile,
         SCENARIO: "baseline",
         IMPORT_MODE: "async"
       },

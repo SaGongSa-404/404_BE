@@ -79,6 +79,7 @@ app:
         enabled: ${SHOPPING_IMPORT_JOB_WORKER_ENABLED:true}
         max-queue-size: ${SHOPPING_IMPORT_JOB_MAX_QUEUE_SIZE:100}
         max-active-per-user: ${SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER:3}
+        concurrency: ${SHOPPING_IMPORT_JOB_CONCURRENCY:1}
         max-attempts: ${SHOPPING_IMPORT_JOB_MAX_ATTEMPTS:2}
         fixed-delay-ms: ${SHOPPING_IMPORT_JOB_FIXED_DELAY_MS:500}
         cleanup-delay-ms: ${SHOPPING_IMPORT_JOB_CLEANUP_DELAY_MS:3600000}

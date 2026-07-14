@@ -1,6 +1,11 @@
 package com.sagongsa.backend.itemimport.job;
 
+import com.sagongsa.backend.itemimport.item.ShoppingImportProperties;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.stream.IntStream;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -13,9 +18,17 @@ import org.springframework.stereotype.Component;
 class ShoppingImportJobScheduler {
 
 	private final ShoppingImportJobWorker worker;
+	private final ShoppingImportProperties properties;
+	private final Executor workerExecutor;
 
-	ShoppingImportJobScheduler(ShoppingImportJobWorker worker) {
+	ShoppingImportJobScheduler(
+		ShoppingImportJobWorker worker,
+		ShoppingImportProperties properties,
+		@Qualifier("shoppingImportWorkerExecutor") Executor workerExecutor
+	) {
 		this.worker = worker;
+		this.properties = properties;
+		this.workerExecutor = workerExecutor;
 	}
 
 	@Scheduled(
@@ -23,7 +36,10 @@ class ShoppingImportJobScheduler {
 		scheduler = "shoppingImportTaskScheduler"
 	)
 	void processNextJob() {
-		worker.processNextJob();
+		CompletableFuture<?>[] workers = IntStream.range(0, properties.getJobWorker().getConcurrency())
+			.mapToObj(ignored -> CompletableFuture.runAsync(worker::processNextJob, workerExecutor))
+			.toArray(CompletableFuture[]::new);
+		CompletableFuture.allOf(workers).join();
 	}
 
 	@Scheduled(
