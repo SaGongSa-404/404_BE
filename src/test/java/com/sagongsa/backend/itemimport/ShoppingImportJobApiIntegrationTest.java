@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.itemimport.item.FetchedPage;
 import com.sagongsa.backend.itemimport.item.PageFetcher;
+import com.sagongsa.backend.itemimport.item.ShoppingImportProperties;
 import com.sagongsa.backend.itemimport.job.ShoppingImportJobWorker;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.net.URI;
@@ -34,9 +35,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 @SpringBootTest(properties = {
 	"app.notification.reminder-worker.enabled=false",
@@ -53,6 +56,10 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 	private static final String USER_ID_HEADER = "X-User-Id";
 	private static final String JOBS_PATH = "/api/v1/items/import-jobs";
 	private static final String SHOP_URL = "https://shop.example.com/products/100";
+	private static final String MUSINSA_URL = "https://www.musinsa.com/products/6632593?pid=first";
+	private static final String MUSINSA_TRACKING_VARIANT =
+		"https://www.musinsa.com/products/6632593?shortlink=second";
+	private static final String MUSINSA_FETCH_URL = "https://www.musinsa.com/products/6632593";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -69,10 +76,15 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 	@Autowired
 	private FakeJobPageFetcher pageFetcher;
 
+	@Autowired
+	private ShoppingImportProperties properties;
+
 	@BeforeEach
 	void setUp() {
 		jdbcTemplate.execute("truncate table users cascade");
 		pageFetcher.reset();
+		properties.getSharedCrawl().setCoalescingEnabled(true);
+		properties.getSharedCrawl().setCacheEnabled(true);
 	}
 
 	@Test
@@ -171,6 +183,39 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void appliesGlobalQueueCapacityToLeadersAcrossDifferentUsers() throws Exception {
+		for (int index = 1; index <= 3; index++) {
+			submit(createUser(), "https://shop.example.com/products/queue-" + index)
+				.andExpect(status().isAccepted());
+		}
+
+		submit(createUser(), "https://shop.example.com/products/queue-4")
+			.andExpect(status().isTooManyRequests());
+	}
+
+	@Test
+	void acceptsFollowerWithoutConsumingAnotherGlobalQueueSlot() throws Exception {
+		UUID leaderUserId = createUser();
+		UUID followerUserId = createUser();
+		submittedJobId(leaderUserId, MUSINSA_URL, "PENDING");
+		submit(createUser(), "https://shop.example.com/products/queue-2")
+			.andExpect(status().isAccepted());
+		submit(createUser(), "https://shop.example.com/products/queue-3")
+			.andExpect(status().isAccepted());
+
+		submittedJobId(followerUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from shopping_import_jobs where leader_job_id is null",
+			Integer.class
+		)).isEqualTo(3);
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from shopping_import_jobs where leader_job_id is not null",
+			Integer.class
+		)).isEqualTo(1);
+	}
+
+	@Test
 	void reusesActiveJobForDuplicateRequest() throws Exception {
 		UUID userId = createUser();
 
@@ -185,6 +230,152 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			.isEqualTo(objectMapper.readTree(firstBody).get("jobId").asText());
 		Integer count = jdbcTemplate.queryForObject("select count(*) from shopping_import_jobs", Integer.class);
 		assertThat(count).isEqualTo(1);
+	}
+
+	@Test
+	void coalescesSameProductAcrossUsersAndKeepsUserJobsSeparate() throws Exception {
+		UUID firstUserId = createUser();
+		UUID secondUserId = createUser();
+		pageFetcher.stub(MUSINSA_FETCH_URL, productHtml());
+
+		UUID firstJobId = submittedJobId(firstUserId, MUSINSA_URL, "PENDING");
+		UUID secondJobId = submittedJobId(secondUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+
+		assertThat(secondJobId).isNotEqualTo(firstJobId);
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from shopping_import_jobs where leader_job_id is null",
+			Integer.class
+		)).isEqualTo(1);
+		assertThat(jdbcTemplate.queryForObject(
+			"select leader_job_id from shopping_import_jobs where id = ?",
+			UUID.class,
+			secondJobId
+		)).isEqualTo(firstJobId);
+
+		assertThat(worker.processNextJob()).isTrue();
+		assertThat(worker.processNextJob()).isFalse();
+		assertThat(pageFetcher.fetchCount(MUSINSA_FETCH_URL)).isEqualTo(1);
+
+		mockMvc.perform(get(JOBS_PATH + "/" + secondJobId).header(USER_ID_HEADER, secondUserId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("SUCCEEDED"))
+			.andExpect(jsonPath("$.attemptCount").value(0))
+			.andExpect(jsonPath("$.result.item.originalUrl").value(MUSINSA_TRACKING_VARIANT));
+		mockMvc.perform(get(JOBS_PATH + "/" + secondJobId).header(USER_ID_HEADER, firstUserId))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void returnsFreshSuccessCacheWithoutAnotherCrawl() throws Exception {
+		UUID firstUserId = createUser();
+		UUID secondUserId = createUser();
+		pageFetcher.stub(MUSINSA_FETCH_URL, productHtml());
+
+		submittedJobId(firstUserId, MUSINSA_URL, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+
+		UUID cachedJobId = submittedJobId(secondUserId, MUSINSA_TRACKING_VARIANT, "SUCCEEDED");
+
+		assertThat(worker.processNextJob()).isFalse();
+		assertThat(pageFetcher.totalFetchCount()).isEqualTo(1);
+		mockMvc.perform(get(JOBS_PATH + "/" + cachedJobId).header(USER_ID_HEADER, secondUserId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.item.originalUrl").value(MUSINSA_TRACKING_VARIANT));
+	}
+
+	@Test
+	void propagatesLeaderFailureAndReusesShortFailureCache() throws Exception {
+		UUID firstUserId = createUser();
+		UUID secondUserId = createUser();
+		UUID thirdUserId = createUser();
+		pageFetcher.fail(
+			MUSINSA_FETCH_URL,
+			new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page returned 403")
+		);
+
+		UUID firstJobId = submittedJobId(firstUserId, MUSINSA_URL, "PENDING");
+		UUID secondJobId = submittedJobId(secondUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+
+		assertFailedJob(firstUserId, firstJobId);
+		assertFailedJob(secondUserId, secondJobId);
+
+		UUID cachedFailureJobId = submittedJobId(thirdUserId, MUSINSA_TRACKING_VARIANT, "FAILED");
+		assertFailedJob(thirdUserId, cachedFailureJobId);
+		assertThat(worker.processNextJob()).isFalse();
+		assertThat(pageFetcher.totalFetchCount()).isEqualTo(1);
+	}
+
+	@Test
+	void crawlsAgainAfterSuccessCacheExpires() throws Exception {
+		UUID firstUserId = createUser();
+		UUID secondUserId = createUser();
+		pageFetcher.stub(MUSINSA_FETCH_URL, productHtml());
+
+		submittedJobId(firstUserId, MUSINSA_URL, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+		jdbcTemplate.update(
+			"update shopping_import_jobs set completed_at = ? where leader_job_id is null",
+			OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(6)
+		);
+
+		submittedJobId(secondUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+		assertThat(pageFetcher.totalFetchCount()).isEqualTo(2);
+	}
+
+	@Test
+	void crawlsAgainAfterFailureCacheExpires() throws Exception {
+		UUID firstUserId = createUser();
+		UUID secondUserId = createUser();
+		pageFetcher.fail(
+			MUSINSA_FETCH_URL,
+			new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Shopping page returned 429")
+		);
+
+		submittedJobId(firstUserId, MUSINSA_URL, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+		jdbcTemplate.update(
+			"update shopping_import_jobs set completed_at = ? where leader_job_id is null",
+			OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(31)
+		);
+
+		submittedJobId(secondUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+		assertThat(pageFetcher.totalFetchCount()).isEqualTo(2);
+	}
+
+	@Test
+	void disablesCoalescingWithoutDisablingTerminalCache() throws Exception {
+		properties.getSharedCrawl().setCoalescingEnabled(false);
+		UUID firstUserId = createUser();
+		UUID secondUserId = createUser();
+		pageFetcher.stub(MUSINSA_FETCH_URL, productHtml());
+
+		submittedJobId(firstUserId, MUSINSA_URL, "PENDING");
+		submittedJobId(secondUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+
+		assertThat(worker.processNextJob()).isTrue();
+		assertThat(worker.processNextJob()).isTrue();
+		assertThat(pageFetcher.totalFetchCount()).isEqualTo(2);
+	}
+
+	@Test
+	void disablesTerminalCacheWithoutDisablingActiveCoalescing() throws Exception {
+		properties.getSharedCrawl().setCacheEnabled(false);
+		UUID firstUserId = createUser();
+		UUID secondUserId = createUser();
+		UUID thirdUserId = createUser();
+		pageFetcher.stub(MUSINSA_FETCH_URL, productHtml());
+
+		submittedJobId(firstUserId, MUSINSA_URL, "PENDING");
+		submittedJobId(secondUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+		assertThat(pageFetcher.totalFetchCount()).isEqualTo(1);
+
+		submittedJobId(thirdUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+		assertThat(worker.processNextJob()).isTrue();
+		assertThat(pageFetcher.totalFetchCount()).isEqualTo(2);
 	}
 
 	@Test
@@ -256,6 +447,32 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void propagatesExhaustedStaleLeaderFailureToFollower() throws Exception {
+		UUID leaderUserId = createUser();
+		UUID followerUserId = createUser();
+		UUID leaderJobId = submittedJobId(leaderUserId, MUSINSA_URL, "PENDING");
+		UUID followerJobId = submittedJobId(followerUserId, MUSINSA_TRACKING_VARIANT, "PENDING");
+		OffsetDateTime old = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10);
+		jdbcTemplate.update(
+			"update shopping_import_jobs set status = 'RUNNING', attempt_count = 2, started_at = ?, updated_at = ?",
+			old,
+			old
+		);
+
+		assertThat(worker.processNextJob()).isFalse();
+
+		for (Map.Entry<UUID, UUID> job : Map.of(
+			leaderJobId, leaderUserId,
+			followerJobId, followerUserId
+		).entrySet()) {
+			mockMvc.perform(get(JOBS_PATH + "/" + job.getKey()).header(USER_ID_HEADER, job.getValue()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("FAILED"))
+				.andExpect(jsonPath("$.error.code").value("WORKER_INTERRUPTED"));
+		}
+	}
+
+	@Test
 	void cleansUpTerminalJobsAfterRetentionPeriod() {
 		UUID userId = createUser();
 		UUID jobId = UUID.randomUUID();
@@ -313,6 +530,23 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			.header(USER_ID_HEADER, userId)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(requestJson(url)));
+	}
+
+	private UUID submittedJobId(UUID userId, String url, String expectedStatus) throws Exception {
+		String body = submit(userId, url)
+			.andExpect(status().isAccepted())
+			.andExpect(jsonPath("$.status").value(expectedStatus))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		return UUID.fromString(objectMapper.readTree(body).get("jobId").asText());
+	}
+
+	private void assertFailedJob(UUID userId, UUID jobId) throws Exception {
+		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FAILED"))
+			.andExpect(jsonPath("$.error.code").value("SHOPPING_PAGE_UNAVAILABLE"));
 	}
 
 	private String requestJson(String url) {
@@ -388,6 +622,10 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 		int fetchCount(String url) {
 			AtomicInteger count = fetchCounts.get(url);
 			return count == null ? 0 : count.get();
+		}
+
+		int totalFetchCount() {
+			return fetchCounts.values().stream().mapToInt(AtomicInteger::get).sum();
 		}
 
 		@Override

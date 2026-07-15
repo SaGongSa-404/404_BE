@@ -10,6 +10,7 @@ public class ShoppingImportProperties {
 
 	private int maxResponseBytes = 1_000_000;
 	private final BrowserFetch browserFetch = new BrowserFetch();
+	private final SharedCrawl sharedCrawl = new SharedCrawl();
 	private final JobWorker jobWorker = new JobWorker();
 	private final KreamProxy kreamProxy = new KreamProxy();
 	private final AblyApi ablyApi = new AblyApi();
@@ -26,6 +27,10 @@ public class ShoppingImportProperties {
 		return browserFetch;
 	}
 
+	public SharedCrawl getSharedCrawl() {
+		return sharedCrawl;
+	}
+
 	public JobWorker getJobWorker() {
 		return jobWorker;
 	}
@@ -36,6 +41,50 @@ public class ShoppingImportProperties {
 
 	public AblyApi getAblyApi() {
 		return ablyApi;
+	}
+
+	public static class SharedCrawl {
+
+		private boolean coalescingEnabled = true;
+		private boolean cacheEnabled = true;
+		private Duration successTtl = Duration.ofMinutes(5);
+		private Duration failureTtl = Duration.ofSeconds(30);
+
+		public boolean isCoalescingEnabled() {
+			return coalescingEnabled;
+		}
+
+		public void setCoalescingEnabled(boolean coalescingEnabled) {
+			this.coalescingEnabled = coalescingEnabled;
+		}
+
+		public boolean isCacheEnabled() {
+			return cacheEnabled;
+		}
+
+		public void setCacheEnabled(boolean cacheEnabled) {
+			this.cacheEnabled = cacheEnabled;
+		}
+
+		public Duration getSuccessTtl() {
+			return successTtl;
+		}
+
+		public void setSuccessTtl(Duration successTtl) {
+			this.successTtl = positiveOrDefault(successTtl, Duration.ofMinutes(5));
+		}
+
+		public Duration getFailureTtl() {
+			return failureTtl;
+		}
+
+		public void setFailureTtl(Duration failureTtl) {
+			this.failureTtl = positiveOrDefault(failureTtl, Duration.ofSeconds(30));
+		}
+
+		private Duration positiveOrDefault(Duration value, Duration fallback) {
+			return value == null || value.isZero() || value.isNegative() ? fallback : value;
+		}
 	}
 
 	public static class AblyApi {
