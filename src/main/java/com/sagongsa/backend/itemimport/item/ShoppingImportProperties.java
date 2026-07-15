@@ -11,7 +11,6 @@ public class ShoppingImportProperties {
 	private int maxResponseBytes = 1_000_000;
 	private final BrowserFetch browserFetch = new BrowserFetch();
 	private final SharedCrawl sharedCrawl = new SharedCrawl();
-	private final SiteThrottle siteThrottle = new SiteThrottle();
 	private final JobWorker jobWorker = new JobWorker();
 	private final KreamProxy kreamProxy = new KreamProxy();
 	private final AblyApi ablyApi = new AblyApi();
@@ -30,10 +29,6 @@ public class ShoppingImportProperties {
 
 	public SharedCrawl getSharedCrawl() {
 		return sharedCrawl;
-	}
-
-	public SiteThrottle getSiteThrottle() {
-		return siteThrottle;
 	}
 
 	public JobWorker getJobWorker() {
@@ -89,58 +84,6 @@ public class ShoppingImportProperties {
 
 		private Duration positiveOrDefault(Duration value, Duration fallback) {
 			return value == null || value.isZero() || value.isNegative() ? fallback : value;
-		}
-	}
-
-	public static class SiteThrottle {
-
-		private final OliveYoung oliveYoung = new OliveYoung();
-
-		public OliveYoung getOliveYoung() {
-			return oliveYoung;
-		}
-
-		public static class OliveYoung {
-
-			private boolean enabled = true;
-			private Duration minStartInterval = Duration.ofSeconds(2);
-			private Duration maxStartInterval = Duration.ofSeconds(3);
-
-			public boolean isEnabled() {
-				return enabled;
-			}
-
-			public void setEnabled(boolean enabled) {
-				this.enabled = enabled;
-			}
-
-			public Duration getMinStartInterval() {
-				return minStartInterval;
-			}
-
-			public void setMinStartInterval(Duration minStartInterval) {
-				this.minStartInterval = positiveOrDefault(minStartInterval, Duration.ofSeconds(2));
-			}
-
-			public Duration getMaxStartInterval() {
-				return maxStartInterval;
-			}
-
-			public void setMaxStartInterval(Duration maxStartInterval) {
-				this.maxStartInterval = positiveOrDefault(maxStartInterval, Duration.ofSeconds(3));
-			}
-
-			void validate() {
-				if (enabled && maxStartInterval.compareTo(minStartInterval) < 0) {
-					throw new IllegalStateException(
-						"Olive Young max start interval must be greater than or equal to min start interval"
-					);
-				}
-			}
-
-			private Duration positiveOrDefault(Duration value, Duration fallback) {
-				return value == null || value.isZero() || value.isNegative() ? fallback : value;
-			}
 		}
 	}
 
