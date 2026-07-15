@@ -43,15 +43,4 @@ class ShoppingImportPropertiesTest {
 		assertThat(sharedCrawl.getSuccessTtl()).isEqualTo(Duration.ofMinutes(5));
 		assertThat(sharedCrawl.getFailureTtl()).isEqualTo(Duration.ofSeconds(30));
 	}
-
-	@Test
-	void enablesOliveYoungTwoToThreeSecondStartIntervalByDefault() {
-		ShoppingImportProperties.SiteThrottle.OliveYoung oliveYoung = new ShoppingImportProperties()
-			.getSiteThrottle()
-			.getOliveYoung();
-
-		assertThat(oliveYoung.isEnabled()).isTrue();
-		assertThat(oliveYoung.getMinStartInterval()).isEqualTo(Duration.ofSeconds(2));
-		assertThat(oliveYoung.getMaxStartInterval()).isEqualTo(Duration.ofSeconds(3));
-	}
 }

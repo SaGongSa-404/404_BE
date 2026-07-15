@@ -18,17 +18,12 @@ public class ShoppingImportConfig {
 			kreamProxy,
 			properties.getAblyApi()
 		);
-		PageFetcher delegate = jsoupPageFetcher;
 		if (browserFetch.isEnabled()) {
-			delegate = new FallbackPageFetcher(
+			return new FallbackPageFetcher(
 				jsoupPageFetcher,
 				new BrowserPageFetcher(browserFetch, properties.getMaxResponseBytes(), kreamProxy)
 			);
 		}
-		ShoppingImportProperties.SiteThrottle.OliveYoung oliveYoung = properties
-			.getSiteThrottle()
-			.getOliveYoung();
-		oliveYoung.validate();
-		return new SiteIntervalPageFetcher(delegate, oliveYoung);
+		return jsoupPageFetcher;
 	}
 }
