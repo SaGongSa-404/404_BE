@@ -27,6 +27,9 @@
 | `SHOPPING_IMPORT_CACHE_ENABLED` | `true` | 완료된 성공·실패 결과 단기 재사용 |
 | `SHOPPING_IMPORT_CACHE_SUCCESS_TTL` | `PT5M` | 성공 결과 TTL |
 | `SHOPPING_IMPORT_CACHE_FAILURE_TTL` | `PT30S` | 실패 결과 TTL |
+| `SHOPPING_IMPORT_OLIVEYOUNG_INTERVAL_ENABLED` | `true` | 올리브영 요청 시작 간격 사용 여부 |
+| `SHOPPING_IMPORT_OLIVEYOUNG_MIN_START_INTERVAL` | `PT2S` | 올리브영 요청 최소 시작 간격 |
+| `SHOPPING_IMPORT_OLIVEYOUNG_MAX_START_INTERVAL` | `PT3S` | 올리브영 요청 최대 시작 간격 |
 | `MANAGEMENT_SERVER_ADDRESS` | `127.0.0.1` | 관리 endpoint bind 주소 |
 | `MANAGEMENT_SERVER_PORT` | `9090` | 관리 endpoint 포트 |
 

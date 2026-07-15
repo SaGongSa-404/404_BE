@@ -81,6 +81,11 @@ app:
         cache-enabled: ${SHOPPING_IMPORT_CACHE_ENABLED:true}
         success-ttl: ${SHOPPING_IMPORT_CACHE_SUCCESS_TTL:PT5M}
         failure-ttl: ${SHOPPING_IMPORT_CACHE_FAILURE_TTL:PT30S}
+      site-throttle:
+        olive-young:
+          enabled: ${SHOPPING_IMPORT_OLIVEYOUNG_INTERVAL_ENABLED:true}
+          min-start-interval: ${SHOPPING_IMPORT_OLIVEYOUNG_MIN_START_INTERVAL:PT2S}
+          max-start-interval: ${SHOPPING_IMPORT_OLIVEYOUNG_MAX_START_INTERVAL:PT3S}
       job-worker:
         enabled: ${SHOPPING_IMPORT_JOB_WORKER_ENABLED:true}
         max-queue-size: ${SHOPPING_IMPORT_JOB_MAX_QUEUE_SIZE:100}
