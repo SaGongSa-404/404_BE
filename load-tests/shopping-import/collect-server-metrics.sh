@@ -27,7 +27,7 @@ for ((sample = 0; sample < samples; sample++)); do
   # Chromium is expected to disappear between crawl jobs. `ps` returns 1 when
   # no matching process exists, which must not abort the collector under
   # `set -euo pipefail`.
-  chromium_processes="$(ps -C chromium,chrome -o %cpu=,rss= 2>/dev/null || true)"
+  chromium_processes="$(ps -C chromium,chrome,chrome-headless,chrome-headless-shell -o %cpu=,rss= 2>/dev/null || true)"
   chromium_cpu="$(awk '{sum += $1} END {printf "%.2f", sum + 0}' <<< "$chromium_processes")"
   chromium_rss="$(awk '{sum += $2} END {printf "%d", sum + 0}' <<< "$chromium_processes")"
   queue_pending=""
