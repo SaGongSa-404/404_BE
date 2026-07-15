@@ -76,6 +76,11 @@ app:
   shopping:
     import:
       max-response-bytes: ${SHOPPING_IMPORT_MAX_RESPONSE_BYTES:1000000}
+      shared-crawl:
+        coalescing-enabled: ${SHOPPING_IMPORT_COALESCING_ENABLED:true}
+        cache-enabled: ${SHOPPING_IMPORT_CACHE_ENABLED:true}
+        success-ttl: ${SHOPPING_IMPORT_CACHE_SUCCESS_TTL:PT5M}
+        failure-ttl: ${SHOPPING_IMPORT_CACHE_FAILURE_TTL:PT30S}
       job-worker:
         enabled: ${SHOPPING_IMPORT_JOB_WORKER_ENABLED:true}
         max-queue-size: ${SHOPPING_IMPORT_JOB_MAX_QUEUE_SIZE:100}
@@ -100,3 +105,16 @@ app:
         timeout: ${SHOPPING_IMPORT_BROWSER_FETCH_TIMEOUT:PT30S}
         render-wait: ${SHOPPING_IMPORT_BROWSER_RENDER_WAIT:PT5S}
         network-idle-timeout: ${SHOPPING_IMPORT_BROWSER_NETWORK_IDLE_TIMEOUT:PT2S}
+
+management:
+  server:
+    address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

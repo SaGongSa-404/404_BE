@@ -87,6 +87,26 @@ class ShoppingImportConfigTest {
 	}
 
 	@Test
+	void bindsSharedCrawlFeatureFlagsAndTtls() {
+		contextRunner
+			.withPropertyValues(
+				"app.shopping.import.shared-crawl.coalescing-enabled=false",
+				"app.shopping.import.shared-crawl.cache-enabled=false",
+				"app.shopping.import.shared-crawl.success-ttl=PT1M",
+				"app.shopping.import.shared-crawl.failure-ttl=PT15S"
+			)
+			.run(context -> {
+				ShoppingImportProperties.SharedCrawl sharedCrawl = context
+					.getBean(ShoppingImportProperties.class)
+					.getSharedCrawl();
+				assertThat(sharedCrawl.isCoalescingEnabled()).isFalse();
+				assertThat(sharedCrawl.isCacheEnabled()).isFalse();
+				assertThat(sharedCrawl.getSuccessTtl()).isEqualTo(Duration.ofMinutes(1));
+				assertThat(sharedCrawl.getFailureTtl()).isEqualTo(Duration.ofSeconds(15));
+			});
+	}
+
+	@Test
 	void rejectsEnabledKreamProxyWithoutHost() {
 		contextRunner
 			.withPropertyValues("app.shopping.import.kream-proxy.enabled=true")

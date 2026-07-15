@@ -6,8 +6,10 @@ import com.sagongsa.backend.itemimport.item.ShoppingImportProperties;
 import com.sagongsa.backend.itemimport.item.ShoppingLinkImportRequest;
 import com.sagongsa.backend.itemimport.item.ShoppingLinkImportResponse;
 import com.sagongsa.backend.itemimport.item.ShoppingLinkImportService;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,19 +29,22 @@ public class ShoppingImportJobWorker {
 	private final ObjectMapper objectMapper;
 	private final ShoppingLinkImportService shoppingLinkImportService;
 	private final ShoppingImportProperties properties;
+	private final ShoppingImportMetrics metrics;
 
 	public ShoppingImportJobWorker(
 		JdbcTemplate jdbcTemplate,
 		TransactionTemplate transactionTemplate,
 		ObjectMapper objectMapper,
 		ShoppingLinkImportService shoppingLinkImportService,
-		ShoppingImportProperties properties
+		ShoppingImportProperties properties,
+		ShoppingImportMetrics metrics
 	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.transactionTemplate = transactionTemplate;
 		this.objectMapper = objectMapper;
 		this.shoppingLinkImportService = shoppingLinkImportService;
 		this.properties = properties;
+		this.metrics = metrics;
 	}
 
 	public boolean processNextJob() {
@@ -47,6 +52,11 @@ public class ShoppingImportJobWorker {
 		ClaimedJob job = transactionTemplate.execute(status -> claimNextJob());
 		if (job == null) {
 			return false;
+		}
+
+		metrics.recordQueueWait(job.sourceSite(), Duration.between(job.createdAt(), job.startedAt()));
+		if (job.crawlKey() != null) {
+			metrics.recordActualCrawl(job.sourceSite());
 		}
 
 		long startedAtNanos = System.nanoTime();
@@ -61,6 +71,7 @@ public class ShoppingImportJobWorker {
 				elapsedMillis(startedAtNanos)
 			);
 		} catch (Exception exception) {
+			metrics.recordUpstreamRejection(job.sourceSite(), exception);
 			markFailed(job.id(), failureFor(exception));
 			log.warn(
 				"shopping import job failed jobId={} attempt={} durationMs={}",
@@ -97,12 +108,13 @@ public class ShoppingImportJobWorker {
 
 	private ClaimedJob claimNextJob() {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		return jdbcTemplate.query(
+		ClaimedJob job = jdbcTemplate.query(
 			"""
 			with candidate as (
 				select id
 				from shopping_import_jobs
-				where status = 'PENDING'
+				where leader_job_id is null
+				  and status = 'PENDING'
 				  and attempt_count < ?
 				order by created_at asc, id asc
 				limit 1
@@ -115,23 +127,49 @@ public class ShoppingImportJobWorker {
 				attempt_count = attempt_count + 1
 			from candidate
 			where job.id = candidate.id
-			returning job.id, job.request_json::text, job.attempt_count
+			returning job.id, job.request_json::text, job.attempt_count, job.created_at,
+			          job.started_at, job.source_site, job.crawl_key
 			""",
 			(rs, rowNumber) -> new ClaimedJob(
 				rs.getObject("id", UUID.class),
 				rs.getString("request_json"),
-				rs.getInt("attempt_count")
+				rs.getInt("attempt_count"),
+				rs.getObject("created_at", OffsetDateTime.class),
+				rs.getObject("started_at", OffsetDateTime.class),
+				rs.getString("source_site"),
+				rs.getString("crawl_key")
 			),
 			properties.getJobWorker().getMaxAttempts(),
 			now,
 			now
 		).stream().findFirst().orElse(null);
+
+		if (job != null) {
+			jdbcTemplate.update(
+				"""
+				update shopping_import_jobs
+				set status = 'RUNNING', started_at = ?, updated_at = ?
+				where leader_job_id = ? and status = 'PENDING'
+				""",
+				now,
+				now,
+				job.id()
+			);
+		}
+		return job;
 	}
 
 	private void recoverStaleJobs() {
+		Integer recovered = transactionTemplate.execute(status -> recoverStaleJobsInTransaction());
+		if (recovered != null && recovered > 0) {
+			log.warn("recovered stale shopping import jobs count={}", recovered);
+		}
+	}
+
+	private int recoverStaleJobsInTransaction() {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		OffsetDateTime cutoff = now.minus(properties.getJobWorker().getStaleTimeout());
-		int recovered = jdbcTemplate.update(
+		List<RecoveredJob> recoveredJobs = jdbcTemplate.query(
 			"""
 			update shopping_import_jobs
 			set status = case when attempt_count < ? then 'PENDING' else 'FAILED' end,
@@ -140,9 +178,18 @@ public class ShoppingImportJobWorker {
 				error_code = case when attempt_count < ? then null else 'WORKER_INTERRUPTED' end,
 				error_message = case when attempt_count < ? then null else '쇼핑 링크 처리 작업이 중단되었습니다.' end,
 				updated_at = ?
-			where status = 'RUNNING'
+			where leader_job_id is null
+			  and status = 'RUNNING'
 			  and started_at < ?
+			returning id, status, error_code, error_message, completed_at
 			""",
+			(rs, rowNumber) -> new RecoveredJob(
+				rs.getObject("id", UUID.class),
+				ShoppingImportJobStatus.valueOf(rs.getString("status")),
+				rs.getString("error_code"),
+				rs.getString("error_message"),
+				rs.getObject("completed_at", OffsetDateTime.class)
+			),
 			properties.getJobWorker().getMaxAttempts(),
 			properties.getJobWorker().getMaxAttempts(),
 			now,
@@ -151,40 +198,96 @@ public class ShoppingImportJobWorker {
 			now,
 			cutoff
 		);
-		if (recovered > 0) {
-			log.warn("recovered stale shopping import jobs count={}", recovered);
+
+		for (RecoveredJob recovered : recoveredJobs) {
+			if (recovered.status() == ShoppingImportJobStatus.PENDING) {
+				jdbcTemplate.update(
+					"""
+					update shopping_import_jobs
+					set status = 'PENDING', started_at = null, updated_at = ?
+					where leader_job_id = ? and status = 'RUNNING'
+					""",
+					now,
+					recovered.id()
+				);
+			} else {
+				jdbcTemplate.update(
+					"""
+					update shopping_import_jobs
+					set status = 'FAILED', result_json = null, error_code = ?, error_message = ?,
+					    completed_at = ?, updated_at = ?
+					where leader_job_id = ? and status in ('PENDING', 'RUNNING')
+					""",
+					recovered.errorCode(),
+					recovered.errorMessage(),
+					recovered.completedAt(),
+					now,
+					recovered.id()
+				);
+			}
 		}
+		return recoveredJobs.size();
 	}
 
 	private void markSucceeded(UUID jobId, String resultJson) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		jdbcTemplate.update(
-			"""
-			update shopping_import_jobs
-			set status = 'SUCCEEDED', result_json = cast(? as jsonb), completed_at = ?, updated_at = ?
-			where id = ? and status = 'RUNNING'
-			""",
-			resultJson,
-			now,
-			now,
-			jobId
-		);
+		transactionTemplate.executeWithoutResult(status -> {
+			jdbcTemplate.update(
+				"""
+				update shopping_import_jobs
+				set status = 'SUCCEEDED', result_json = cast(? as jsonb), completed_at = ?, updated_at = ?
+				where id = ? and status = 'RUNNING'
+				""",
+				resultJson,
+				now,
+				now,
+				jobId
+			);
+			jdbcTemplate.update(
+				"""
+				update shopping_import_jobs
+				set status = 'SUCCEEDED', result_json = cast(? as jsonb), error_code = null, error_message = null,
+				    completed_at = ?, updated_at = ?
+				where leader_job_id = ? and status in ('PENDING', 'RUNNING')
+				""",
+				resultJson,
+				now,
+				now,
+				jobId
+			);
+		});
 	}
 
 	private void markFailed(UUID jobId, JobFailure failure) {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		jdbcTemplate.update(
-			"""
-			update shopping_import_jobs
-			set status = 'FAILED', error_code = ?, error_message = ?, completed_at = ?, updated_at = ?
-			where id = ? and status = 'RUNNING'
-			""",
-			failure.code(),
-			failure.message(),
-			now,
-			now,
-			jobId
-		);
+		transactionTemplate.executeWithoutResult(status -> {
+			jdbcTemplate.update(
+				"""
+				update shopping_import_jobs
+				set status = 'FAILED', result_json = null, error_code = ?, error_message = ?,
+				    completed_at = ?, updated_at = ?
+				where id = ? and status = 'RUNNING'
+				""",
+				failure.code(),
+				failure.message(),
+				now,
+				now,
+				jobId
+			);
+			jdbcTemplate.update(
+				"""
+				update shopping_import_jobs
+				set status = 'FAILED', result_json = null, error_code = ?, error_message = ?,
+				    completed_at = ?, updated_at = ?
+				where leader_job_id = ? and status in ('PENDING', 'RUNNING')
+				""",
+				failure.code(),
+				failure.message(),
+				now,
+				now,
+				jobId
+			);
+		});
 	}
 
 	private JobFailure failureFor(Exception exception) {
@@ -207,7 +310,24 @@ public class ShoppingImportJobWorker {
 		return (System.nanoTime() - startedAtNanos) / 1_000_000;
 	}
 
-	private record ClaimedJob(UUID id, String requestJson, int attemptCount) {
+	private record ClaimedJob(
+		UUID id,
+		String requestJson,
+		int attemptCount,
+		OffsetDateTime createdAt,
+		OffsetDateTime startedAt,
+		String sourceSite,
+		String crawlKey
+	) {
+	}
+
+	private record RecoveredJob(
+		UUID id,
+		ShoppingImportJobStatus status,
+		String errorCode,
+		String errorMessage,
+		OffsetDateTime completedAt
+	) {
 	}
 
 	private record JobFailure(String code, String message) {

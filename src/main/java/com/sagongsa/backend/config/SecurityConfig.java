@@ -84,6 +84,7 @@ public class SecurityConfig {
 				auth
 					.requestMatchers("/", "/index.html", "/login.html", "/app.html",
 						"/favicon.ico", "/error").permitAll()
+					.requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
 					.requestMatchers("/health", "/api/health").permitAll()
 					.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
 					.requestMatchers("/api/auth/token/refresh").permitAll()
