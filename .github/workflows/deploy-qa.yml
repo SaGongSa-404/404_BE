@@ -250,9 +250,12 @@ jobs:
           fi
 
           if [ "${APP_REVIEWER_TOKEN_ENABLED:-true}" != "false" ]; then
+            require_reviewer_seed
+          fi
+
+          if [ "${APP_REVIEWER_TOKEN_ENABLED:-true}" != "false" ] && [ "${APP_REVIEWER_TOKEN_REQUIRE_SECRET:-false}" = "true" ]; then
             require_env APP_REVIEWER_TOKEN_SECRET
             require_secret_length APP_REVIEWER_TOKEN_SECRET
-            require_reviewer_seed
           fi
 
           if [ "${SHOPPING_IMPORT_BROWSER_FETCH_ENABLED:-true}" != "true" ]; then

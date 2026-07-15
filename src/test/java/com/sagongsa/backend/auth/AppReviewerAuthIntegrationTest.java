@@ -8,9 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sagongsa.backend.config.AppAuthProperties;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,8 +48,12 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	private AppAuthProperties appAuthProperties;
+
 	@BeforeEach
 	void ensureReviewerAccount() {
+		appAuthProperties.getReviewerToken().setRequireSecret(false);
 		jdbcTemplate.update(
 			"""
 			insert into users (id, status, onboarding_status, created_at, updated_at, withdrawn_at)
@@ -92,10 +98,14 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 		);
 	}
 
+	@AfterEach
+	void restoreReviewerTokenConfiguration() {
+		appAuthProperties.getReviewerToken().setRequireSecret(false);
+	}
+
 	@Test
 	void issuesReviewerTokenInProdProfileAndAuthenticatesAsReviewer() throws Exception {
-		MvcResult tokenResult = mockMvc.perform(post("/api/auth/reviewer-token")
-				.header("X-Reviewer-Token", REVIEWER_TOKEN_SECRET))
+		MvcResult tokenResult = mockMvc.perform(post("/api/auth/reviewer-token"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.tokenType").value("Bearer"))
 			.andExpect(jsonPath("$.accessToken").isString())
@@ -128,9 +138,24 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
-	void rejectsReviewerTokenIssueWithoutReviewerSecretHeader() throws Exception {
+	void rejectsMissingAndInvalidReviewerSecretHeaderWhenRequired() throws Exception {
+		appAuthProperties.getReviewerToken().setRequireSecret(true);
+
 		mockMvc.perform(post("/api/auth/reviewer-token"))
 			.andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/auth/reviewer-token")
+				.header("X-Reviewer-Token", "invalid-reviewer-token"))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void issuesReviewerTokenWithValidSecretHeaderWhenRequired() throws Exception {
+		appAuthProperties.getReviewerToken().setRequireSecret(true);
+
+		mockMvc.perform(post("/api/auth/reviewer-token")
+				.header("X-Reviewer-Token", REVIEWER_TOKEN_SECRET))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.tokenType").value("Bearer"));
 	}
 
 	@Test

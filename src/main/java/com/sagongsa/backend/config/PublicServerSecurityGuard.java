@@ -56,7 +56,7 @@ public class PublicServerSecurityGuard implements ApplicationRunner {
 			throw new IllegalStateException("app.auth.allowed-redirect-uri-prefixes must not include localhost in prod");
 		}
 		validateShoppingImportSettings();
-		if (authProperties.getReviewerToken().isEnabled()) {
+		if (authProperties.getReviewerToken().isEnabled() && authProperties.getReviewerToken().isRequireSecret()) {
 			requireStrongSecret("APP_REVIEWER_TOKEN_SECRET", authProperties.getReviewerToken().getSecret());
 		}
 	}

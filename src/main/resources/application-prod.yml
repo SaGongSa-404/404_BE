@@ -12,6 +12,7 @@ app:
       enabled: false
     reviewer-token:
       enabled: ${APP_REVIEWER_TOKEN_ENABLED:true}
+      require-secret: ${APP_REVIEWER_TOKEN_REQUIRE_SECRET:false}
       secret: ${APP_REVIEWER_TOKEN_SECRET:}
   shopping:
     import:

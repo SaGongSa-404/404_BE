@@ -64,6 +64,7 @@ public class AppAuthProperties {
 	public static class ReviewerToken {
 
 		private boolean enabled = true;
+		private boolean requireSecret;
 		private String secret = "";
 		private int rateLimitMaxAttempts = 10;
 		private Duration rateLimitWindow = Duration.ofMinutes(10);
@@ -74,6 +75,14 @@ public class AppAuthProperties {
 
 		public void setEnabled(boolean enabled) {
 			this.enabled = enabled;
+		}
+
+		public boolean isRequireSecret() {
+			return requireSecret;
+		}
+
+		public void setRequireSecret(boolean requireSecret) {
+			this.requireSecret = requireSecret;
 		}
 
 		public String getSecret() {

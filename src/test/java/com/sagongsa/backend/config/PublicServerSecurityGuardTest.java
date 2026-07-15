@@ -40,6 +40,16 @@ class PublicServerSecurityGuardTest {
 	}
 
 	@Test
+	void acceptsPublicReviewerDemoWithoutSecretInProd() {
+		AppAuthProperties authProperties = safeAuthProperties();
+		authProperties.getReviewerToken().setRequireSecret(false);
+		authProperties.getReviewerToken().setSecret("");
+
+		assertThatCode(() -> guard(authProperties, safeShoppingImportProperties(), false).run(null))
+			.doesNotThrowAnyException();
+	}
+
+	@Test
 	void rejectsTrustedHeaderInProd() {
 		assertThatThrownBy(() -> guard(safeAuthProperties(), safeShoppingImportProperties(), true).run(null))
 			.isInstanceOf(IllegalStateException.class)
@@ -90,6 +100,7 @@ class PublicServerSecurityGuardTest {
 		AppAuthProperties authProperties = new AppAuthProperties();
 		authProperties.setJwtSecret("private-test-jwt-secret-with-strong-length");
 		authProperties.setAllowedRedirectUriPrefixes(List.of("sagongsa404://auth/callback"));
+		authProperties.getReviewerToken().setRequireSecret(true);
 		authProperties.getReviewerToken().setSecret("private-test-reviewer-token-secret-long");
 		return authProperties;
 	}

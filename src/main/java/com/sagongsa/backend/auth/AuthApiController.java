@@ -106,10 +106,11 @@ public class AuthApiController {
 	@PostMapping("/reviewer-token")
 	@Operation(
 		summary = "Issue app reviewer token",
-		description = "Issues a regular user JWT token pair for the fixed app review account after validating the reviewer secret.",
+		description = "Issues a regular user JWT token pair for the fixed app review account. "
+			+ "Reviewer secret validation is applied only when enabled by server configuration.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Reviewer token pair issued"),
-			@ApiResponse(responseCode = "403", description = "Reviewer token secret is missing or invalid"),
+			@ApiResponse(responseCode = "403", description = "Required reviewer token secret is missing or invalid"),
 			@ApiResponse(responseCode = "429", description = "Too many reviewer token requests"),
 			@ApiResponse(responseCode = "500", description = "Reviewer account seed data is missing")
 		}
@@ -146,7 +147,8 @@ public class AuthApiController {
 		}
 
 		reviewerTokenRateLimiter.assertAllowed(request.getRemoteAddr());
-		if (!StringUtils.hasText(properties.getSecret()) || !constantTimeEquals(properties.getSecret(), reviewerToken)) {
+		if (properties.isRequireSecret()
+			&& (!StringUtils.hasText(properties.getSecret()) || !constantTimeEquals(properties.getSecret(), reviewerToken))) {
 			log.warn("App reviewer token rejected from remoteAddress={}", request.getRemoteAddr());
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid reviewer token secret");
 		}
