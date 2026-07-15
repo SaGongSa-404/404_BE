@@ -77,6 +77,8 @@ jobs:
           ACTIVE_BACKUP="$ACTIVE_JAR.bak.$TS"
           CADDY_BACKUP="/etc/caddy/Caddyfile.bak.deploy.$TS"
           CADDY_ON_8081=0
+          STANDBY_MANAGEMENT_PORT=9091
+          SYSTEMD_MANAGEMENT_OVERRIDE=0
 
           cleanup() {
             code=$?
@@ -84,11 +86,15 @@ jobs:
               return
             fi
 
+            if [ "${SYSTEMD_MANAGEMENT_OVERRIDE:-0}" = "1" ]; then
+              sudo -n systemctl unset-environment MANAGEMENT_SERVER_PORT || true
+            fi
+
             echo "::error::8081 standby deploy failed. exit=$code"
             if [ "${CADDY_ON_8081:-0}" = "1" ]; then
               echo "::warning::Caddy remains on 8081 standby. Do not stop the standby process until 8080 is recovered."
               sudo -n sed -n '1,120p' "$CADDY_FILE" || true
-              ss -ltnp 2>/dev/null | grep -E ':8080|:8081|:80|:443' || true
+              ss -ltnp 2>/dev/null | grep -E ':8080|:8081|:9090|:9091|:9092|:80|:443' || true
               if [ -n "${CADDY_SITE:-}" ]; then
                 curl -skfsS "https://$CADDY_SITE/health" || true
                 echo
@@ -124,6 +130,25 @@ jobs:
             done
 
             echo "::error::$label health failed"
+            return 1
+          }
+
+          wait_not_listening() {
+            port="$1"
+            label="$2"
+            max_attempts="$3"
+
+            for i in $(seq 1 "$max_attempts"); do
+              if ! ss -ltn | grep -q ":$port "; then
+                echo "$label stopped"
+                return 0
+              fi
+
+              echo "waiting $label stop... $i/$max_attempts"
+              sleep 1
+            done
+
+            echo "::error::$label is still listening"
             return 1
           }
 
@@ -220,7 +245,6 @@ jobs:
           test -f "$ACTIVE_JAR"
           test -f "$ENV_FILE"
           systemctl is-active --quiet caddy
-          systemctl is-active --quiet wigul-backend
           systemctl is-active --quiet postgresql@15-main
 
           CADDY_SITE="$(sudo -n awk 'NF && $1 !~ /^#/ && $NF == "{" { print $1; exit }' "$CADDY_FILE")"
@@ -268,19 +292,51 @@ jobs:
               ;;
           esac
 
-          if ! grep -q 'reverse_proxy localhost:8080' "$CADDY_FILE"; then
-            echo "::error::Caddy must point to localhost:8080 before deploy"
+          if grep -q 'reverse_proxy localhost:8081' "$CADDY_FILE"; then
+            echo
+            echo "===== recover previous 8081 standby fallback ====="
+            CADDY_ON_8081=1
+            test -f "$STANDBY_PID"
+            kill -0 "$(cat "$STANDBY_PID")"
+            wait_health 8081 "existing 8081 standby" 20
+
+            STANDBY_MANAGEMENT_PORT=9092
+            sudo -n systemctl set-environment MANAGEMENT_SERVER_PORT=9091
+            SYSTEMD_MANAGEMENT_OVERRIDE=1
+            sudo -n systemctl restart wigul-backend
+            wait_health 8080 "8080 recovery" 120
+            curl -fsS -o /dev/null http://127.0.0.1:9091/actuator/prometheus
+
+            switch_caddy 8080
+            CADDY_ON_8081=0
+            curl -skfsS "https://$CADDY_SITE/health"
+            echo
+
+            kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
+            rm -f "$STANDBY_PID"
+            wait_not_listening 8081 "previous 8081 standby" 20
+            wait_not_listening 9090 "previous standby management" 20
+          elif grep -q 'reverse_proxy localhost:8080' "$CADDY_FILE"; then
+            systemctl is-active --quiet wigul-backend
+            wait_health 8080 "8080 main" 20
+          else
+            echo "::error::Caddy must point to localhost:8080 or a healthy recovery standby on 8081"
             sudo -n sed -n '1,120p' "$CADDY_FILE" || true
             exit 1
           fi
 
           if ss -ltn | grep -q ':8081 '; then
-            echo "::error::Port 8081 is already listening"
+            echo "::error::Port 8081 is already listening after recovery preflight"
             ss -ltnp 2>/dev/null | grep ':8081' || true
             exit 1
           fi
 
-          wait_health 8080 "8080 main" 20
+          if ss -ltn | grep -q ":$STANDBY_MANAGEMENT_PORT "; then
+            echo "::error::Port $STANDBY_MANAGEMENT_PORT is already listening"
+            ss -ltnp 2>/dev/null | grep ":$STANDBY_MANAGEMENT_PORT" || true
+            exit 1
+          fi
+
           sudo -n cp "$CADDY_FILE" "$CADDY_BACKUP"
           rm -f "$STANDBY_PID"
 
@@ -299,12 +355,17 @@ jobs:
               -XX:MaxMetaspaceSize=128m \
               -jar "$CANDIDATE_JAR" \
               --server.port=8081 \
+              --management.server.port="$STANDBY_MANAGEMENT_PORT" \
               --spring.datasource.hikari.maximum-pool-size=3
           ) > "$STANDBY_LOG" 2>&1 &
           echo "$!" > "$STANDBY_PID"
           echo "8081 standby pid=$(cat "$STANDBY_PID")"
 
           wait_health 8081 "8081 standby" 100
+          curl -fsS "http://127.0.0.1:$STANDBY_MANAGEMENT_PORT/actuator/health"
+          echo
+          curl -fsS -o /dev/null "http://127.0.0.1:$STANDBY_MANAGEMENT_PORT/actuator/prometheus"
+          echo "8081 standby metrics OK"
 
           echo
           echo "===== switch caddy to 8081 ====="
@@ -317,6 +378,10 @@ jobs:
           echo "===== replace active jar and restart 8080 ====="
           cp "$ACTIVE_JAR" "$ACTIVE_BACKUP"
           cp "$CANDIDATE_JAR" "$ACTIVE_JAR"
+          if [ "$SYSTEMD_MANAGEMENT_OVERRIDE" = "1" ]; then
+            sudo -n systemctl unset-environment MANAGEMENT_SERVER_PORT
+            SYSTEMD_MANAGEMENT_OVERRIDE=0
+          fi
           sudo -n systemctl restart wigul-backend
           wait_health 8080 "8080 main" 120
 
@@ -331,6 +396,8 @@ jobs:
           echo "===== stop 8081 standby ====="
           kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
           rm -f "$STANDBY_PID"
+          wait_not_listening 8081 "8081 standby" 20
+          wait_not_listening "$STANDBY_MANAGEMENT_PORT" "standby management" 20
           rm -f "$CANDIDATE_JAR"
 
           echo
@@ -339,9 +406,13 @@ jobs:
           systemctl is-active wigul-backend
           systemctl is-active postgresql@15-main
           sudo -n sed -n '1,80p' "$CADDY_FILE"
-          ss -ltnp 2>/dev/null | grep -E ':8080|:8081|:80|:443' || true
+          ss -ltnp 2>/dev/null | grep -E ':8080|:8081|:9090|:9091|:9092|:80|:443' || true
           curl -fsS http://127.0.0.1:8080/health
           echo
+          curl -fsS http://127.0.0.1:9090/actuator/health
+          echo
+          curl -fsS -o /dev/null http://127.0.0.1:9090/actuator/prometheus
+          echo "8080 main metrics OK"
           curl -skfsS "https://$CADDY_SITE/health"
           echo
           free -h
