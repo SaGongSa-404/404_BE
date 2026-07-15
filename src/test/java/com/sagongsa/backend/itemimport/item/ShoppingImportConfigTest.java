@@ -15,7 +15,7 @@ class ShoppingImportConfigTest {
 	void usesFallbackPageFetcherByDefault() {
 		contextRunner.run(context -> {
 			assertThat(context).hasSingleBean(PageFetcher.class);
-			assertThat(context.getBean(PageFetcher.class)).isInstanceOf(FallbackPageFetcher.class);
+			assertThat(context.getBean(PageFetcher.class)).isInstanceOf(SiteIntervalPageFetcher.class);
 		});
 	}
 
@@ -25,7 +25,7 @@ class ShoppingImportConfigTest {
 			.withPropertyValues("app.shopping.import.browser-fetch.enabled=false")
 			.run(context -> {
 				assertThat(context).hasSingleBean(PageFetcher.class);
-				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(JsoupPageFetcher.class);
+				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(SiteIntervalPageFetcher.class);
 			});
 	}
 
@@ -39,7 +39,7 @@ class ShoppingImportConfigTest {
 			)
 			.run(context -> {
 				assertThat(context).hasSingleBean(PageFetcher.class);
-				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(FallbackPageFetcher.class);
+				assertThat(context.getBean(PageFetcher.class)).isInstanceOf(SiteIntervalPageFetcher.class);
 				assertThat(context.getBean(ShoppingImportProperties.class)
 					.getMaxResponseBytes()).isEqualTo(65536);
 				assertThat(context.getBean(ShoppingImportProperties.class)
@@ -104,6 +104,35 @@ class ShoppingImportConfigTest {
 				assertThat(sharedCrawl.getSuccessTtl()).isEqualTo(Duration.ofMinutes(1));
 				assertThat(sharedCrawl.getFailureTtl()).isEqualTo(Duration.ofSeconds(15));
 			});
+	}
+
+	@Test
+	void bindsOliveYoungRequestIntervalSettings() {
+		contextRunner
+			.withPropertyValues(
+				"app.shopping.import.site-throttle.olive-young.enabled=true",
+				"app.shopping.import.site-throttle.olive-young.min-start-interval=PT2S",
+				"app.shopping.import.site-throttle.olive-young.max-start-interval=PT3S"
+			)
+			.run(context -> {
+				ShoppingImportProperties.SiteThrottle.OliveYoung oliveYoung = context
+					.getBean(ShoppingImportProperties.class)
+					.getSiteThrottle()
+					.getOliveYoung();
+				assertThat(oliveYoung.isEnabled()).isTrue();
+				assertThat(oliveYoung.getMinStartInterval()).isEqualTo(Duration.ofSeconds(2));
+				assertThat(oliveYoung.getMaxStartInterval()).isEqualTo(Duration.ofSeconds(3));
+			});
+	}
+
+	@Test
+	void rejectsOliveYoungMaxIntervalBelowMinInterval() {
+		contextRunner
+			.withPropertyValues(
+				"app.shopping.import.site-throttle.olive-young.min-start-interval=PT3S",
+				"app.shopping.import.site-throttle.olive-young.max-start-interval=PT2S"
+			)
+			.run(context -> assertThat(context).hasFailed());
 	}
 
 	@Test
