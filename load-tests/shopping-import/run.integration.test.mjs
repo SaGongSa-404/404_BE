@@ -338,6 +338,8 @@ test("real-users sends one import per distinct user and cycles the approved URL 
   const report = JSON.parse(await readFile(path.join(tempDirectory, reportFile), "utf8"));
   assert.equal(report.summary.import.accepted, 100);
   assert.equal(report.summary.import.succeeded, 100);
+  assert.equal(report.summary.workload.terminalJobs, 100);
+  assert.ok(report.summary.workload.terminalJobsPerMinute > 0);
   assert.equal(report.run.authenticationMode, "distinct-users");
   assert.equal(report.run.tokenCount, 100);
   assert.equal(report.run.urlCount, 40);

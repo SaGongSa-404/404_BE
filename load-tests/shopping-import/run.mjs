@@ -114,6 +114,7 @@ async function runSyncImport(token, url) {
   metrics.import.submitDurations.push(sample.durationMs);
   metrics.statuses[sample.status] = (metrics.statuses[sample.status] || 0) + 1;
   if (sample.status === 200) {
+    metrics.import.terminalJobs++;
     recordSuccessfulImport(url, sample.body);
   } else {
     metrics.import.failed++;
@@ -150,6 +151,7 @@ async function runAsyncImport(token, url) {
     if (!TERMINAL.has(polled.body.status)) {
       continue;
     }
+    metrics.import.terminalJobs++;
     captureJobDurations(polled.body);
     if (polled.body.status === "SUCCEEDED") {
       recordSuccessfulImport(url, polled.body.result);
@@ -243,6 +245,7 @@ async function request(method, endpoint, token, body) {
 }
 
 function buildReport(started, completed) {
+  const elapsedMinutes = Math.max((completed - started) / 60_000, 1 / 60_000);
   return {
     schemaVersion: 2,
     run: {
@@ -254,6 +257,11 @@ function buildReport(started, completed) {
       urlCount: urls.length
     },
     summary: {
+      workload: {
+        elapsedMs: completed - started,
+        terminalJobs: metrics.import.terminalJobs,
+        terminalJobsPerMinute: Math.round(metrics.import.terminalJobs / elapsedMinutes * 100) / 100
+      },
       general: {
         ...summarizeDurations(metrics.general.durations),
         successes: metrics.general.successes,
@@ -287,6 +295,7 @@ function createMetrics() {
     general: { durations: [], successes: 0, failures: 0 },
     import: {
       accepted: 0,
+      terminalJobs: 0,
       succeeded: 0,
       failed: 0,
       timedOut: 0,

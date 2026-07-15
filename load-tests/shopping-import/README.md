@@ -33,6 +33,8 @@
 
 다음 명령은 QA DB에 전용 사용자 100명을 만들고, 2시간짜리 access token 100개를 로컬 권한 `600` 파일에 저장한 다음 테스트 종료 시 사용자·job·토큰 파일을 정리한다. 운영 호스트에서는 실행되지 않으며, 이 문서 작성 과정에서는 실제 실행하지 않았다.
 
+실행 시 job 완료 대기시간은 기본 15분이다. 서버 지표는 5초 간격으로 동시에 수집하며 테스트 종료 시 CSV와 요약 JSON을 `results/`에 내려받는다.
+
 ```bash
 cd load-tests/shopping-import
 CONFIRM_QA_LOAD_TEST=YES \
@@ -159,7 +161,17 @@ cd load-tests/shopping-import
 INTERVAL_SECONDS=5 DURATION_SECONDS=180 ./collect-server-metrics.sh
 ```
 
-Java/Chromium CPU와 RSS는 항상 기록된다. DB 접속용 `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`가 이미 설정된 경우에만 `PENDING/RUNNING` 수도 함께 기록한다. 비밀번호는 CSV에 저장하지 않는다.
+수집 항목은 다음과 같다.
+
+- 요청: 접수 응답, polling 응답, queue 대기, 크롤링 처리, 전체 완료시간의 min/avg/p50/p95/p99/max와 분당 완료 job
+- 시스템: 전체 CPU, load average, 메모리 사용/가용량, swap, CPU·메모리·I/O pressure
+- 디스크·네트워크: 루트 디스크 사용량/가용량, 초당 read/write, 초당 network RX/TX
+- Java: CPU, RSS, thread, open FD, 초당 read/write
+- Chromium: 프로세스 수, 합계 CPU/RSS
+- DB·queue: PENDING/RUNNING, active/idle connection, DB 크기, 저장된 shopping job 수
+- 안정성: backend PID와 systemd 재시작 횟수
+
+`run-qa-100-users.sh`를 사용하면 서버 환경을 읽어 지표 수집기를 자동으로 시작하고 종료한다. 원시 파일은 `*-server-metrics.csv`, peak/평균 요약은 `*-server-summary.json`, 요청시간 결과는 `*-real-users-async.json`이다. 비밀번호와 access token은 어느 결과에도 저장하지 않는다.
 
 ## 판정
 

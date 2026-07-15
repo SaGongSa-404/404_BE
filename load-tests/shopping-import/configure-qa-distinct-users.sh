@@ -12,12 +12,18 @@ if [[ "${CONFIRM_QA_TEST_USERS:-}" != "YES" ]]; then
 fi
 
 SSH_TARGET="${SSH_TARGET:-koreaworldclass@34.66.55.165}"
+SSH_IDENTITY_FILE="${SSH_IDENTITY_FILE:-$HOME/.ssh/wigul_gha_deploy}"
 EXPECTED_QA_HOSTNAME="${EXPECTED_QA_HOSTNAME:-nf-qa-be}"
 TOKEN_FILE="${ACCESS_TOKEN_FILE:-$HOME/.secrets/wigul-nf97-qa-users.tokens}"
 mkdir -p "$(dirname "$TOKEN_FILE")"
+ssh_options=(-o BatchMode=yes -o IdentitiesOnly=yes)
+if [[ -n "$SSH_IDENTITY_FILE" ]]; then
+  [[ -r "$SSH_IDENTITY_FILE" ]] || { echo "SSH identity file is not readable: $SSH_IDENTITY_FILE" >&2; exit 1; }
+  ssh_options+=(-i "$SSH_IDENTITY_FILE")
+fi
 
 if [[ "$action" == "cleanup" ]]; then
-  ssh -o BatchMode=yes "$SSH_TARGET" bash -s -- "$EXPECTED_QA_HOSTNAME" cleanup <<'REMOTE'
+  ssh "${ssh_options[@]}" "$SSH_TARGET" bash -s -- "$EXPECTED_QA_HOSTNAME" cleanup <<'REMOTE'
 set -euo pipefail
 expected_hostname="$1"
 action="$2"
@@ -51,10 +57,11 @@ fi
 temp_token_file="$(mktemp "${TOKEN_FILE}.XXXXXX")"
 cleanup_failed_apply() {
   rm -f "$temp_token_file"
-  ACCESS_TOKEN_FILE="$TOKEN_FILE" "$0" cleanup >/dev/null 2>&1 || true
+  ACCESS_TOKEN_FILE="$TOKEN_FILE" SSH_TARGET="$SSH_TARGET" SSH_IDENTITY_FILE="$SSH_IDENTITY_FILE" \
+    "$0" cleanup >/dev/null 2>&1 || true
 }
 trap cleanup_failed_apply EXIT
-ssh -o BatchMode=yes "$SSH_TARGET" bash -s -- "$EXPECTED_QA_HOSTNAME" apply > "$temp_token_file" <<'REMOTE'
+ssh "${ssh_options[@]}" "$SSH_TARGET" bash -s -- "$EXPECTED_QA_HOSTNAME" apply > "$temp_token_file" <<'REMOTE'
 set -euo pipefail
 expected_hostname="$1"
 action="$2"
