@@ -77,7 +77,7 @@ public class ShoppingImportProperties {
 
 		private boolean enabled = true;
 		private int maxQueueSize = 100;
-		private int maxActivePerUser = 3;
+		private int maxActivePerUser = 1;
 		private int concurrency = 1;
 		private int maxAttempts = 2;
 		private long fixedDelayMs = 500;
@@ -106,7 +106,7 @@ public class ShoppingImportProperties {
 		}
 
 		public void setMaxActivePerUser(int maxActivePerUser) {
-			this.maxActivePerUser = maxActivePerUser <= 0 ? 3 : maxActivePerUser;
+			this.maxActivePerUser = maxActivePerUser <= 0 ? 1 : maxActivePerUser;
 		}
 
 		public int getConcurrency() {
