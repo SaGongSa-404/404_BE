@@ -40,6 +40,16 @@
 
 - KREAM이 배포 서버의 출구 IP에 빈 5xx를 반환하는 환경에서만 전용 프록시를 활성화한다.
 - `SHOPPING_IMPORT_KREAM_PROXY_ENABLED=true`, `SHOPPING_IMPORT_KREAM_PROXY_TYPE=SOCKS|HTTP`, `SHOPPING_IMPORT_KREAM_PROXY_HOST`, `SHOPPING_IMPORT_KREAM_PROXY_PORT`를 설정한다.
+- 프록시는 KREAM 및 KREAM API 호스트에만 적용되며 다른 쇼핑몰 요청은 기존 출구를 유지한다.
+
+## N+스토어 전용 프록시
+
+- 네이버가 배포 서버의 출구 IP를 로그인 페이지 또는 429 응답으로 전환하는 환경에서만 전용 프록시를 활성화한다.
+- `SHOPPING_IMPORT_NAVER_PROXY_ENABLED=true`, `SHOPPING_IMPORT_NAVER_PROXY_TYPE=SOCKS|HTTP`, `SHOPPING_IMPORT_NAVER_PROXY_HOST`, `SHOPPING_IMPORT_NAVER_PROXY_PORT`를 설정한다.
+- `naver.me`와 네이버 쇼핑 브리지, 스마트스토어/브랜드스토어 상품 요청의 정적 수집과 Playwright 브라우저 폴백에만 적용한다.
+- 로그인 페이지로 리다이렉트된 경우 `url` 파라미터의 원래 상품 주소를 검증·복원해 모바일 상품 페이지로 브라우저 폴백한다.
+- KREAM과 N+스토어 프록시는 인증 없는 내부 프록시를 전제로 하므로 방화벽에서 백엔드 서버 IP만 접근 가능하게 제한한다.
+- 활성화 전후로 동일 상품을 순차/동시 호출해 제목, 양수 가격, 유효 이미지와 429/로그인 리다이렉트 여부를 확인한다.
 
 ## 에이블리 상품 API 폴백
 
@@ -47,9 +57,6 @@
 - `SHOPPING_IMPORT_ABLY_API_ENABLED=true`, `SHOPPING_IMPORT_ABLY_ANONYMOUS_TOKEN`, `SHOPPING_IMPORT_ABLY_API_TIMEOUT=PT5S`를 설정한다.
 - 익명 토큰은 에이블리 웹 상품 페이지가 발급한 값만 사용하고, 저장소와 로그에 커밋하지 않는다.
 - API 설정이 없거나 API 호출이 실패하면 기존 HTML 수집과 브라우저 폴백을 계속 사용한다.
-- 프록시는 KREAM 및 KREAM API 호스트에만 적용되며 다른 쇼핑몰 요청은 기존 출구를 유지한다.
-- 인증 없는 내부 프록시를 전제로 하므로 방화벽에서 백엔드 서버 IP만 접근 가능하게 제한한다.
-- 활성화 전후로 동일 상품을 순차/동시 호출해 제목, 양수 가격, 유효 이미지와 5xx/429 여부를 확인한다.
 
 ## 검증 포인트
 

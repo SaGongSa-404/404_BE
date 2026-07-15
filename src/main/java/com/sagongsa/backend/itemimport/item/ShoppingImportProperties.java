@@ -12,6 +12,7 @@ public class ShoppingImportProperties {
 	private final BrowserFetch browserFetch = new BrowserFetch();
 	private final JobWorker jobWorker = new JobWorker();
 	private final KreamProxy kreamProxy = new KreamProxy();
+	private final NaverProxy naverProxy = new NaverProxy();
 	private final AblyApi ablyApi = new AblyApi();
 
 	public int getMaxResponseBytes() {
@@ -32,6 +33,10 @@ public class ShoppingImportProperties {
 
 	public KreamProxy getKreamProxy() {
 		return kreamProxy;
+	}
+
+	public NaverProxy getNaverProxy() {
+		return naverProxy;
 	}
 
 	public AblyApi getAblyApi() {
@@ -204,6 +209,71 @@ public class ShoppingImportProperties {
 		void validate() {
 			if (enabled && !isConfigured()) {
 				throw new IllegalStateException("KREAM proxy requires a host and a valid port");
+			}
+		}
+
+		Proxy javaProxy() {
+			Proxy.Type proxyType = type == Type.HTTP ? Proxy.Type.HTTP : Proxy.Type.SOCKS;
+			return new Proxy(proxyType, InetSocketAddress.createUnresolved(host, port));
+		}
+
+		String browserServer() {
+			String scheme = type == Type.HTTP ? "http" : "socks5";
+			return scheme + "://" + host + ":" + port;
+		}
+
+		public enum Type {
+			HTTP,
+			SOCKS
+		}
+	}
+
+	public static class NaverProxy {
+
+		private boolean enabled;
+		private Type type = Type.SOCKS;
+		private String host;
+		private int port = 1080;
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public void setEnabled(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+		public Type getType() {
+			return type;
+		}
+
+		public void setType(Type type) {
+			this.type = type == null ? Type.SOCKS : type;
+		}
+
+		public String getHost() {
+			return host;
+		}
+
+		public void setHost(String host) {
+			this.host = host == null ? null : host.trim();
+		}
+
+		public int getPort() {
+			return port;
+		}
+
+		public void setPort(int port) {
+			this.port = port;
+		}
+
+		boolean isConfigured() {
+			return enabled && host != null && !host.isBlank() && port > 0 && port <= 65_535;
+		}
+
+		void validate() {
+			if (enabled && !isConfigured()) {
+				throw new IllegalStateException("NAVER shopping proxy requires a host and a valid port");
 			}
 		}
 

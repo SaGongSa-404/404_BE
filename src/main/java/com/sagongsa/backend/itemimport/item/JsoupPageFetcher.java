@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
@@ -64,6 +65,7 @@ public class JsoupPageFetcher implements PageFetcher {
 	private final int maxAttempts;
 	private final int maxResponseBytes;
 	private final ShoppingImportProperties.KreamProxy kreamProxy;
+	private final ShoppingImportProperties.NaverProxy naverProxy;
 	private final ShoppingImportProperties.AblyApi ablyApi;
 
 	public JsoupPageFetcher() {
@@ -83,7 +85,23 @@ public class JsoupPageFetcher implements PageFetcher {
 		ShoppingImportProperties.KreamProxy kreamProxy,
 		ShoppingImportProperties.AblyApi ablyApi
 	) {
-		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes, kreamProxy, ablyApi);
+		this(
+			DEFAULT_TIMEOUT_MILLIS,
+			DEFAULT_MAX_ATTEMPTS,
+			maxResponseBytes,
+			kreamProxy,
+			new ShoppingImportProperties.NaverProxy(),
+			ablyApi
+		);
+	}
+
+	JsoupPageFetcher(
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy,
+		ShoppingImportProperties.NaverProxy naverProxy,
+		ShoppingImportProperties.AblyApi ablyApi
+	) {
+		this(DEFAULT_TIMEOUT_MILLIS, DEFAULT_MAX_ATTEMPTS, maxResponseBytes, kreamProxy, naverProxy, ablyApi);
 	}
 
 	JsoupPageFetcher(int timeoutMillis, int maxAttempts) {
@@ -110,10 +128,29 @@ public class JsoupPageFetcher implements PageFetcher {
 		ShoppingImportProperties.KreamProxy kreamProxy,
 		ShoppingImportProperties.AblyApi ablyApi
 	) {
+		this(
+			timeoutMillis,
+			maxAttempts,
+			maxResponseBytes,
+			kreamProxy,
+			new ShoppingImportProperties.NaverProxy(),
+			ablyApi
+		);
+	}
+
+	JsoupPageFetcher(
+		int timeoutMillis,
+		int maxAttempts,
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy,
+		ShoppingImportProperties.NaverProxy naverProxy,
+		ShoppingImportProperties.AblyApi ablyApi
+	) {
 		this.timeoutMillis = timeoutMillis <= 0 ? DEFAULT_TIMEOUT_MILLIS : timeoutMillis;
 		this.maxAttempts = maxAttempts <= 0 ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
 		this.maxResponseBytes = maxResponseBytes <= 0 ? DEFAULT_MAX_RESPONSE_BYTES : maxResponseBytes;
 		this.kreamProxy = kreamProxy == null ? new ShoppingImportProperties.KreamProxy() : kreamProxy;
+		this.naverProxy = naverProxy == null ? new ShoppingImportProperties.NaverProxy() : naverProxy;
 		this.ablyApi = ablyApi == null ? new ShoppingImportProperties.AblyApi() : ablyApi;
 	}
 
@@ -181,7 +218,7 @@ public class JsoupPageFetcher implements PageFetcher {
 				.ignoreHttpErrors(true)
 				.timeout(timeoutMillis)
 				.maxBodySize(maxResponseBytes);
-			applyKreamProxy(connection, currentUri);
+			applyShoppingProxy(connection, currentUri);
 			Connection.Response response = connection.execute();
 
 			if (isRedirect(response.statusCode())) {
@@ -594,9 +631,35 @@ public class JsoupPageFetcher implements PageFetcher {
 		}
 	}
 
+	private void applyShoppingProxy(Connection connection, URI uri) {
+		shoppingProxy(uri).ifPresent(connection::proxy);
+	}
+
+	Optional<Proxy> shoppingProxy(URI uri) {
+		if (kreamProxy.isConfigured() && isKreamHost(uri)) {
+			return Optional.of(kreamProxy.javaProxy());
+		}
+		if (naverProxy.isConfigured() && isNaverShoppingHost(uri)) {
+			return Optional.of(naverProxy.javaProxy());
+		}
+		return Optional.empty();
+	}
+
 	private static boolean isKreamHost(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
 		return host.equals("kream.co.kr") || host.endsWith(".kream.co.kr");
+	}
+
+	private static boolean isNaverShoppingHost(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return host.equals("naver.me")
+			|| host.equals("app.shopping.naver.com")
+			|| host.equals("shopping.naver.com")
+			|| host.equals("m.shopping.naver.com")
+			|| host.equals("smartstore.naver.com")
+			|| host.equals("m.smartstore.naver.com")
+			|| host.equals("brand.naver.com")
+			|| host.equals("m.brand.naver.com");
 	}
 
 	static Optional<String> kreamProductMetadataHtml(String apiBody) {

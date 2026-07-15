@@ -18,17 +18,26 @@ import org.junit.jupiter.api.Test;
 class BrowserPageFetcherTest {
 
 	@Test
-	void appliesConfiguredProxyOnlyToKreamContext() {
+	void appliesEachConfiguredProxyOnlyToItsShoppingContext() {
 		ShoppingImportProperties.BrowserFetch browserFetch = new ShoppingImportProperties.BrowserFetch();
 		ShoppingImportProperties.KreamProxy kreamProxy = new ShoppingImportProperties.KreamProxy();
 		kreamProxy.setEnabled(true);
 		kreamProxy.setType(ShoppingImportProperties.KreamProxy.Type.SOCKS);
 		kreamProxy.setHost("127.0.0.1");
 		kreamProxy.setPort(18080);
-		BrowserPageFetcher fetcher = new BrowserPageFetcher(browserFetch, 1_000_000, kreamProxy);
+		ShoppingImportProperties.NaverProxy naverProxy = new ShoppingImportProperties.NaverProxy();
+		naverProxy.setEnabled(true);
+		naverProxy.setType(ShoppingImportProperties.NaverProxy.Type.HTTP);
+		naverProxy.setHost("naver-proxy.internal");
+		naverProxy.setPort(3128);
+		BrowserPageFetcher fetcher = new BrowserPageFetcher(browserFetch, 1_000_000, kreamProxy, naverProxy);
 
 		assertThat(fetcher.contextOptions(URI.create("https://kream.co.kr/products/444045")).proxy.server)
 			.isEqualTo("socks5://127.0.0.1:18080");
+		assertThat(fetcher.contextOptions(URI.create("https://naver.me/5imjsySn")).proxy.server)
+			.isEqualTo("http://naver-proxy.internal:3128");
+		assertThat(fetcher.contextOptions(URI.create("https://m.smartstore.naver.com/edithshop/products/13581698411")).proxy.server)
+			.isEqualTo("http://naver-proxy.internal:3128");
 		assertThat(fetcher.contextOptions(URI.create("https://zigzag.kr/catalog/products/1")).proxy)
 			.isNull();
 	}

@@ -69,6 +69,26 @@ class ShoppingImportConfigTest {
 	}
 
 	@Test
+	void bindsNaverProxySettings() {
+		contextRunner
+			.withPropertyValues(
+				"app.shopping.import.naver-proxy.enabled=true",
+				"app.shopping.import.naver-proxy.type=http",
+				"app.shopping.import.naver-proxy.host=naver-proxy.internal",
+				"app.shopping.import.naver-proxy.port=3128"
+			)
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				ShoppingImportProperties.NaverProxy proxy = context.getBean(ShoppingImportProperties.class)
+					.getNaverProxy();
+				assertThat(proxy.isEnabled()).isTrue();
+				assertThat(proxy.getType()).isEqualTo(ShoppingImportProperties.NaverProxy.Type.HTTP);
+				assertThat(proxy.getHost()).isEqualTo("naver-proxy.internal");
+				assertThat(proxy.getPort()).isEqualTo(3128);
+			});
+	}
+
+	@Test
 	void bindsAblyApiSettingsWithoutExposingThemToOtherFetchers() {
 		contextRunner
 			.withPropertyValues(
@@ -90,6 +110,13 @@ class ShoppingImportConfigTest {
 	void rejectsEnabledKreamProxyWithoutHost() {
 		contextRunner
 			.withPropertyValues("app.shopping.import.kream-proxy.enabled=true")
+			.run(context -> assertThat(context).hasFailed());
+	}
+
+	@Test
+	void rejectsEnabledNaverProxyWithoutHost() {
+		contextRunner
+			.withPropertyValues("app.shopping.import.naver-proxy.enabled=true")
 			.run(context -> assertThat(context).hasFailed());
 	}
 }

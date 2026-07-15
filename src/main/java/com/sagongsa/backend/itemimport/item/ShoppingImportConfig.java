@@ -12,16 +12,19 @@ public class ShoppingImportConfig {
 	public PageFetcher pageFetcher(ShoppingImportProperties properties) {
 		ShoppingImportProperties.BrowserFetch browserFetch = properties.getBrowserFetch();
 		ShoppingImportProperties.KreamProxy kreamProxy = properties.getKreamProxy();
+		ShoppingImportProperties.NaverProxy naverProxy = properties.getNaverProxy();
 		kreamProxy.validate();
+		naverProxy.validate();
 		JsoupPageFetcher jsoupPageFetcher = new JsoupPageFetcher(
 			properties.getMaxResponseBytes(),
 			kreamProxy,
+			naverProxy,
 			properties.getAblyApi()
 		);
 		if (browserFetch.isEnabled()) {
 			return new FallbackPageFetcher(
 				jsoupPageFetcher,
-				new BrowserPageFetcher(browserFetch, properties.getMaxResponseBytes(), kreamProxy)
+				new BrowserPageFetcher(browserFetch, properties.getMaxResponseBytes(), kreamProxy, naverProxy)
 			);
 		}
 		return jsoupPageFetcher;

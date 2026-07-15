@@ -33,6 +33,7 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 
 	private final ShoppingImportProperties.BrowserFetch properties;
 	private final ShoppingImportProperties.KreamProxy kreamProxy;
+	private final ShoppingImportProperties.NaverProxy naverProxy;
 	private final int maxResponseBytes;
 	private final Supplier<Playwright> playwrightFactory;
 	private final Object browserLock = new Object();
@@ -40,11 +41,23 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	private Browser browser;
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties) {
-		this(properties, Playwright::create, 1_000_000, new ShoppingImportProperties.KreamProxy());
+		this(
+			properties,
+			Playwright::create,
+			1_000_000,
+			new ShoppingImportProperties.KreamProxy(),
+			new ShoppingImportProperties.NaverProxy()
+		);
 	}
 
 	public BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, int maxResponseBytes) {
-		this(properties, Playwright::create, maxResponseBytes, new ShoppingImportProperties.KreamProxy());
+		this(
+			properties,
+			Playwright::create,
+			maxResponseBytes,
+			new ShoppingImportProperties.KreamProxy(),
+			new ShoppingImportProperties.NaverProxy()
+		);
 	}
 
 	public BrowserPageFetcher(
@@ -52,23 +65,40 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		int maxResponseBytes,
 		ShoppingImportProperties.KreamProxy kreamProxy
 	) {
-		this(properties, Playwright::create, maxResponseBytes, kreamProxy);
+		this(properties, Playwright::create, maxResponseBytes, kreamProxy, new ShoppingImportProperties.NaverProxy());
+	}
+
+	public BrowserPageFetcher(
+		ShoppingImportProperties.BrowserFetch properties,
+		int maxResponseBytes,
+		ShoppingImportProperties.KreamProxy kreamProxy,
+		ShoppingImportProperties.NaverProxy naverProxy
+	) {
+		this(properties, Playwright::create, maxResponseBytes, kreamProxy, naverProxy);
 	}
 
 	BrowserPageFetcher(ShoppingImportProperties.BrowserFetch properties, Supplier<Playwright> playwrightFactory) {
-		this(properties, playwrightFactory, 1_000_000, new ShoppingImportProperties.KreamProxy());
+		this(
+			properties,
+			playwrightFactory,
+			1_000_000,
+			new ShoppingImportProperties.KreamProxy(),
+			new ShoppingImportProperties.NaverProxy()
+		);
 	}
 
 	BrowserPageFetcher(
 		ShoppingImportProperties.BrowserFetch properties,
 		Supplier<Playwright> playwrightFactory,
 		int maxResponseBytes,
-		ShoppingImportProperties.KreamProxy kreamProxy
+		ShoppingImportProperties.KreamProxy kreamProxy,
+		ShoppingImportProperties.NaverProxy naverProxy
 	) {
 		this.properties = properties;
 		this.playwrightFactory = playwrightFactory;
 		this.maxResponseBytes = maxResponseBytes <= 0 ? 1_000_000 : maxResponseBytes;
 		this.kreamProxy = kreamProxy == null ? new ShoppingImportProperties.KreamProxy() : kreamProxy;
+		this.naverProxy = naverProxy == null ? new ShoppingImportProperties.NaverProxy() : naverProxy;
 	}
 
 	@Override
@@ -189,6 +219,8 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 		}
 		if (kreamProxy.isConfigured() && isKreamUri(uri)) {
 			options.setProxy(kreamProxy.browserServer());
+		} else if (naverProxy.isConfigured() && isNaverShoppingUri(uri)) {
+			options.setProxy(naverProxy.browserServer());
 		}
 		return options;
 	}
@@ -201,6 +233,18 @@ public class BrowserPageFetcher implements PageFetcher, AutoCloseable {
 	private boolean isKreamUri(URI uri) {
 		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
 		return host.equals("kream.co.kr") || host.endsWith(".kream.co.kr");
+	}
+
+	private boolean isNaverShoppingUri(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		return host.equals("naver.me")
+			|| host.equals("app.shopping.naver.com")
+			|| host.equals("shopping.naver.com")
+			|| host.equals("m.shopping.naver.com")
+			|| host.equals("smartstore.naver.com")
+			|| host.equals("m.smartstore.naver.com")
+			|| host.equals("brand.naver.com")
+			|| host.equals("m.brand.naver.com");
 	}
 
 	private void waitForNetworkIdle(Page page) {

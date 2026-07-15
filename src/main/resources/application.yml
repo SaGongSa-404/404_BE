@@ -91,6 +91,11 @@ app:
         type: ${SHOPPING_IMPORT_KREAM_PROXY_TYPE:SOCKS}
         host: ${SHOPPING_IMPORT_KREAM_PROXY_HOST:}
         port: ${SHOPPING_IMPORT_KREAM_PROXY_PORT:1080}
+      naver-proxy:
+        enabled: ${SHOPPING_IMPORT_NAVER_PROXY_ENABLED:false}
+        type: ${SHOPPING_IMPORT_NAVER_PROXY_TYPE:SOCKS}
+        host: ${SHOPPING_IMPORT_NAVER_PROXY_HOST:}
+        port: ${SHOPPING_IMPORT_NAVER_PROXY_PORT:1080}
       ably-api:
         enabled: ${SHOPPING_IMPORT_ABLY_API_ENABLED:true}
         anonymous-token: ${SHOPPING_IMPORT_ABLY_ANONYMOUS_TOKEN:}

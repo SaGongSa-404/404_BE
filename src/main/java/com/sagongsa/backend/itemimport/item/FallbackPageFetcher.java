@@ -2,6 +2,8 @@ package com.sagongsa.backend.itemimport.item;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Optional;
 import org.springframework.http.HttpStatusCode;
@@ -42,10 +44,36 @@ public class FallbackPageFetcher implements PageFetcher, AutoCloseable {
 	}
 
 	private URI fallbackUri(URI originalUri, FetchedPage page) {
+		Optional<URI> naverLoginTarget = naverLoginTarget(page.finalUri());
+		if (naverLoginTarget.isPresent()) {
+			return mobileNaverUri(naverLoginTarget.get());
+		}
 		if (isKnownErrorShell(page) || isNaverProductUri(page.finalUri())) {
 			return mobileNaverUri(page.finalUri());
 		}
 		return originalUri;
+	}
+
+	private Optional<URI> naverLoginTarget(URI uri) {
+		String host = Optional.ofNullable(uri.getHost()).orElse("").toLowerCase(Locale.ROOT);
+		String path = Optional.ofNullable(uri.getPath()).orElse("");
+		String rawQuery = uri.getRawQuery();
+		if (!host.equals("nid.naver.com") || !path.endsWith("/nidlogin.login") || rawQuery == null) {
+			return Optional.empty();
+		}
+		for (String parameter : rawQuery.split("&")) {
+			int separator = parameter.indexOf('=');
+			if (separator <= 0 || !parameter.substring(0, separator).equals("url")) {
+				continue;
+			}
+			try {
+				URI target = URI.create(URLDecoder.decode(parameter.substring(separator + 1), StandardCharsets.UTF_8));
+				return isNaverProductUri(target) ? Optional.of(target) : Optional.empty();
+			} catch (IllegalArgumentException exception) {
+				return Optional.empty();
+			}
+		}
+		return Optional.empty();
 	}
 
 	private boolean isNaverProductUri(URI uri) {
@@ -73,6 +101,7 @@ public class FallbackPageFetcher implements PageFetcher, AutoCloseable {
 	private boolean isKnownErrorShell(FetchedPage page) {
 		String host = Optional.ofNullable(page.finalUri().getHost()).orElse("").toLowerCase(Locale.ROOT);
 		String body = Optional.ofNullable(page.body()).orElse("");
+		boolean naverLoginShell = naverLoginTarget(page.finalUri()).isPresent();
 		boolean naverErrorShell = (host.equals("brand.naver.com") || host.equals("smartstore.naver.com"))
 			&& (body.contains("시스템오류") || body.contains("에러페이지"));
 		boolean ablyChallengeShell = host.equals("m.a-bly.com")
@@ -81,7 +110,7 @@ public class FallbackPageFetcher implements PageFetcher, AutoCloseable {
 				|| body.contains("challenge-error-text")
 				|| body.contains("/cdn-cgi/challenge-platform/")
 				|| body.contains("Enable JavaScript and cookies to continue"));
-		return naverErrorShell || ablyChallengeShell;
+		return naverLoginShell || naverErrorShell || ablyChallengeShell;
 	}
 
 	private boolean shouldFallback(HttpStatusCode statusCode) {

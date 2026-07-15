@@ -2,12 +2,43 @@ package com.sagongsa.backend.itemimport.item;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
 class JsoupPageFetcherTest {
+
+	@Test
+	void appliesNaverProxyOnlyToNaverShoppingRequests() {
+		ShoppingImportProperties.NaverProxy naverProxy = new ShoppingImportProperties.NaverProxy();
+		naverProxy.setEnabled(true);
+		naverProxy.setType(ShoppingImportProperties.NaverProxy.Type.HTTP);
+		naverProxy.setHost("naver-proxy.internal");
+		naverProxy.setPort(3128);
+		JsoupPageFetcher fetcher = new JsoupPageFetcher(
+			1_000_000,
+			new ShoppingImportProperties.KreamProxy(),
+			naverProxy,
+			new ShoppingImportProperties.AblyApi()
+		);
+
+		Proxy proxy = fetcher.shoppingProxy(URI.create("https://naver.me/5imjsySn")).orElseThrow();
+
+		assertThat(proxy.type()).isEqualTo(Proxy.Type.HTTP);
+		assertThat((InetSocketAddress) proxy.address()).satisfies(address -> {
+			assertThat(address.getHostString()).isEqualTo("naver-proxy.internal");
+			assertThat(address.getPort()).isEqualTo(3128);
+		});
+		assertThat(fetcher.shoppingProxy(URI.create("https://m.smartstore.naver.com/shop/products/1")))
+			.isPresent();
+		assertThat(fetcher.shoppingProxy(URI.create("https://nid.naver.com/nidlogin.login")))
+			.isEmpty();
+		assertThat(fetcher.shoppingProxy(URI.create("https://store.zigzag.kr/catalog/products/1")))
+			.isEmpty();
+	}
 
 	@Test
 	void resolvesAppsFlyerOneLinkStoreLinkToProductPage() {

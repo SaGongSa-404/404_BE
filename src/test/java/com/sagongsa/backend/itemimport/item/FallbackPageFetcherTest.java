@@ -74,6 +74,35 @@ class FallbackPageFetcherTest {
 	}
 
 	@Test
+	void restoresSmartStoreProductFromNaverLoginRedirectBeforeBrowserFallback() {
+		URI originalUri = URI.create("https://naver.me/5imjsySn");
+		URI loginUri = URI.create(
+			"https://nid.naver.com/nidlogin.login?url="
+				+ "https%3A%2F%2Fsmartstore.naver.com%2Fedithshop%2Fproducts%2F13581698411%3Ftr%3Dnshfum"
+		);
+		AtomicReference<URI> fallbackRequest = new AtomicReference<>();
+		FallbackPageFetcher fetcher = new FallbackPageFetcher(
+			requestedUri -> new FetchedPage(
+				requestedUri,
+				loginUri,
+				200,
+				"text/html",
+				"<html><title>NAVER 로그인</title></html>"
+			),
+			requestedUri -> {
+				fallbackRequest.set(requestedUri);
+				return new FetchedPage(requestedUri, requestedUri, 200, "text/html", "<html>rendered</html>");
+			}
+		);
+
+		fetcher.fetch(originalUri);
+
+		assertThat(fallbackRequest.get()).isEqualTo(
+			URI.create("https://m.smartstore.naver.com/edithshop/products/13581698411?tr=nshfum")
+		);
+	}
+
+	@Test
 	void usesBrowserFallbackForAblyCloudflareChallengeShell() {
 		URI uri = URI.create("https://m.a-bly.com/goods/70247267");
 		AtomicReference<URI> fallbackRequest = new AtomicReference<>();
