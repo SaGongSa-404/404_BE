@@ -152,6 +152,35 @@ jobs:
             return 1
           }
 
+          prune_deploy_artifacts() {
+            mapfile -t jar_backups < <(
+              find "$APP_DIR/build/libs" -maxdepth 1 -type f \
+                -name "$JAR_NAME.bak.*" -printf '%T@ %p\n' \
+                | sort -nr \
+                | cut -d' ' -f2-
+            )
+            if ((${#jar_backups[@]} > 2)); then
+              printf 'removing old jar backup: %s\n' "${jar_backups[@]:2}"
+              rm -- "${jar_backups[@]:2}"
+            fi
+
+            find "$APP_DIR/build/libs" -maxdepth 1 -type f \
+              \( -name "$JAR_NAME.candidate-*" -o -name "$JAR_NAME.pre-worker12-test.*" \) \
+              -print -delete
+
+            if [ -d "$APP_DIR/releases" ]; then
+              mapfile -t manual_releases < <(
+                find "$APP_DIR/releases" -maxdepth 1 -type f -name '*.jar' -printf '%T@ %p\n' \
+                  | sort -nr \
+                  | cut -d' ' -f2-
+              )
+              if ((${#manual_releases[@]} > 1)); then
+                printf 'removing old manual release: %s\n' "${manual_releases[@]:1}"
+                rm -- "${manual_releases[@]:1}"
+              fi
+            fi
+          }
+
           fail_preflight() {
             echo "::error::$1"
             exit 1
@@ -415,6 +444,8 @@ jobs:
           echo "8080 main metrics OK"
           curl -skfsS "https://$CADDY_SITE/health"
           echo
+          prune_deploy_artifacts
+          df -h /
           free -h
           echo "deploy finished"
           REMOTE_DEPLOY
