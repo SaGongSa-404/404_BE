@@ -28,6 +28,21 @@ class OpportunityCostServiceTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void selectsClosestSingleCountItemForDemoPriceBands() {
+		OpportunityCostResponse youtube = opportunityCostService.calculate(15_000, "FASHION");
+		OpportunityCostResponse chicken = opportunityCostService.calculate(25_500, "FASHION");
+
+		assertThat(youtube.result().itemId()).isEqualTo("ITEM_02");
+		assertThat(youtube.result().calculatedCount()).isEqualTo(1);
+		assertThat(youtube.result().displayMessage())
+			.isEqualTo("이 상품 1개를 아끼면, 광고 없이 유튜브 프리미엄을 1달 볼 수 있어요! 📺");
+		assertThat(chicken.result().itemId()).isEqualTo("ITEM_03");
+		assertThat(chicken.result().calculatedCount()).isEqualTo(1);
+		assertThat(chicken.result().displayMessage())
+			.isEqualTo("이 상품 1개를 아끼면, 바삭한 황금올리브 치킨을 먹을 수 있어요! 🍗");
+	}
+
+	@Test
 	void expandsCandidateCountToTwentyWhenPrimaryPoolIsEmpty() {
 		OpportunityCostResponse response = opportunityCostService.calculate(5_000, "LIVING");
 

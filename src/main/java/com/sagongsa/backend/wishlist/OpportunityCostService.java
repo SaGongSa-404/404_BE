@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -59,8 +60,18 @@ public class OpportunityCostService {
 			return fallback(normalizedPrice, sourceCategory, items, HIGH_PRICE_FALLBACK_ITEM_ID, HIGH_PRICE_FALLBACK_MESSAGE);
 		}
 
-		CalculatedOpportunityCostItem selected = randomValue(candidates);
+		CalculatedOpportunityCostItem selected = selectCandidate(candidates, normalizedPrice);
 		return response(normalizedPrice, sourceCategory, selected.item(), selected.calculatedCount(), null);
+	}
+
+	private CalculatedOpportunityCostItem selectCandidate(
+		List<CalculatedOpportunityCostItem> candidates,
+		int price
+	) {
+		return candidates.stream()
+			.filter(candidate -> candidate.calculatedCount() == 1)
+			.min(Comparator.comparingLong(candidate -> Math.abs((long) candidate.item().unitPrice() - price)))
+			.orElseGet(() -> randomValue(candidates));
 	}
 
 	private int validatePrice(Integer price) {
