@@ -24,6 +24,24 @@ class ShoppingImportPropertiesTest {
 	}
 
 	@Test
+	void allowsTwelveConcurrentWorkers() {
+		ShoppingImportProperties properties = new ShoppingImportProperties();
+
+		properties.getJobWorker().setConcurrency(12);
+
+		assertThat(properties.getJobWorker().getConcurrency()).isEqualTo(12);
+	}
+
+	@Test
+	void limitsConcurrentWorkersToSixteen() {
+		ShoppingImportProperties properties = new ShoppingImportProperties();
+
+		properties.getJobWorker().setConcurrency(17);
+
+		assertThat(properties.getJobWorker().getConcurrency()).isEqualTo(16);
+	}
+
+	@Test
 	void enablesSharedCrawlWithShortCacheTtlsByDefault() {
 		ShoppingImportProperties.SharedCrawl sharedCrawl = new ShoppingImportProperties().getSharedCrawl();
 
