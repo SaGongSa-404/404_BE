@@ -34,6 +34,19 @@ class OpportunityCostApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void returnsChickenForReportedMusinsaPrice() throws Exception {
+		mockMvc.perform(get("/api/v1/wishlist/opportunity-cost")
+				.queryParam("price", "25500")
+				.queryParam("category", "FASHION"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.result.itemId").value("ITEM_03"))
+			.andExpect(jsonPath("$.result.calculatedCount").value(1))
+			.andExpect(jsonPath("$.result.displayTitle").value("황금올리브 치킨 🍗"))
+			.andExpect(jsonPath("$.result.displayMessage")
+				.value("이 상품 1개를 아끼면, 바삭한 황금올리브 치킨을 먹을 수 있어요! 🍗"));
+	}
+
+	@Test
 	void supportsPlanningPathAlias() throws Exception {
 		mockMvc.perform(get("/api/v1/wishes/opportunity-cost")
 				.queryParam("price", "35000")
