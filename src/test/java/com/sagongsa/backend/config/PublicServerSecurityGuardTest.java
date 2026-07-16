@@ -77,6 +77,16 @@ class PublicServerSecurityGuardTest {
 	}
 
 	@Test
+	void rejectsEnabledSyncBridgeWithoutJobWorkerInProd() {
+		ShoppingImportProperties shoppingImportProperties = safeShoppingImportProperties();
+		shoppingImportProperties.getJobWorker().setEnabled(false);
+
+		assertThatThrownBy(() -> guard(safeAuthProperties(), shoppingImportProperties, false).run(null))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("job-worker.enabled");
+	}
+
+	@Test
 	void rejectsOversizedShoppingImportResponseLimitInProd() {
 		ShoppingImportProperties shoppingImportProperties = safeShoppingImportProperties();
 		shoppingImportProperties.setMaxResponseBytes(3_000_001);

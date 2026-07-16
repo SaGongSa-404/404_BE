@@ -45,6 +45,9 @@ import org.springframework.web.server.ResponseStatusException;
 	"app.notification.reminder-worker.enabled=false",
 	"app.notification.trigger-worker.enabled=false",
 	"app.shopping.import.job-worker.enabled=false",
+	"app.shopping.import.sync-bridge.enabled=true",
+	"app.shopping.import.sync-bridge.wait-timeout=PT3S",
+	"app.shopping.import.sync-bridge.poll-interval=PT0.02S",
 	"app.shopping.import.job-worker.max-queue-size=3",
 	"app.shopping.import.job-worker.max-active-per-user=2",
 	"app.shopping.import.job-worker.max-attempts=2",
@@ -116,6 +119,35 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.result.item.title").value("Noise Canceling Headphones"))
 			.andExpect(jsonPath("$.result.item.listedPrice").value(129000))
 			.andExpect(jsonPath("$.error").doesNotExist());
+	}
+
+	@Test
+	void keepsSynchronousContractWhileProcessingThroughQueue() throws Exception {
+		UUID userId = createUser();
+		pageFetcher.stub(SHOP_URL, productHtml());
+
+		try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+			Future<org.springframework.test.web.servlet.ResultActions> response = executor.submit(() ->
+				mockMvc.perform(post("/api/v1/items/import-link")
+					.header(USER_ID_HEADER, userId)
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(requestJson(SHOP_URL)))
+			);
+
+			awaitPendingJob();
+			assertThat(worker.processNextJob()).isTrue();
+
+			response.get(3, TimeUnit.SECONDS)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.retrievalStatus").value("SUCCESS"))
+				.andExpect(jsonPath("$.item.title").value("Noise Canceling Headphones"));
+		}
+
+		assertThat(pageFetcher.fetchCount(SHOP_URL)).isEqualTo(1);
+		assertThat(jdbcTemplate.queryForObject(
+			"select count(*) from shopping_import_jobs where status = 'SUCCEEDED'",
+			Integer.class
+		)).isEqualTo(1);
 	}
 
 	@Test
@@ -568,6 +600,21 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			now
 		);
 		return userId;
+	}
+
+	private void awaitPendingJob() throws InterruptedException {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+		while (System.nanoTime() < deadline) {
+			Integer count = jdbcTemplate.queryForObject(
+				"select count(*) from shopping_import_jobs where status = 'PENDING'",
+				Integer.class
+			);
+			if (count != null && count > 0) {
+				return;
+			}
+			Thread.sleep(20);
+		}
+		throw new AssertionError("Synchronous import did not enqueue a job");
 	}
 
 	private String productHtml() {

@@ -72,6 +72,12 @@ public class PublicServerSecurityGuard implements ApplicationRunner {
 	}
 
 	private void validateShoppingImportSettings() {
+		if (shoppingImportProperties.getSyncBridge().isEnabled()
+			&& !shoppingImportProperties.getJobWorker().isEnabled()) {
+			throw new IllegalStateException(
+				"app.shopping.import.job-worker.enabled must be true when sync-bridge is enabled"
+			);
+		}
 		if (!shoppingImportProperties.getBrowserFetch().isEnabled()) {
 			throw new IllegalStateException("app.shopping.import.browser-fetch.enabled must be true for private test prod");
 		}

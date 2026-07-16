@@ -43,6 +43,8 @@ app:
       enabled: true
   shopping:
     import:
+      sync-bridge:
+        enabled: false
       job-worker:
         enabled: false
       browser-fetch:

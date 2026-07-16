@@ -43,4 +43,24 @@ class ShoppingImportPropertiesTest {
 		assertThat(sharedCrawl.getSuccessTtl()).isEqualTo(Duration.ofMinutes(5));
 		assertThat(sharedCrawl.getFailureTtl()).isEqualTo(Duration.ofSeconds(30));
 	}
+
+	@Test
+	void enablesSyncBridgeWithBoundedWaitByDefault() {
+		ShoppingImportProperties.SyncBridge syncBridge = new ShoppingImportProperties().getSyncBridge();
+
+		assertThat(syncBridge.isEnabled()).isTrue();
+		assertThat(syncBridge.getWaitTimeout()).isEqualTo(Duration.ofSeconds(25));
+		assertThat(syncBridge.getPollInterval()).isEqualTo(Duration.ofMillis(500));
+	}
+
+	@Test
+	void rejectsNonPositiveSyncBridgeDurations() {
+		ShoppingImportProperties.SyncBridge syncBridge = new ShoppingImportProperties().getSyncBridge();
+
+		syncBridge.setWaitTimeout(Duration.ZERO);
+		syncBridge.setPollInterval(Duration.ofMillis(-1));
+
+		assertThat(syncBridge.getWaitTimeout()).isEqualTo(Duration.ofSeconds(25));
+		assertThat(syncBridge.getPollInterval()).isEqualTo(Duration.ofMillis(500));
+	}
 }

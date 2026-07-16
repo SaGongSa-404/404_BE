@@ -6,7 +6,6 @@ import com.sagongsa.backend.itemimport.job.ShoppingImportJobResponse;
 import com.sagongsa.backend.itemimport.job.ShoppingImportJobService;
 import com.sagongsa.backend.itemimport.item.ShoppingLinkImportRequest;
 import com.sagongsa.backend.itemimport.item.ShoppingLinkImportResponse;
-import com.sagongsa.backend.itemimport.item.ShoppingLinkImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -30,14 +29,14 @@ public class ItemImportController {
 
 	private static final Logger log = LoggerFactory.getLogger(ItemImportController.class);
 
-	private final ShoppingLinkImportService shoppingLinkImportService;
+	private final ShoppingImportSyncService shoppingImportSyncService;
 	private final ShoppingImportJobService shoppingImportJobService;
 
 	public ItemImportController(
-		ShoppingLinkImportService shoppingLinkImportService,
+		ShoppingImportSyncService shoppingImportSyncService,
 		ShoppingImportJobService shoppingImportJobService
 	) {
-		this.shoppingLinkImportService = shoppingLinkImportService;
+		this.shoppingImportSyncService = shoppingImportSyncService;
 		this.shoppingImportJobService = shoppingImportJobService;
 	}
 
@@ -48,11 +47,16 @@ public class ItemImportController {
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Import preview generated"),
 			@ApiResponse(responseCode = "400", description = "Invalid import payload"),
-			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication")
+			@ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+			@ApiResponse(responseCode = "429", description = "Import queue is full"),
+			@ApiResponse(responseCode = "504", description = "Import is still processing after the synchronous wait limit")
 		}
 	)
-	public ShoppingLinkImportResponse importLink(@RequestBody ShoppingLinkImportRequest request) {
-		ShoppingLinkImportResponse response = shoppingLinkImportService.importLink(request);
+	public ShoppingLinkImportResponse importLink(
+		@Parameter(hidden = true) @CurrentUserId UUID userId,
+		@RequestBody ShoppingLinkImportRequest request
+	) {
+		ShoppingLinkImportResponse response = shoppingImportSyncService.importLink(userId, request);
 		logImportResult(response);
 		return response;
 	}

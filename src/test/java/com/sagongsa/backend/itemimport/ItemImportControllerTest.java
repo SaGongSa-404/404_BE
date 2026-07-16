@@ -12,9 +12,9 @@ import com.sagongsa.backend.itemimport.item.ItemSourceMetadataDraft;
 import com.sagongsa.backend.itemimport.item.SavedItemDraft;
 import com.sagongsa.backend.itemimport.item.ShoppingLinkImportRequest;
 import com.sagongsa.backend.itemimport.item.ShoppingLinkImportResponse;
-import com.sagongsa.backend.itemimport.item.ShoppingLinkImportService;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -25,9 +25,10 @@ class ItemImportControllerTest {
 
 	@Test
 	void logsImportResultWithoutProductDetails(CapturedOutput output) {
-		ShoppingLinkImportService service = mock(ShoppingLinkImportService.class);
+		ShoppingImportSyncService service = mock(ShoppingImportSyncService.class);
 		ShoppingImportJobService jobService = mock(ShoppingImportJobService.class);
 		ItemImportController controller = new ItemImportController(service, jobService);
+		UUID userId = UUID.randomUUID();
 		ShoppingLinkImportRequest request = new ShoppingLinkImportRequest(
 			ItemInputSource.SHARE,
 			"https://ably.airbridge.io/goods/70247267?tracking_content=secret",
@@ -37,9 +38,9 @@ class ItemImportControllerTest {
 			null
 		);
 		ShoppingLinkImportResponse response = response();
-		when(service.importLink(request)).thenReturn(response);
+		when(service.importLink(userId, request)).thenReturn(response);
 
-		assertThat(controller.importLink(request)).isSameAs(response);
+		assertThat(controller.importLink(userId, request)).isSameAs(response);
 
 		assertThat(output)
 			.contains("shopping link import completed retrievalStatus=SUCCESS")
