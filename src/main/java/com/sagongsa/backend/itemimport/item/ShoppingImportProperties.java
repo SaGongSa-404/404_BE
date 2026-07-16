@@ -11,6 +11,7 @@ public class ShoppingImportProperties {
 	private int maxResponseBytes = 1_000_000;
 	private final BrowserFetch browserFetch = new BrowserFetch();
 	private final SharedCrawl sharedCrawl = new SharedCrawl();
+	private final SyncBridge syncBridge = new SyncBridge();
 	private final JobWorker jobWorker = new JobWorker();
 	private final KreamProxy kreamProxy = new KreamProxy();
 	private final AblyApi ablyApi = new AblyApi();
@@ -29,6 +30,10 @@ public class ShoppingImportProperties {
 
 	public SharedCrawl getSharedCrawl() {
 		return sharedCrawl;
+	}
+
+	public SyncBridge getSyncBridge() {
+		return syncBridge;
 	}
 
 	public JobWorker getJobWorker() {
@@ -80,6 +85,41 @@ public class ShoppingImportProperties {
 
 		public void setFailureTtl(Duration failureTtl) {
 			this.failureTtl = positiveOrDefault(failureTtl, Duration.ofSeconds(30));
+		}
+
+		private Duration positiveOrDefault(Duration value, Duration fallback) {
+			return value == null || value.isZero() || value.isNegative() ? fallback : value;
+		}
+	}
+
+	public static class SyncBridge {
+
+		private boolean enabled = true;
+		private Duration waitTimeout = Duration.ofSeconds(25);
+		private Duration pollInterval = Duration.ofMillis(500);
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public void setEnabled(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+		public Duration getWaitTimeout() {
+			return waitTimeout;
+		}
+
+		public void setWaitTimeout(Duration waitTimeout) {
+			this.waitTimeout = positiveOrDefault(waitTimeout, Duration.ofSeconds(25));
+		}
+
+		public Duration getPollInterval() {
+			return pollInterval;
+		}
+
+		public void setPollInterval(Duration pollInterval) {
+			this.pollInterval = positiveOrDefault(pollInterval, Duration.ofMillis(500));
 		}
 
 		private Duration positiveOrDefault(Duration value, Duration fallback) {

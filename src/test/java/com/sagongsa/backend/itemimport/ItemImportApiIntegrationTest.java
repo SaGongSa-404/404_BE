@@ -10,8 +10,11 @@ import com.sagongsa.backend.itemimport.item.FetchedPage;
 import com.sagongsa.backend.itemimport.item.PageFetcher;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.net.URI;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +24,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
@@ -31,6 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 
 	private static final String IMPORT_LINK_PATH = "/api/v1/items/import-link";
+	private static final String USER_ID_HEADER = "X-User-Id";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -38,8 +43,15 @@ class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 	@Autowired
 	private FakePageFetcher pageFetcher;
 
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
+	private UUID userId;
+
 	@BeforeEach
 	void setUp() {
+		jdbcTemplate.execute("truncate table users cascade");
+		userId = createUser();
 		pageFetcher.reset();
 	}
 
@@ -61,6 +73,7 @@ class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 		);
 
 		mockMvc.perform(post(IMPORT_LINK_PATH)
+				.header(USER_ID_HEADER, userId)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 				{
@@ -87,6 +100,7 @@ class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void importsDirectInputWithoutUrlThroughApi() throws Exception {
 		mockMvc.perform(post(IMPORT_LINK_PATH)
+				.header(USER_ID_HEADER, userId)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 				{
@@ -115,6 +129,7 @@ class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 	@Test
 	void rejectsShareUrlWithUserInfoThroughApi() throws Exception {
 		mockMvc.perform(post(IMPORT_LINK_PATH)
+				.header(USER_ID_HEADER, userId)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 				{
@@ -130,6 +145,7 @@ class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 		pageFetcher.stub("https://shop.example.com/products/missing", 404, "<html></html>");
 
 		mockMvc.perform(post(IMPORT_LINK_PATH)
+				.header(USER_ID_HEADER, userId)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 				{
@@ -138,6 +154,18 @@ class ItemImportApiIntegrationTest extends PostgreSqlContainerTest {
 				}
 				"""))
 			.andExpect(status().isBadGateway());
+	}
+
+	private UUID createUser() {
+		UUID id = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"insert into users (id, status, onboarding_status, created_at, updated_at) values (?, 'ACTIVE', 'COMPLETED', ?, ?)",
+			id,
+			now,
+			now
+		);
+		return id;
 	}
 
 	@TestConfiguration

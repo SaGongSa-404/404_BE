@@ -81,6 +81,10 @@ app:
         cache-enabled: ${SHOPPING_IMPORT_CACHE_ENABLED:true}
         success-ttl: ${SHOPPING_IMPORT_CACHE_SUCCESS_TTL:PT5M}
         failure-ttl: ${SHOPPING_IMPORT_CACHE_FAILURE_TTL:PT30S}
+      sync-bridge:
+        enabled: ${SHOPPING_IMPORT_SYNC_QUEUE_ENABLED:true}
+        wait-timeout: ${SHOPPING_IMPORT_SYNC_WAIT_TIMEOUT:PT25S}
+        poll-interval: ${SHOPPING_IMPORT_SYNC_POLL_INTERVAL:PT0.5S}
       job-worker:
         enabled: ${SHOPPING_IMPORT_JOB_WORKER_ENABLED:true}
         max-queue-size: ${SHOPPING_IMPORT_JOB_MAX_QUEUE_SIZE:100}
