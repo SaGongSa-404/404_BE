@@ -170,6 +170,7 @@ public class ShoppingImportProperties {
 		private int concurrency = 1;
 		private int maxAttempts = 2;
 		private long fixedDelayMs = 500;
+		private long recoveryDelayMs = 60_000;
 		private long cleanupDelayMs = 3_600_000;
 		private Duration staleTimeout = Duration.ofMinutes(5);
 		private Duration retention = Duration.ofDays(7);
@@ -220,6 +221,14 @@ public class ShoppingImportProperties {
 
 		public void setFixedDelayMs(long fixedDelayMs) {
 			this.fixedDelayMs = fixedDelayMs <= 0 ? 500 : fixedDelayMs;
+		}
+
+		public long getRecoveryDelayMs() {
+			return recoveryDelayMs;
+		}
+
+		public void setRecoveryDelayMs(long recoveryDelayMs) {
+			this.recoveryDelayMs = recoveryDelayMs <= 0 ? 60_000 : recoveryDelayMs;
 		}
 
 		public long getCleanupDelayMs() {

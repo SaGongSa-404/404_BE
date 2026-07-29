@@ -42,6 +42,17 @@ class ShoppingImportPropertiesTest {
 	}
 
 	@Test
+	void usesOneMinuteStaleRecoveryIntervalByDefault() {
+		ShoppingImportProperties.JobWorker jobWorker = new ShoppingImportProperties().getJobWorker();
+
+		assertThat(jobWorker.getRecoveryDelayMs()).isEqualTo(60_000);
+
+		jobWorker.setRecoveryDelayMs(0);
+
+		assertThat(jobWorker.getRecoveryDelayMs()).isEqualTo(60_000);
+	}
+
+	@Test
 	void enablesSharedCrawlWithShortCacheTtlsByDefault() {
 		ShoppingImportProperties.SharedCrawl sharedCrawl = new ShoppingImportProperties().getSharedCrawl();
 
