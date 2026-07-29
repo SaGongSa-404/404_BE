@@ -248,6 +248,21 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 	}
 
 	@Test
+	void reportsOnlyPendingLeaderAsClaimable() throws Exception {
+		assertThat(worker.hasClaimableJob()).isFalse();
+		UUID jobId = submittedJobId(createUser(), SHOP_URL, "PENDING");
+
+		assertThat(worker.hasClaimableJob()).isTrue();
+
+		jdbcTemplate.update(
+			"update shopping_import_jobs set status = 'RUNNING', started_at = now(), updated_at = now() where id = ?",
+			jobId
+		);
+
+		assertThat(worker.hasClaimableJob()).isFalse();
+	}
+
+	@Test
 	void reusesActiveJobForDuplicateRequest() throws Exception {
 		UUID userId = createUser();
 
@@ -456,6 +471,7 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			old
 		);
 
+		assertThat(worker.recoverStaleJobs()).isEqualTo(1);
 		assertThat(worker.processNextJob()).isTrue();
 
 		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
@@ -469,6 +485,7 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 		UUID userId = createUser();
 		UUID jobId = insertStaleRunningJob(userId, 2, "1".repeat(64));
 
+		assertThat(worker.recoverStaleJobs()).isEqualTo(1);
 		assertThat(worker.processNextJob()).isFalse();
 
 		mockMvc.perform(get(JOBS_PATH + "/" + jobId).header(USER_ID_HEADER, userId))
@@ -491,6 +508,7 @@ class ShoppingImportJobApiIntegrationTest extends PostgreSqlContainerTest {
 			old
 		);
 
+		assertThat(worker.recoverStaleJobs()).isEqualTo(1);
 		assertThat(worker.processNextJob()).isFalse();
 
 		for (Map.Entry<UUID, UUID> job : Map.of(

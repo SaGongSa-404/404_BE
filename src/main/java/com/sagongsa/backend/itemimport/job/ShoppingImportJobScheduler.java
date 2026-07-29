@@ -36,10 +36,22 @@ class ShoppingImportJobScheduler {
 		scheduler = "shoppingImportTaskScheduler"
 	)
 	void processNextJob() {
+		if (!worker.hasClaimableJob()) {
+			return;
+		}
+
 		CompletableFuture<?>[] workers = IntStream.range(0, properties.getJobWorker().getConcurrency())
 			.mapToObj(ignored -> CompletableFuture.runAsync(worker::processNextJob, workerExecutor))
 			.toArray(CompletableFuture[]::new);
 		CompletableFuture.allOf(workers).join();
+	}
+
+	@Scheduled(
+		fixedDelayString = "${app.shopping.import.job-worker.recovery-delay-ms:60000}",
+		scheduler = "shoppingImportTaskScheduler"
+	)
+	void recoverStaleJobs() {
+		worker.recoverStaleJobs();
 	}
 
 	@Scheduled(

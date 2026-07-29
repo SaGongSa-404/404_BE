@@ -46,6 +46,7 @@ QA/운영 서버에서 활성화하려면 Firebase 서비스 계정 JSON을 레�
 | `SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER` | `3` | 사용자별 활성 작업 상한입니다. |
 | `SHOPPING_IMPORT_JOB_MAX_ATTEMPTS` | `2` | 중단된 작업의 최대 claim 횟수입니다. |
 | `SHOPPING_IMPORT_JOB_FIXED_DELAY_MS` | `500` | worker의 다음 작업 확인 간격입니다. |
+| `SHOPPING_IMPORT_JOB_RECOVERY_DELAY_MS` | `60000` | 중단된 `RUNNING` 작업의 복구 확인 주기입니다. |
 | `SHOPPING_IMPORT_JOB_CLEANUP_DELAY_MS` | `3600000` | 완료 작업 정리 주기입니다. |
 | `SHOPPING_IMPORT_JOB_STALE_TIMEOUT` | `PT5M` | 이 시간을 넘긴 `RUNNING` 작업을 중단된 작업으로 판단합니다. |
 | `SHOPPING_IMPORT_JOB_RETENTION` | `P7D` | 완료/실패 작업 결과 보관기간입니다. |

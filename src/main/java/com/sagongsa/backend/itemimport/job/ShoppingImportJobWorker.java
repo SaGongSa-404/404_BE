@@ -48,7 +48,6 @@ public class ShoppingImportJobWorker {
 	}
 
 	public boolean processNextJob() {
-		recoverStaleJobs();
 		ClaimedJob job = transactionTemplate.execute(status -> claimNextJob());
 		if (job == null) {
 			return false;
@@ -82,6 +81,23 @@ public class ShoppingImportJobWorker {
 			);
 		}
 		return true;
+	}
+
+	public boolean hasClaimableJob() {
+		Boolean claimable = jdbcTemplate.queryForObject(
+			"""
+			select exists (
+				select 1
+				from shopping_import_jobs
+				where leader_job_id is null
+				  and status = 'PENDING'
+				  and attempt_count < ?
+			)
+			""",
+			Boolean.class,
+			properties.getJobWorker().getMaxAttempts()
+		);
+		return Boolean.TRUE.equals(claimable);
 	}
 
 	public int cleanupExpiredJobs() {
@@ -159,11 +175,12 @@ public class ShoppingImportJobWorker {
 		return job;
 	}
 
-	private void recoverStaleJobs() {
+	public int recoverStaleJobs() {
 		Integer recovered = transactionTemplate.execute(status -> recoverStaleJobsInTransaction());
 		if (recovered != null && recovered > 0) {
 			log.warn("recovered stale shopping import jobs count={}", recovered);
 		}
+		return recovered == null ? 0 : recovered;
 	}
 
 	private int recoverStaleJobsInTransaction() {
