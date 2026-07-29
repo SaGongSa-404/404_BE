@@ -10,6 +10,7 @@ import com.sagongsa.backend.domain.budget.BudgetCycleRepository;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemStatus;
 import com.sagongsa.backend.domain.enums.ModerationStatus;
+import com.sagongsa.backend.domain.enums.PostVoteType;
 import com.sagongsa.backend.domain.item.SavedItemRepository;
 import com.sagongsa.backend.domain.notification.DevicePushTokenRepository;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
@@ -443,12 +444,13 @@ class MypageService {
 		Map<UUID, Long> commentCounts = countVisibleCommentsByPostIds(
 			posts.stream().map(post -> post.getId()).toList(),
 			blockedIds);
+		Map<UUID, PostVoteType> activeVotes = findActiveVotesByPostIds(
+			posts.stream().map(post -> post.getId()).toList(),
+			userId);
 
 		var items = posts.stream().map(post -> {
 			long cc = commentCounts.getOrDefault(post.getId(), 0L);
-			var myVote = postVoteRepository.findByPostIdAndUserId(post.getId(), userId)
-				.filter(PostVote::isActive).map(PostVote::getVoteType).orElse(null);
-			return PostResponse.of(post, myNickname, cc, myVote, userId);
+			return PostResponse.of(post, myNickname, cc, activeVotes.get(post.getId()), userId);
 		}).toList();
 
 		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
@@ -497,5 +499,13 @@ class MypageService {
 			: postCommentRepository.countVisibleByPostIdsExcludingBlockers(postIds, blockedIds);
 		return counts.stream()
 			.collect(Collectors.toMap(PostCommentCount::postId, PostCommentCount::commentCount));
+	}
+
+	private Map<UUID, PostVoteType> findActiveVotesByPostIds(List<UUID> postIds, UUID userId) {
+		if (postIds.isEmpty()) return Collections.emptyMap();
+
+		return postVoteRepository.findByPostIdsAndUserId(postIds, userId).stream()
+			.filter(PostVote::isActive)
+			.collect(Collectors.toMap(vote -> vote.getPost().getId(), PostVote::getVoteType));
 	}
 }
