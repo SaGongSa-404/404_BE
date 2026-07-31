@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -366,28 +367,22 @@ public class WishlistService {
 	}
 
 	private void ensureWishlistUserAllowed(UUID userId) {
-		Boolean exists = jdbcTemplate.queryForObject(
-			"select exists(select 1 from users where id = ?)",
-			Boolean.class,
-			userId
-		);
-		if (!Boolean.TRUE.equals(exists)) {
+		Boolean allowed;
+		try {
+			allowed = jdbcTemplate.queryForObject(
+				"""
+				select status = 'ACTIVE' and onboarding_status = 'COMPLETED'
+				from users
+				where id = ?
+				""",
+				Boolean.class,
+				userId
+			);
+		}
+		catch (EmptyResultDataAccessException exception) {
 			throw new WishlistItemNotFoundException("User was not found.");
 		}
 
-		Boolean allowed = jdbcTemplate.queryForObject(
-			"""
-			select exists(
-				select 1
-				from users
-				where id = ?
-				  and status = 'ACTIVE'
-				  and onboarding_status = 'COMPLETED'
-			)
-			""",
-			Boolean.class,
-			userId
-		);
 		if (!Boolean.TRUE.equals(allowed)) {
 			throw new WishlistForbiddenException("Wishlist can be used only by active users who completed onboarding.");
 		}
