@@ -4,6 +4,7 @@ import com.sagongsa.backend.auth.AppRedirectUriSupport;
 import com.sagongsa.backend.auth.CustomOAuth2UserService;
 import com.sagongsa.backend.auth.OAuth2AppAuthenticationFailureHandler;
 import com.sagongsa.backend.auth.OAuth2AppAuthenticationSuccessHandler;
+import com.sagongsa.backend.security.ratelimit.ApiRateLimitFilter;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +35,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -56,7 +59,11 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties({AppAuthProperties.class, AppCorsProperties.class})
+@EnableConfigurationProperties({
+	AppAuthProperties.class,
+	AppCorsProperties.class,
+	ApiRateLimitProperties.class
+})
 public class SecurityConfig {
 
 	private static final String AUTHORIZATION_BASE_URI = "/oauth2/authorization";
@@ -72,6 +79,7 @@ public class SecurityConfig {
 		@Value("${app.auth.trusted-user-id-header.enabled:false}") boolean trustedUserIdHeaderEnabled,
 		CorsConfigurationSource corsConfigurationSource,
 		@Qualifier("apiAccessTokenJwtDecoder") JwtDecoder apiAccessTokenJwtDecoder,
+		ApiRateLimitFilter apiRateLimitFilter,
 		Environment environment
 	) throws Exception {
 		boolean nonProd = !environment.acceptsProfiles(Profiles.of("prod"));
@@ -124,9 +132,17 @@ public class SecurityConfig {
 			.oauth2Client(Customizer.withDefaults())
 			.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
 				.decoder(apiAccessTokenJwtDecoder)
-				.jwtAuthenticationConverter(jwtAuthenticationConverter)));
+				.jwtAuthenticationConverter(jwtAuthenticationConverter)))
+			.addFilterBefore(apiRateLimitFilter, OAuth2AuthorizationRequestRedirectFilter.class);
 
 		return http.build();
+	}
+
+	@Bean
+	FilterRegistrationBean<ApiRateLimitFilter> apiRateLimitFilterRegistration(ApiRateLimitFilter filter) {
+		FilterRegistrationBean<ApiRateLimitFilter> registration = new FilterRegistrationBean<>(filter);
+		registration.setEnabled(false);
+		return registration;
 	}
 
 	@Bean

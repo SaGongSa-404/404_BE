@@ -2,6 +2,7 @@ package com.sagongsa.backend.auth;
 
 import com.sagongsa.backend.config.AppAuthProperties;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
+import com.sagongsa.backend.security.ratelimit.ClientIpResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,17 +43,20 @@ public class AuthApiController {
 	private final UserAccessService userAccessService;
 	private final AppAuthProperties appAuthProperties;
 	private final ReviewerTokenRateLimiter reviewerTokenRateLimiter;
+	private final ClientIpResolver clientIpResolver;
 
 	public AuthApiController(JwtTokenService jwtTokenService,
 		UserAccountRepository userAccountRepository,
 		UserAccessService userAccessService,
 		AppAuthProperties appAuthProperties,
-		ReviewerTokenRateLimiter reviewerTokenRateLimiter) {
+		ReviewerTokenRateLimiter reviewerTokenRateLimiter,
+		ClientIpResolver clientIpResolver) {
 		this.jwtTokenService = jwtTokenService;
 		this.userAccountRepository = userAccountRepository;
 		this.userAccessService = userAccessService;
 		this.appAuthProperties = appAuthProperties;
 		this.reviewerTokenRateLimiter = reviewerTokenRateLimiter;
+		this.clientIpResolver = clientIpResolver;
 	}
 
 	@GetMapping("/me")
@@ -136,7 +140,7 @@ public class AuthApiController {
 			),
 			List.of(new SimpleGrantedAuthority("ROLE_USER"))
 		);
-		log.info("App reviewer token issued from remoteAddress={}", request.getRemoteAddr());
+		log.info("App reviewer token issued from clientIp={}", clientIpResolver.resolve(request).address());
 		return toTokenResponse(tokenPair);
 	}
 
@@ -146,10 +150,11 @@ public class AuthApiController {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND);
 		}
 
-		reviewerTokenRateLimiter.assertAllowed(request.getRemoteAddr());
+		String clientIp = clientIpResolver.resolve(request).address();
+		reviewerTokenRateLimiter.assertAllowed(clientIp);
 		if (properties.isRequireSecret()
 			&& (!StringUtils.hasText(properties.getSecret()) || !constantTimeEquals(properties.getSecret(), reviewerToken))) {
-			log.warn("App reviewer token rejected from remoteAddress={}", request.getRemoteAddr());
+			log.warn("App reviewer token rejected from clientIp={}", clientIp);
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid reviewer token secret");
 		}
 	}
