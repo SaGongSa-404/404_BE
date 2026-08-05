@@ -4,6 +4,9 @@ springdoc:
   swagger-ui:
     enabled: false
 
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
 app:
   auth:
     jwt-secret: ${APP_JWT_SECRET:}
