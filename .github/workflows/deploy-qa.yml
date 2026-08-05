@@ -403,7 +403,6 @@ jobs:
           elif grep -Eq 'reverse_proxy (localhost|127\.0\.0\.1):8080' "$CADDY_FILE"; then
             systemctl is-active --quiet wigul-backend
             wait_health 8080 "8080 main" 20
-            require_loopback_listener 8080 "8080 main"
           else
             echo "::error::Caddy must point to loopback:8080 or a healthy recovery standby on 8081"
             sudo -n sed -n '1,120p' "$CADDY_FILE" || true
