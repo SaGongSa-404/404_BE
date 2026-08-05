@@ -71,6 +71,7 @@ jobs:
           CANDIDATE_JAR="$ACTIVE_JAR.candidate-${{ github.sha }}"
           ENV_FILE="$APP_DIR/.env.systemd"
           CADDY_FILE="/etc/caddy/Caddyfile"
+          CADDY_ACCESS_LOG="/var/log/caddy/wigul-access.log"
           STANDBY_PID="/tmp/wigul-backend-standby.pid"
           STANDBY_LOG="/tmp/wigul-backend-standby-${{ github.sha }}.log"
           TS="$(date +%Y%m%d_%H%M%S)"
@@ -288,11 +289,15 @@ jobs:
           switch_caddy() {
             port="$1"
             tmp_file="$(mktemp)"
+            caddy_user="$(systemctl show caddy -p User --value)"
+            caddy_group="$(systemctl show caddy -p Group --value)"
+            [ -n "$caddy_user" ] || caddy_user="root"
+            [ -n "$caddy_group" ] || caddy_group="$caddy_user"
 
             cat > "$tmp_file" <<EOF
           $CADDY_SITE {
               log {
-                  output file /var/log/caddy/wigul-access.log {
+                  output file $CADDY_ACCESS_LOG {
                       roll_size 10MiB
                       roll_keep 10
                       roll_keep_for 720h
@@ -300,13 +305,17 @@ jobs:
                   format json
               }
 
-              @sensitive path_regexp sensitive (?i)^/(?:\\.env(?:[./_-].*)?|\\.git(?:/.*)?|manager(?:/.*)?|cgi-bin(?:/.*)?)$
+              @sensitive path_regexp sensitive (?i)^/(?:\\.(?:env(?:[./_-].*)?|git(?:/.*)?|aws(?:/.*)?|ssh(?:/.*)?)|manager(?:/.*)?|cgi-bin(?:/.*)?|actuator(?:/.*)?|wp-admin(?:/.*)?|wp-login\\.php|xmlrpc\\.php|phpmyadmin(?:/.*)?|vendor/phpunit(?:/.*)?)$
               respond @sensitive 404
 
               reverse_proxy 127.0.0.1:$port
           }
           EOF
 
+            sudo -n install -d -o "$caddy_user" -g "$caddy_group" -m 0750 "$(dirname "$CADDY_ACCESS_LOG")"
+            sudo -n touch "$CADDY_ACCESS_LOG"
+            sudo -n chown "$caddy_user:$caddy_group" "$CADDY_ACCESS_LOG"
+            sudo -n chmod 0640 "$CADDY_ACCESS_LOG"
             sudo -n cp "$tmp_file" "$CADDY_FILE"
             rm -f "$tmp_file"
             sudo -n caddy fmt --overwrite "$CADDY_FILE"
