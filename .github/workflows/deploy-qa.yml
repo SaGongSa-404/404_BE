@@ -308,7 +308,9 @@ jobs:
               @sensitive path_regexp sensitive (?i)^/(?:\\.(?:env(?:[./_-].*)?|git(?:/.*)?|aws(?:/.*)?|ssh(?:/.*)?)|manager(?:/.*)?|cgi-bin(?:/.*)?|actuator(?:/.*)?|wp-admin(?:/.*)?|wp-login\\.php|xmlrpc\\.php|phpmyadmin(?:/.*)?|vendor/phpunit(?:/.*)?)$
               respond @sensitive 404
 
-              reverse_proxy 127.0.0.1:$port
+              reverse_proxy 127.0.0.1:$port {
+                  header_up X-Forwarded-For {remote_host}
+              }
           }
           EOF
 

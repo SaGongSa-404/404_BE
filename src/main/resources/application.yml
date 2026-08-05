@@ -51,6 +51,22 @@ logging:
     console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] [requestId=%X{requestId}] [userId=%X{userId}] %logger{36} - %msg%n"
 
 app:
+  security:
+    rate-limit:
+      enabled: ${APP_API_RATE_LIMIT_ENABLED:true}
+      max-tracked-keys: ${APP_API_RATE_LIMIT_MAX_TRACKED_KEYS:10000}
+      api:
+        max-requests: ${APP_API_RATE_LIMIT_MAX_REQUESTS:600}
+        window: ${APP_API_RATE_LIMIT_WINDOW:PT1M}
+      authentication:
+        max-requests: ${APP_AUTH_RATE_LIMIT_MAX_REQUESTS:30}
+        window: ${APP_AUTH_RATE_LIMIT_WINDOW:PT1M}
+      expensive-request:
+        max-requests: ${APP_EXPENSIVE_RATE_LIMIT_MAX_REQUESTS:30}
+        window: ${APP_EXPENSIVE_RATE_LIMIT_WINDOW:PT1M}
+      health:
+        max-requests: ${APP_HEALTH_RATE_LIMIT_MAX_REQUESTS:120}
+        window: ${APP_HEALTH_RATE_LIMIT_WINDOW:PT1M}
   admin:
     notification-token: ${APP_ADMIN_NOTIFICATION_TOKEN:}
   auth:
