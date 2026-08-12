@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,67 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 					{"title":"제목","body":"%s"}
 					""".formatted(longBody)))
 			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 게시글_생성_실행_가능한_imageUrl_400() throws Exception {
+		UUID userId = insertUser();
+
+		for (String imageUrl : new String[] {
+			"javascript:alert(1)",
+			"data:image/svg+xml,<svg onload=alert(1)></svg>",
+			"//example.com/image.png",
+			"https://user@example.com/image.png",
+			"https://example.com/image.png\" onerror=\"alert(1)"
+		}) {
+			mockMvc.perform(post("/api/v1/social/posts")
+					.header("X-User-Id", userId)
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(objectMapper.writeValueAsString(Map.of("title", "제목", "imageUrl", imageUrl))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		}
+	}
+
+	@Test
+	void 게시글_생성_위시항목의_실행_가능한_imageUrl_400() throws Exception {
+		UUID userId = insertUser();
+		UUID itemId = insertSavedItem(userId, "javascript:alert(1)");
+
+		mockMvc.perform(post("/api/v1/social/posts")
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("title", "제목", "itemId", itemId))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+	}
+
+	@Test
+	void 게시글_생성_https_imageUrl_201() throws Exception {
+		UUID userId = insertUser();
+		String imageUrl = "https://cdn.example.com/image.png";
+
+		mockMvc.perform(post("/api/v1/social/posts")
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("title", "제목", "imageUrl", imageUrl))))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.imageUrl").value(imageUrl));
+	}
+
+	@Test
+	void 게시글_생성_내부_업로드_imageUrl_201() throws Exception {
+		UUID userId = insertUser();
+		String imageUrl = "/uploads/social/123e4567-e89b-12d3-a456-426614174000.png";
+
+		mockMvc.perform(post("/api/v1/social/posts")
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"title":"제목","imageUrl":"%s"}
+					""".formatted(imageUrl)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.imageUrl").value(imageUrl));
 	}
 
 	// ── GET /api/v1/social/posts ─────────────────────────────────────────────
@@ -441,6 +503,26 @@ class SocialFeedApiIntegrationTest extends PostgreSqlContainerTest {
 			"INSERT INTO feed_posts (id, user_id, title, body, go_count, stop_count, created_at, updated_at) VALUES (?, ?, '테스트 게시글', '내용', 0, 0, ?, ?)",
 			postId, userId, now, now);
 		return postId;
+	}
+
+	private UUID insertSavedItem(UUID userId, String imageUrl) {
+		UUID itemId = UUID.randomUUID();
+		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO saved_items (
+				id, user_id, input_source, title, image_url, listed_price, currency_code,
+				category, category_locked_by_user, status, created_at, updated_at
+			)
+			VALUES (?, ?, 'DIRECT_INPUT', '테스트 상품', ?, 1000, 'KRW', 'ETC', false, 'SAVED', ?, ?)
+			""",
+			itemId,
+			userId,
+			imageUrl,
+			now,
+			now
+		);
+		return itemId;
 	}
 
 	private UUID insertComment(UUID userId, UUID postId) {
