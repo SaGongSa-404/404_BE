@@ -14,7 +14,7 @@ app:
     trusted-user-id-header:
       enabled: false
     reviewer-token:
-      enabled: ${APP_REVIEWER_TOKEN_ENABLED:true}
+      enabled: ${APP_REVIEWER_TOKEN_ENABLED:false}
       require-secret: ${APP_REVIEWER_TOKEN_REQUIRE_SECRET:false}
       secret: ${APP_REVIEWER_TOKEN_SECRET:}
   shopping:

@@ -366,11 +366,11 @@ jobs:
             fail_preflight "APP_AUTH_TRUSTED_USER_ID_HEADER_ENABLED must not be true"
           fi
 
-          if [ "${APP_REVIEWER_TOKEN_ENABLED:-true}" != "false" ]; then
+          if [ "${APP_REVIEWER_TOKEN_ENABLED:-false}" != "false" ]; then
             require_reviewer_seed
           fi
 
-          if [ "${APP_REVIEWER_TOKEN_ENABLED:-true}" != "false" ] && [ "${APP_REVIEWER_TOKEN_REQUIRE_SECRET:-false}" = "true" ]; then
+          if [ "${APP_REVIEWER_TOKEN_ENABLED:-false}" != "false" ] && [ "${APP_REVIEWER_TOKEN_REQUIRE_SECRET:-false}" = "true" ]; then
             require_env APP_REVIEWER_TOKEN_SECRET
             require_secret_length APP_REVIEWER_TOKEN_SECRET
           fi
