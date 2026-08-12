@@ -63,7 +63,7 @@ public class AppAuthProperties {
 
 	public static class ReviewerToken {
 
-		private boolean enabled = true;
+		private boolean enabled;
 		private boolean requireSecret;
 		private String secret = "";
 		private int rateLimitMaxAttempts = 10;

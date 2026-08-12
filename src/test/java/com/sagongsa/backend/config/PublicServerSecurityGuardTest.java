@@ -1,5 +1,6 @@
 package com.sagongsa.backend.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -9,6 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 class PublicServerSecurityGuardTest {
+
+	@Test
+	void reviewerTokenIsDisabledByDefault() {
+		AppAuthProperties authProperties = new AppAuthProperties();
+
+		assertThat(authProperties.getReviewerToken().isEnabled()).isFalse();
+	}
 
 	@Test
 	void acceptsPrivateTestSafeProdSettings() {
@@ -110,6 +118,7 @@ class PublicServerSecurityGuardTest {
 		AppAuthProperties authProperties = new AppAuthProperties();
 		authProperties.setJwtSecret("private-test-jwt-secret-with-strong-length");
 		authProperties.setAllowedRedirectUriPrefixes(List.of("sagongsa404://auth/callback"));
+		authProperties.getReviewerToken().setEnabled(true);
 		authProperties.getReviewerToken().setRequireSecret(true);
 		authProperties.getReviewerToken().setSecret("private-test-reviewer-token-secret-long");
 		return authProperties;

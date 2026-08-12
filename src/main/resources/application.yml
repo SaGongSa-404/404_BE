@@ -76,7 +76,7 @@ app:
     refresh-token-ttl: ${APP_REFRESH_TOKEN_TTL:P30D}
     allowed-redirect-uri-prefixes: ${APP_ALLOWED_REDIRECT_URI_PREFIXES:sagongsa404://auth/callback,http://localhost/auth/callback,http://127.0.0.1/auth/callback,https://localhost/auth/callback,https://127.0.0.1/auth/callback}
     reviewer-token:
-      enabled: ${APP_REVIEWER_TOKEN_ENABLED:true}
+      enabled: ${APP_REVIEWER_TOKEN_ENABLED:false}
       require-secret: ${APP_REVIEWER_TOKEN_REQUIRE_SECRET:false}
       secret: ${APP_REVIEWER_TOKEN_SECRET:}
       rate-limit-max-attempts: ${APP_REVIEWER_TOKEN_RATE_LIMIT_MAX_ATTEMPTS:10}

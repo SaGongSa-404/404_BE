@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MvcResult;
 	"app.auth.trusted-user-id-header.enabled=false",
 	"app.auth.jwt-secret=test-jwt-secret-for-private-test-security-checks",
 	"app.auth.allowed-redirect-uri-prefixes=sagongsa404://auth/callback",
+	"app.auth.reviewer-token.enabled=true",
 	"app.auth.reviewer-token.secret=test-reviewer-token-secret-for-private-test",
 	"app.shopping.import.browser-fetch.enabled=true"
 })
@@ -100,7 +101,16 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 
 	@AfterEach
 	void restoreReviewerTokenConfiguration() {
+		appAuthProperties.getReviewerToken().setEnabled(true);
 		appAuthProperties.getReviewerToken().setRequireSecret(false);
+	}
+
+	@Test
+	void returnsNotFoundWhenReviewerTokenIsDisabled() throws Exception {
+		appAuthProperties.getReviewerToken().setEnabled(false);
+
+		mockMvc.perform(post("/api/auth/reviewer-token"))
+			.andExpect(status().isNotFound());
 	}
 
 	@Test
