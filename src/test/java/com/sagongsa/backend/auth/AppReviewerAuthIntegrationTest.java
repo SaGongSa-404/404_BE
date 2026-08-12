@@ -1,6 +1,7 @@
 package com.sagongsa.backend.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -173,6 +174,33 @@ class AppReviewerAuthIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/users/me")
 			.header("X-User-Id", REVIEWER_USER_ID.toString()))
 			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void keepsPublicAppAvailableInProdProfile() throws Exception {
+		mockMvc.perform(get("/app.html"))
+			.andExpect(status().isOk());
+	}
+
+	@Test
+	void deniesDevelopmentHtmlInProdEvenForAuthenticatedUsers() throws Exception {
+		for (String path : new String[] {
+			"/test-social-feed.html",
+			"/test-mypage.html",
+			"/deliberation.html"
+		}) {
+			mockMvc.perform(get(path).with(jwt()))
+				.andExpect(status().isForbidden());
+		}
+	}
+
+	@Test
+	void deniesApiDocsAndDevelopmentApiInProdEvenForAuthenticatedUsers() throws Exception {
+		mockMvc.perform(get("/v3/api-docs").with(jwt()))
+			.andExpect(status().isForbidden());
+
+		mockMvc.perform(post("/api/dev/users/test").with(jwt()))
+			.andExpect(status().isForbidden());
 	}
 
 	@Test
