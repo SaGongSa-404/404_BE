@@ -307,8 +307,8 @@ function renderFeedCard(p) {
     el.className = 'feed-card';
     el.id = `post-${p.id}`;
     const myGo = p.myVote === 'GO', myStop = p.myVote === 'STOP';
+    const imageUrl = toSafeImageUrl(p.imageUrl);
     el.innerHTML = `
-        ${p.imageUrl ? `<img class="feed-img" src="${p.imageUrl}" alt="">` : ''}
         <div class="feed-body">
             <div class="feed-title">${esc(p.title)}</div>
             ${p.body ? `<div class="feed-desc">${esc(p.body)}</div>` : ''}
@@ -328,6 +328,13 @@ function renderFeedCard(p) {
             </div>
         </div>
     `;
+    if (imageUrl) {
+        const img = document.createElement('img');
+        img.className = 'feed-img';
+        img.alt = '';
+        img.src = imageUrl;
+        el.prepend(img);
+    }
     document.getElementById('feedList').appendChild(el);
 }
 
@@ -511,9 +518,9 @@ async function loadMyProfile() {
     me = r.data;
     document.getElementById('headerNickname').textContent = me.nickname || '사용자';
     document.getElementById('profileInfo').innerHTML = `
-        <div class="profile-row"><span class="profile-label">닉네임</span><span class="profile-val">${me.nickname || '-'}</span></div>
-        <div class="profile-row"><span class="profile-label">마스코트</span><span class="profile-val">${me.mascotName || '-'}</span></div>
-        <div class="profile-row"><span class="profile-label">상태</span><span class="profile-val">${me.status}</span></div>
+        <div class="profile-row"><span class="profile-label">닉네임</span><span class="profile-val">${esc(me.nickname || '-')}</span></div>
+        <div class="profile-row"><span class="profile-label">마스코트</span><span class="profile-val">${esc(me.mascotName || '-')}</span></div>
+        <div class="profile-row"><span class="profile-label">상태</span><span class="profile-val">${esc(me.status)}</span></div>
         <div class="profile-row"><span class="profile-label">게시글</span><span class="profile-val">${me.postCount}개</span></div>
     `;
 }
@@ -566,6 +573,15 @@ function showMpResult(r) {
 }
 
 // ── 유틸 ──────────────────────────────────────────────
+function toSafeImageUrl(value) {
+    if (!value) return null;
+    try {
+        const url = new URL(value, window.location.origin);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+    } catch (_) {
+        return null;
+    }
+}
 function esc(s) {
     if (!s) return '';
     const d = document.createElement('div'); d.textContent = s; return d.innerHTML;

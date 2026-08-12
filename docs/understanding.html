@@ -526,7 +526,7 @@
         <div class="hotspot">
           <span class="badge confirmed">보안</span>
           <div><code>SecurityConfig.securityFilterChain</code></div>
-          <div>rate limit filter 순서, 공개 경로, JWT resource server, OAuth2 login, non-prod trusted header의 경계를 결정합니다.</div>
+          <div>rate limit filter 순서, 공개 경로, JWT resource server, OAuth2 login, non-prod trusted header의 경계를 결정합니다. prod에서는 Swagger·개발용 HTML·<code>/api/dev/**</code>를 인증 여부와 무관하게 명시적으로 차단합니다.</div>
         </div>
         <div class="hotspot">
           <span class="badge confirmed">보안</span>
@@ -557,6 +557,11 @@
           <span class="badge confirmed">보안</span>
           <div><code>ShoppingUrlSafety.validatePublicHost</code></div>
           <div>loopback·site-local·link-local·IPv6 ULA 등을 막아 SSRF 범위를 줄입니다.</div>
+        </div>
+        <div class="hotspot">
+          <span class="badge confirmed">보안</span>
+          <div><code>SocialPostService.resolveImageUrl</code> · <code>app.html#toSafeImageUrl</code></div>
+          <div>게시물 이미지 주소는 저장 전에 내부 업로드 경로 또는 정상 <code>http/https</code>인지 검증하고, 화면에서는 HTML 문자열이 아닌 <code>img.src</code> DOM 속성으로 할당합니다.</div>
         </div>
         <div class="hotspot">
           <span class="badge confirmed">성능</span>
@@ -801,6 +806,12 @@
             <thead><tr><th>근거</th><th>개념 변화</th><th>영향 컴포넌트</th><th>검증 근거</th></tr></thead>
             <tbody>
               <tr>
+                <td><code>이번 변경 · 2026-08-13</code></td>
+                <td>소셜 이미지 URL은 저장 전 검증과 출력 시 안전한 DOM 속성 할당을 모두 거칩니다. prod에서는 개발·테스트용 화면과 API 문서·<code>/api/dev/**</code>가 로그인 사용자에게도 열리지 않습니다.</td>
+                <td><code>SocialPostService</code>, <code>app.html</code>, <code>SecurityConfig</code></td>
+                <td><code>SocialFeedApiIntegrationTest</code>, <code>StaticAppSecurityTest</code>, <code>ProdDevelopmentSurfaceSecurityIntegrationTest</code></td>
+              </tr>
+              <tr>
                 <td><code>#254 · 2026-08-13</code></td>
                 <td>reviewer-token 발급은 기본 비활성화된 opt-in 경로가 되었습니다. 심사 기능이 다시 필요할 때만 환경변수로 명시적으로 활성화합니다.</td>
                 <td><code>AppAuthProperties</code>, <code>application.yml</code>, <code>application-prod.yml</code>, <code>deploy-qa.yml</code></td>
@@ -849,6 +860,8 @@
           <h3>머릿속에서 바꿔야 할 것</h3>
           <ol>
             <li><code>POST /api/auth/reviewer-token</code>은 더 이상 기본 공개 로그인 수단이 아니며, 명시적으로 활성화해야만 동작합니다.</li>
+            <li>소셜 이미지 URL의 최종 방어선은 DB 값이 아니라 브라우저의 안전한 DOM 속성 할당이며, 신규 저장에는 서버 검증이 한 겹 더 적용됩니다.</li>
+            <li>prod의 개발·테스트용 경로는 “permitAll이 아님”에 그치지 않고 인증 사용자에게도 명시적으로 거부됩니다.</li>
             <li>외부 요청은 Controller보다 먼저 <code>ApiRateLimitFilter</code>의 IP·정책 판정을 받습니다.</li>
             <li>애플리케이션 rate limit은 인메모리 보조 방어이며 Caddy·fail2ban을 대체하지 않습니다.</li>
             <li>쇼핑 링크 수집은 “요청 안에서 바로 크롤링”이 아니라 DB queue가 중심인 흐름입니다.</li>
@@ -862,7 +875,7 @@
         <h2>이해도 점검</h2>
         <p class="lead">파일 이름 암기가 아니라 상태 소유권과 실패 경로를 이해했는지 확인합니다.</p>
         <div id="quizContainer"></div>
-        <div class="quiz-score">이해도 점수: <strong id="quizScore">0 / 8</strong> · <span id="quizTopic">아직 답하지 않은 문제가 있습니다.</span></div>
+        <div class="quiz-score">이해도 점수: <strong id="quizScore">0 / 10</strong> · <span id="quizTopic">아직 답하지 않은 문제가 있습니다.</span></div>
       </section>
     </main>
 
@@ -890,9 +903,9 @@
         dependents: "모든 /api/v1 도메인 Controller",
         state: "refresh_tokens의 revoke/만료 상태. access JWT 자체는 서버에 저장하지 않음",
         effects: "refresh token 저장·폐기, OAuth redirect, 명시적으로 활성화된 경우 reviewer token pair 발급",
-        risk: "prod profile 누락 시 trusted header가 활성화될 수 있고 reviewer-token을 환경변수로 다시 켤 수 있음",
+        risk: "prod profile 누락 시 trusted header와 개발용 경로 정책이 달라질 수 있고 reviewer-token을 환경변수로 다시 켤 수 있음",
         evidence: "SecurityConfig.securityFilterChain, AppAuthProperties.ReviewerToken.enabled, AuthApiController.assertReviewerTokenAllowed, JwtTokenService.refresh, CurrentUserIdArgumentResolver.resolveArgument",
-        impact: "직접 영향: 전체 API 접근 정책과 filter 순서. 간접 영향: 사용자 격리, QA 접근, FE 로그인. 확인할 테스트: ApiRateLimitIntegrationTest, AuthApiControllerTest, AppReviewerAuthIntegrationTest, CurrentUserIdArgumentResolverTest."
+        impact: "직접 영향: 전체 API 접근 정책과 filter 순서. 간접 영향: 사용자 격리, QA 접근, FE 로그인, 개발용 정적 화면 노출. 확인할 테스트: ApiRateLimitIntegrationTest, AuthApiControllerTest, AppReviewerAuthIntegrationTest, ProdDevelopmentSurfaceSecurityIntegrationTest, CurrentUserIdArgumentResolverTest."
       },
       {
         id: "rate-limit", name: "IP 기반 요청 제한", kind: "경계",
@@ -973,16 +986,16 @@
         id: "social", name: "소셜 피드", kind: "도메인",
         summary: "위시·결정에 연결된 게시물, 투표, 댓글, 신고와 차단을 다룹니다.",
         role: "사용자가 위시 고민을 공유하고 다른 사용자의 반응을 받는 흐름을 제공합니다.",
-        files: ["src/main/java/com/sagongsa/backend/social/SocialPostService.java", "src/main/resources/static/app.html", "src/main/java/com/sagongsa/backend/social/VoteService.java", "src/main/java/com/sagongsa/backend/social/CommentService.java", "src/main/java/com/sagongsa/backend/social/ReportService.java"],
+        files: ["src/main/java/com/sagongsa/backend/social/SocialPostService.java", "src/main/java/com/sagongsa/backend/social/CreatePostRequest.java", "src/main/resources/static/app.html", "src/main/java/com/sagongsa/backend/social/VoteService.java", "src/main/java/com/sagongsa/backend/social/CommentService.java", "src/main/java/com/sagongsa/backend/social/ReportService.java"],
         input: "게시물·투표·댓글·신고 API 요청",
         output: "feed_posts, post_votes, post_comments, post_reports",
         dependencies: "users, saved_items, purchase_decisions, FileUploadService",
         dependents: "소셜 API, 마이페이지, 24시간/7일 알림 trigger",
         state: "게시물 moderation/deleted, 활성 투표, soft-deleted 댓글, 차단 관계",
-        effects: "파일 저장, DB 변경, 신고 누적에 따른 moderation, app.html DOM 렌더링",
+        effects: "파일 저장, 이미지 URL 검증, DB 변경, 신고 누적에 따른 moderation, app.html DOM 렌더링",
         risk: "soft delete·moderation·block 조건과 사용자 입력의 출력 인코딩을 조회·렌더링마다 일관되게 적용해야 함",
-        evidence: "SocialFeedController, SocialPostService, app.html#renderFeedCard, VoteService, BlockService",
-        impact: "직접 영향: 피드 노출과 상호작용. 간접 영향: 소셜 알림, 마이페이지 목록, 신고 제재, 정적 웹 화면 보안. 확인할 테스트: SocialFeedApiIntegrationTest, VoteIntegrationTest, UserReportApiIntegrationTest."
+        evidence: "SocialFeedController, SocialPostService.resolveImageUrl, app.html#renderFeedCard/toSafeImageUrl, VoteService, BlockService",
+        impact: "직접 영향: 피드 노출과 상호작용. 간접 영향: 소셜 알림, 마이페이지 목록, 신고 제재, 정적 웹 화면 보안. 확인할 테스트: SocialFeedApiIntegrationTest, StaticAppSecurityTest, VoteIntegrationTest, UserReportApiIntegrationTest."
       },
       {
         id: "database", name: "PostgreSQL·Flyway", kind: "데이터",
@@ -1074,7 +1087,8 @@
       {
         id: "social", name: "소셜 게시물 → 투표 요약 알림",
         steps: [
-          ["게시물 생성", "SocialFeedController → SocialPostService", "CreatePostRequest, userId", "소유권과 대상 item/decision을 검증하고 feed post를 저장합니다.", "PostResponse", "feed_posts insert", "피드 조회"],
+          ["게시물 생성", "SocialFeedController → SocialPostService", "CreatePostRequest, userId", "소유권과 대상 item/decision을 검증하고 imageUrl을 내부 업로드 경로 또는 http/https URL로 제한해 feed post를 저장합니다.", "PostResponse", "feed_posts insert", "피드 조회"],
+          ["안전한 피드 렌더링", "app.html#renderFeedCard → toSafeImageUrl", "PostResponse.imageUrl", "기존 DB 값을 포함해 http/https로 해석되는 주소만 img.src DOM 속성으로 할당하고 나머지는 표시하지 않습니다.", "피드 카드", "브라우저 이미지 요청", "투표"],
           ["투표", "VoteService", "postId, voteType, voter", "기존 활성 투표를 취소하거나 새 투표를 저장합니다.", "VoteResponse", "post_votes insert/update", "24시간 경과"],
           ["요약 대상 조회", "NotificationTriggerWorker.publishVoteSummaries", "now", "24시간 내 활성 투표 수와 아직 알리지 않은 post를 찾습니다.", "VotePostTarget", "집계 query", "NotificationPublisher"],
           ["알림 생성", "NotificationPublisher.publish", "SOCIAL_VOTE_SUMMARY, post dedupeKey", "인앱 알림을 중복 없이 저장하고 커밋 뒤 푸시합니다.", "notification", "notifications insert, 선택적 FCM", "게시물 작성자"]
@@ -1138,6 +1152,20 @@
         answer: 0,
         why: "JdbcTemplate SQL, JPA mapping, Flyway migration이 함께 존재하므로 전체 검색과 스키마 검증이 필요합니다.",
         topic: "확장 경로"
+      },
+      {
+        q: "이미 저장된 악성 imageUrl까지 app.html에서 실행되지 않게 하는 최종 방어는?",
+        choices: ["신규 요청의 길이 제한만 적용", "검증된 URL을 img.src DOM 속성으로 할당", "feed_posts를 매 요청마다 삭제"],
+        answer: 1,
+        why: "서버 입력 검증은 신규 데이터만 막습니다. 기존 저장값까지 보호하려면 HTML 문자열 삽입을 없애고 검증된 주소를 DOM 속성으로 할당해야 합니다.",
+        topic: "보안 경계"
+      },
+      {
+        q: "prod에서 로그인한 사용자가 test-social-feed.html을 요청하면 어떻게 되어야 하는가?",
+        choices: ["테스트 화면을 보여준다", "SecurityConfig가 403으로 거부한다", "개발 API를 자동 활성화한다"],
+        answer: 1,
+        why: "개발·테스트용 화면은 prod에서 인증 여부와 관계없이 denyAll 규칙으로 차단됩니다.",
+        topic: "환경 경계"
       }
     ];
 

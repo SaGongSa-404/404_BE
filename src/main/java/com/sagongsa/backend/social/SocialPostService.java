@@ -13,6 +13,7 @@ import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
 import com.sagongsa.backend.domain.user.UserProfile;
 import com.sagongsa.backend.domain.user.UserProfileRepository;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -21,8 +22,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,6 +38,10 @@ import org.springframework.util.StringUtils;
 class SocialPostService {
 
 	private static final Duration POST_DUPLICATE_WINDOW = Duration.ofSeconds(30);
+	private static final int MAX_IMAGE_URL_LENGTH = 2048;
+	private static final Pattern INTERNAL_UPLOAD_IMAGE_PATH = Pattern.compile(
+		"^/uploads/social/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(?:jpg|png|gif)$"
+	);
 
 	private final FeedPostRepository feedPostRepository;
 	private final PostVoteRepository postVoteRepository;
@@ -274,10 +281,33 @@ class SocialPostService {
 	}
 
 	private String resolveImageUrl(String requestImageUrl, SavedItem item) {
-		if (StringUtils.hasText(requestImageUrl)) {
-			return requestImageUrl;
+		String imageUrl = StringUtils.hasText(requestImageUrl)
+			? requestImageUrl
+			: item != null ? item.getImageUrl() : null;
+		if (!StringUtils.hasText(imageUrl)) {
+			return null;
 		}
-		return item != null ? item.getImageUrl() : null;
+
+		String normalized = imageUrl.trim();
+		if (normalized.length() > MAX_IMAGE_URL_LENGTH) {
+			throw new SocialFeedBadRequestException("이미지 URL은 최대 2048자까지 가능합니다.");
+		}
+		if (INTERNAL_UPLOAD_IMAGE_PATH.matcher(normalized).matches()) {
+			return normalized;
+		}
+
+		try {
+			URI uri = URI.create(normalized);
+			String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+			if (!("http".equals(scheme) || "https".equals(scheme))
+				|| !StringUtils.hasText(uri.getHost())
+				|| StringUtils.hasText(uri.getUserInfo())) {
+				throw new SocialFeedBadRequestException("이미지 URL은 유효한 http/https 주소여야 합니다.");
+			}
+			return normalized;
+		} catch (IllegalArgumentException exception) {
+			throw new SocialFeedBadRequestException("이미지 URL은 유효한 http/https 주소여야 합니다.");
+		}
 	}
 
 	private UserAccount findUserOrThrow(UUID userId) {

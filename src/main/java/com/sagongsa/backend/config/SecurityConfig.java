@@ -104,6 +104,10 @@ public class SecurityConfig {
 					auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
 					auth.requestMatchers("/deliberation.html", "/test-*.html").permitAll();
 					auth.requestMatchers("/api/dev/**").permitAll();
+				} else {
+					auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").denyAll();
+					auth.requestMatchers("/deliberation.html", "/test-*.html").denyAll();
+					auth.requestMatchers("/api/dev/**").denyAll();
 				}
 
 				if (trustedHeaderEnabled) {
