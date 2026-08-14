@@ -9,6 +9,7 @@
 | `baseline` | 100 | 90 | 10 | 현실적인 혼합 부하 |
 | `peak` | 100 | 80 | 20 | 크롤링 비중 증가 |
 | `backpressure` | 100 | 0 | 100 VU + 경계 요청 1회 | 100개 상한 직후 429 확인 |
+| `real-users` | 100 | 0 | 100 | 서로 다른 사용자 100명이 상품 요청을 1건씩 제출 |
 
 일반 API는 기본적으로 `GET /api/auth/me`를 호출한다. 동기 모드는 `POST /api/v1/items/import-link`, 비동기 모드는 작업 접수 후 상태 조회까지 수행한다.
 
@@ -24,6 +25,31 @@
 - 계정 여러 개를 준비할 수 없으면 기존 QA reviewer 계정 하나를 사용할 수 있다. 이 경우 `SINGLE_USER_MODE=YES`를 명시하고 QA의 `SHOPPING_IMPORT_JOB_MAX_ACTIVE_PER_USER`를 시나리오 요청 수 이상으로 임시 변경해야 한다. 인증·사용자 다양성 측정에는 사용할 수 없지만 크롤링 CPU/RSS, queue와 일반 API 격리 측정에는 사용할 수 있다.
 - 단일 사용자 모드에서 `EXPAND_SINGLE_USER_URLS=YES`를 사용하면 승인 URL에 `nf84_request_id` query를 붙여 요청 수만큼 고유 job을 만든다. 외부 사이트가 이 query를 무시해도 되는지 확인한 URL에서만 사용한다.
 - 실제 실행에는 `EXPECTED_RESULTS_FILE`이 필수다. 원본 페이지에서 확인한 `title`, `listedPrice`, `imageUrl`이 세 값 모두 정확히 일치해야 성공으로 집계되며 하나라도 다르면 실행이 실패한다.
+- 성능만 측정할 때는 `VERIFY_PRODUCT_CORRECTNESS=NO`와 `CONFIRM_PERFORMANCE_ONLY=YES`를 함께 지정한다. 이 모드는 job의 최종 성공 상태만 집계하며 상품 필드 정확성을 보장하지 않는다.
+
+## 서로 다른 QA 사용자 100명 테스트
+
+`real-users`는 서로 다른 토큰 100개를 강제하며 사용자마다 비동기 상품 요청을 정확히 1건 제출한다. `qa-product-urls.txt`에는 승인된 40개 링크가 추적 파라미터를 포함한 원문 그대로 저장되어 있다. 실행용 `qa-product-urls-100.txt`는 이 순서를 두 번 반복하고 앞의 20개를 한 번 더 넣은 100줄이다. 따라서 사용자·인증·queue 부하는 100명 기준이지만 상품 다양성은 40개 기준이다.
+
+다음 명령은 QA DB에 전용 사용자 100명을 만들고, 2시간짜리 access token 100개를 로컬 권한 `600` 파일에 저장한 다음 테스트 종료 시 사용자·job·토큰 파일을 정리한다. 운영 호스트에서는 실행되지 않으며, 이 문서 작성 과정에서는 실제 실행하지 않았다.
+
+실행 시 job 완료 대기시간은 기본 15분이다. 서버 지표는 5초 간격으로 동시에 수집하며 테스트 종료 시 CSV와 요약 JSON을 `results/`에 내려받는다.
+
+```bash
+cd load-tests/shopping-import
+CONFIRM_QA_LOAD_TEST=YES \
+CONFIRM_EXTERNAL_TRAFFIC=YES \
+CONFIRM_QA_TEST_USERS=YES \
+./run-qa-100-users.sh
+```
+
+중단 등으로 자동 정리가 실패하면 active job이 끝난 뒤 아래 명령을 실행한다.
+
+```bash
+CONFIRM_QA_TEST_USERS=YES ./configure-qa-distinct-users.sh cleanup
+```
+
+계정만 미리 준비할 때는 `apply`를 사용한다. 사용자 UUID와 provider ID는 전용 범위로 고정되어 반복 실행할 수 있으며, 기존 QA 사용자는 변경하지 않는다.
 
 ## 사전 검증
 
@@ -135,7 +161,17 @@ cd load-tests/shopping-import
 INTERVAL_SECONDS=5 DURATION_SECONDS=180 ./collect-server-metrics.sh
 ```
 
-Java/Chromium CPU와 RSS는 항상 기록된다. DB 접속용 `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`가 이미 설정된 경우에만 `PENDING/RUNNING` 수도 함께 기록한다. 비밀번호는 CSV에 저장하지 않는다.
+수집 항목은 다음과 같다.
+
+- 요청: 접수 응답, polling 응답, queue 대기, 크롤링 처리, 전체 완료시간의 min/avg/p50/p95/p99/max와 분당 완료 job
+- 시스템: 전체 CPU, load average, 메모리 사용/가용량, swap, CPU·메모리·I/O pressure
+- 디스크·네트워크: 루트 디스크 사용량/가용량, 초당 read/write, 초당 network RX/TX
+- Java: CPU, RSS, thread, open FD, 초당 read/write
+- Chromium: 프로세스 수, 합계 CPU/RSS
+- DB·queue: PENDING/RUNNING, active/idle connection, DB 크기, 저장된 shopping job 수
+- 안정성: backend PID와 systemd 재시작 횟수
+
+`run-qa-100-users.sh`를 사용하면 서버 환경을 읽어 지표 수집기를 자동으로 시작하고 종료한다. 원시 파일은 `*-server-metrics.csv`, peak/평균 요약은 `*-server-summary.json`, 요청시간 결과는 `*-real-users-async.json`이다. 비밀번호와 access token은 어느 결과에도 저장하지 않는다.
 
 ## 판정
 

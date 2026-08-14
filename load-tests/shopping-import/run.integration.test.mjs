@@ -11,6 +11,11 @@ import { fileURLToPath } from "node:url";
 const execFileAsync = promisify(execFile);
 const directory = path.dirname(fileURLToPath(import.meta.url));
 
+function testAccessToken(userNumber) {
+  const payload = Buffer.from(JSON.stringify({ userId: `test-user-${userNumber}` })).toString("base64url");
+  return `e30.${payload}.signature-${userNumber}`;
+}
+
 test("async scenario records queue metrics without persisting tokens", async (context) => {
   const jobs = new Map();
   let sequence = 0;
@@ -247,5 +252,159 @@ test("single-user mode rejects URL reuse that would deduplicate active jobs", as
       timeout: 5_000
     }),
     (error) => error.stderr.includes("at least 10 distinct URLs")
+  );
+});
+
+test("real-users sends one import per distinct user and cycles the approved URL set", async (context) => {
+  const jobs = new Map();
+  const submittedTokens = new Set();
+  const submittedUrls = [];
+  let sequence = 0;
+  const server = createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.method === "POST" && request.url === "/api/v1/items/import-jobs") {
+      const chunks = [];
+      request.on("data", (chunk) => chunks.push(chunk));
+      request.on("end", () => {
+        submittedTokens.add(request.headers.authorization);
+        submittedUrls.push(JSON.parse(Buffer.concat(chunks).toString("utf8")).url);
+        const jobId = `00000000-0000-0000-0001-${String(++sequence).padStart(12, "0")}`;
+        const submittedAt = new Date().toISOString();
+        jobs.set(jobId, submittedAt);
+        response.statusCode = 202;
+        response.end(JSON.stringify({ jobId, status: "PENDING", submittedAt }));
+      });
+      return;
+    }
+    const match = request.url?.match(/^\/api\/v1\/items\/import-jobs\/(.+)$/);
+    if (request.method === "GET" && match && jobs.has(match[1])) {
+      const submittedAt = jobs.get(match[1]);
+      response.end(JSON.stringify({
+        jobId: match[1],
+        status: "SUCCEEDED",
+        result: { retrievalStatus: "SUCCESS", item: {} },
+        submittedAt,
+        startedAt: submittedAt,
+        completedAt: submittedAt
+      }));
+      return;
+    }
+    response.statusCode = 404;
+    response.end('{"message":"not found"}');
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  context.after(() => server.close());
+
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-real-users-"));
+  const urlFile = path.join(tempDirectory, "urls.txt");
+  const tokenFile = path.join(tempDirectory, "users.tokens");
+  await writeFile(
+    urlFile,
+    `${Array.from({ length: 40 }, (_, index) => `https://shop.test/products/${index + 1}`).join("\n")}\n`,
+    "utf8"
+  );
+  await writeFile(
+    tokenFile,
+    `${Array.from({ length: 100 }, (_, index) => testAccessToken(index + 1)).join("\n")}\n`,
+    { encoding: "utf8", mode: 0o600 }
+  );
+
+  await execFileAsync(process.execPath, ["run.mjs"], {
+    cwd: directory,
+    env: {
+      ...process.env,
+      BASE_URL: `http://127.0.0.1:${server.address().port}`,
+      CONFIRM_QA_LOAD_TEST: "YES",
+      CONFIRM_EXTERNAL_TRAFFIC: "YES",
+      VERIFY_PRODUCT_CORRECTNESS: "NO",
+      CONFIRM_PERFORMANCE_ONLY: "YES",
+      ACCESS_TOKEN_FILE: tokenFile,
+      URL_FILE: urlFile,
+      RESULT_DIR: tempDirectory,
+      SCENARIO: "real-users",
+      IMPORT_MODE: "async",
+      RAMP_UP_SECONDS: "1",
+      POLL_INTERVAL_MS: "1",
+      JOB_TIMEOUT_MS: "1000",
+      REQUEST_TIMEOUT_MS: "1000"
+    },
+    timeout: 15_000
+  });
+
+  assert.equal(submittedTokens.size, 100);
+  assert.equal(submittedUrls.length, 100);
+  assert.equal(new Set(submittedUrls).size, 40);
+  const reportFile = (await readdir(tempDirectory)).find((name) => name.endsWith("-real-users-async.json"));
+  const report = JSON.parse(await readFile(path.join(tempDirectory, reportFile), "utf8"));
+  assert.equal(report.summary.import.accepted, 100);
+  assert.equal(report.summary.import.succeeded, 100);
+  assert.equal(report.summary.workload.terminalJobs, 100);
+  assert.ok(report.summary.workload.terminalJobsPerMinute > 0);
+  assert.equal(report.run.authenticationMode, "distinct-users");
+  assert.equal(report.run.tokenCount, 100);
+  assert.equal(report.run.urlCount, 40);
+  assert.equal(report.run.correctnessOracle, "job-terminal-status");
+});
+
+test("real-users rejects fewer than 100 tokens", async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-real-users-token-count-"));
+  const urlFile = path.join(tempDirectory, "urls.txt");
+  const tokenFile = path.join(tempDirectory, "users.tokens");
+  await writeFile(urlFile, "https://shop.test/products/1\n", "utf8");
+  await writeFile(
+    tokenFile,
+    `${Array.from({ length: 99 }, (_, index) => `distinct-user-token-${index + 1}`).join("\n")}\n`,
+    { encoding: "utf8", mode: 0o600 }
+  );
+
+  await assert.rejects(
+    execFileAsync(process.execPath, ["run.mjs"], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        BASE_URL: "http://127.0.0.1:9",
+        CONFIRM_QA_LOAD_TEST: "YES",
+        CONFIRM_EXTERNAL_TRAFFIC: "YES",
+        VERIFY_PRODUCT_CORRECTNESS: "NO",
+        CONFIRM_PERFORMANCE_ONLY: "YES",
+        ACCESS_TOKEN_FILE: tokenFile,
+        URL_FILE: urlFile,
+        SCENARIO: "real-users",
+        IMPORT_MODE: "async"
+      },
+      timeout: 5_000
+    }),
+    (error) => error.stderr.includes("requires exactly 100 distinct-user tokens; received 99")
+  );
+});
+
+test("real-users rejects duplicate tokens", async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), "wigul-real-users-duplicate-token-"));
+  const urlFile = path.join(tempDirectory, "urls.txt");
+  const tokenFile = path.join(tempDirectory, "users.tokens");
+  await writeFile(urlFile, "https://shop.test/products/1\n", "utf8");
+  await writeFile(tokenFile, `${Array(100).fill("same-user-token").join("\n")}\n`, {
+    encoding: "utf8",
+    mode: 0o600
+  });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, ["run.mjs"], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        BASE_URL: "http://127.0.0.1:9",
+        CONFIRM_QA_LOAD_TEST: "YES",
+        CONFIRM_EXTERNAL_TRAFFIC: "YES",
+        VERIFY_PRODUCT_CORRECTNESS: "NO",
+        CONFIRM_PERFORMANCE_ONLY: "YES",
+        ACCESS_TOKEN_FILE: tokenFile,
+        URL_FILE: urlFile,
+        SCENARIO: "real-users",
+        IMPORT_MODE: "async"
+      },
+      timeout: 5_000
+    }),
+    (error) => error.stderr.includes("requires 100 unique access tokens")
   );
 });
