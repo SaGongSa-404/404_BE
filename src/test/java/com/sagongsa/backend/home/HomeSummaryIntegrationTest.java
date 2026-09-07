@@ -107,7 +107,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.mascot.state").value("DEFAULT"))
 			.andExpect(jsonPath("$.mascot.lastReactionMessage").value(nullValue()))
 			.andExpect(jsonPath("$.bubble.type").value("DEFAULT"))
-			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.DEFAULT_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryQueries.DEFAULT_BUBBLE_MESSAGES)))
 			.andExpect(jsonPath("$.bubble.priority").value(10))
 			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()))
 			.andExpect(jsonPath("$.budget.yearMonth").value(yearMonth))
@@ -174,7 +174,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.exhausted").value(true))
 			.andExpect(jsonPath("$.budget.showBudgetExhaustionBubble").value(true))
 			.andExpect(jsonPath("$.bubble.type").value("BUDGET_ZERO"))
-			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.BUDGET_ZERO_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryQueries.BUDGET_ZERO_BUBBLE_MESSAGES)))
 			.andExpect(jsonPath("$.bubble.priority").value(90))
 			.andExpect(jsonPath("$.bubble.seenEndpoint").value("/api/v1/home/bubbles/BUDGET_ZERO/seen"));
 	}
@@ -192,7 +192,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(jsonPath("$.budget.remainingAmount").value(0))
 			.andExpect(jsonPath("$.budget.exhausted").value(true))
 			.andExpect(jsonPath("$.bubble.type").value("BUDGET_NEGATIVE"))
-			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.BUDGET_NEGATIVE_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryQueries.BUDGET_NEGATIVE_BUBBLE_MESSAGES)))
 			.andExpect(jsonPath("$.bubble.priority").value(100))
 			.andExpect(jsonPath("$.bubble.seenEndpoint").value("/api/v1/home/bubbles/BUDGET_NEGATIVE/seen"));
 	}
@@ -269,7 +269,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bubble.type").value("DEFAULT"))
-			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.DEFAULT_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryQueries.DEFAULT_BUBBLE_MESSAGES)))
 			.andExpect(jsonPath("$.bubble.priority").value(10))
 			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()));
 	}
@@ -345,7 +345,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bubble.type").value("PENDING_WISHLIST"))
-			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.PENDING_WISHLIST_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryQueries.PENDING_WISHLIST_BUBBLE_MESSAGES)))
 			.andExpect(jsonPath("$.bubble.priority").value(50))
 			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()));
 	}
@@ -365,7 +365,7 @@ class HomeSummaryIntegrationTest extends PostgreSqlContainerTest {
 		mockMvc.perform(get("/api/v1/home/summary").header("X-User-Id", userId))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bubble.type").value("VOTE_WAITING"))
-			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryService.VOTE_WAITING_BUBBLE_MESSAGES)))
+			.andExpect(jsonPath("$.bubble.message").value(isIn(HomeSummaryQueries.VOTE_WAITING_BUBBLE_MESSAGES)))
 			.andExpect(jsonPath("$.bubble.priority").value(40))
 			.andExpect(jsonPath("$.bubble.seenEndpoint").value(nullValue()));
 	}
