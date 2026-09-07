@@ -1,5 +1,6 @@
-package com.sagongsa.backend.mypage;
+package com.sagongsa.backend.social;
 
+import com.sagongsa.backend.domain.enums.ModerationStatus;
 import com.sagongsa.backend.domain.enums.PostVoteType;
 import com.sagongsa.backend.domain.social.FeedPostRepository;
 import com.sagongsa.backend.domain.social.PostCommentCount;
@@ -8,33 +9,34 @@ import com.sagongsa.backend.domain.social.PostVote;
 import com.sagongsa.backend.domain.social.PostVoteRepository;
 import com.sagongsa.backend.domain.user.UserProfile;
 import com.sagongsa.backend.domain.user.UserProfileRepository;
-import com.sagongsa.backend.social.BlockService;
-import com.sagongsa.backend.social.PostListResponse;
-import com.sagongsa.backend.social.PostResponse;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
-
 @Service
 @Transactional(readOnly = true)
-class MypageSocialQueries {
+public class SocialActivityQueries {
 	private final UserProfileRepository userProfileRepository;
 	private final FeedPostRepository feedPostRepository;
 	private final PostVoteRepository postVoteRepository;
 	private final PostCommentRepository postCommentRepository;
 	private final BlockService blockService;
 
-	MypageSocialQueries(UserProfileRepository userProfileRepository, FeedPostRepository feedPostRepository, PostVoteRepository postVoteRepository, PostCommentRepository postCommentRepository, BlockService blockService) {
+	public SocialActivityQueries(
+		UserProfileRepository userProfileRepository,
+		FeedPostRepository feedPostRepository,
+		PostVoteRepository postVoteRepository,
+		PostCommentRepository postCommentRepository,
+		BlockService blockService
+	) {
 		this.userProfileRepository = userProfileRepository;
 		this.feedPostRepository = feedPostRepository;
 		this.postVoteRepository = postVoteRepository;
@@ -42,7 +44,11 @@ class MypageSocialQueries {
 		this.blockService = blockService;
 	}
 
-	PostListResponse getMyPosts(UUID userId, Instant cursor, int size) {
+	public long countMyPosts(UUID userId) {
+		return feedPostRepository.countByUserIdAndDeletedAtIsNullAndModerationStatus(userId, ModerationStatus.ACTIVE);
+	}
+
+	public PostListResponse getMyPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
 		var posts = cursor != null
 			? feedPostRepository.findByUserIdVisibleBefore(userId, cursor, pageable)
@@ -70,7 +76,7 @@ class MypageSocialQueries {
 		return new PostListResponse(items, nextCursor, hasMore);
 	}
 
-	PostListResponse getMyVotedPosts(UUID userId, Instant cursor, int size) {
+	public PostListResponse getMyVotedPosts(UUID userId, Instant cursor, int size) {
 		PageRequest pageable = PageRequest.of(0, size + 1);
 		var votes = cursor != null
 			? postVoteRepository.findActiveByUserIdBefore(userId, cursor, pageable)

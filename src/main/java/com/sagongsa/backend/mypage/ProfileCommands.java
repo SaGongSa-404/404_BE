@@ -6,19 +6,14 @@ import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
 import com.sagongsa.backend.domain.budget.BudgetCycle;
 import com.sagongsa.backend.domain.budget.BudgetCycleRepository;
-import com.sagongsa.backend.domain.enums.ModerationStatus;
-import com.sagongsa.backend.domain.social.FeedPostRepository;
 import com.sagongsa.backend.domain.user.UserProfile;
 import com.sagongsa.backend.domain.user.UserProfileRepository;
+import com.sagongsa.backend.social.SocialActivityQueries;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-
-import com.sagongsa.backend.mypage.MypageService.BudgetUpdateResponse;
-import com.sagongsa.backend.mypage.MypageService.NotificationSettingsResponse;
 
 @Service
 @Transactional(readOnly = true)
@@ -27,14 +22,20 @@ class ProfileCommands {
 	private final UserAccountRepository userAccountRepository;
 	private final UserProfileRepository userProfileRepository;
 	private final SocialAccountRepository socialAccountRepository;
-	private final FeedPostRepository feedPostRepository;
+	private final SocialActivityQueries socialQueries;
 	private final BudgetCycleRepository budgetCycleRepository;
 
-	ProfileCommands(UserAccountRepository userAccountRepository, UserProfileRepository userProfileRepository, SocialAccountRepository socialAccountRepository, FeedPostRepository feedPostRepository, BudgetCycleRepository budgetCycleRepository) {
+	ProfileCommands(
+		UserAccountRepository userAccountRepository,
+		UserProfileRepository userProfileRepository,
+		SocialAccountRepository socialAccountRepository,
+		SocialActivityQueries socialQueries,
+		BudgetCycleRepository budgetCycleRepository
+	) {
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
 		this.socialAccountRepository = socialAccountRepository;
-		this.feedPostRepository = feedPostRepository;
+		this.socialQueries = socialQueries;
 		this.budgetCycleRepository = budgetCycleRepository;
 	}
 
@@ -48,7 +49,7 @@ class ProfileCommands {
 					request.raccoonName() != null ? request.raccoonName() : "너구리")));
 		profile.updateProfile(request.nickname(), request.raccoonName());
 		SocialAccount social = socialAccountRepository.findByUserId(userId).orElse(null);
-		long postCount = feedPostRepository.countByUserIdAndDeletedAtIsNullAndModerationStatus(userId, ModerationStatus.ACTIVE);
+		long postCount = socialQueries.countMyPosts(userId);
 		return MyProfileResponse.of(user, profile, social, postCount);
 	}
 

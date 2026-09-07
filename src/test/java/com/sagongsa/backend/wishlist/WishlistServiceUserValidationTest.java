@@ -23,7 +23,7 @@ class WishlistServiceUserValidationTest {
 		UUID userId = UUID.randomUUID();
 		when(jdbcTemplate.queryForObject(contains("from users"), eq(Boolean.class), eq(userId)))
 			.thenReturn(Boolean.TRUE);
-		WishlistService wishlistService = new WishlistService(jdbcTemplate, new ObjectMapper(), new WishlistQueries(jdbcTemplate));
+		WishlistService wishlistService = new WishlistService(new WishlistJdbcRepository(jdbcTemplate), new ObjectMapper(), new WishlistQueries(jdbcTemplate));
 
 		assertThatThrownBy(() -> wishlistService.create(userId, null))
 			.isInstanceOf(BadRequestException.class);
@@ -39,7 +39,7 @@ class WishlistServiceUserValidationTest {
 		UUID userId = UUID.randomUUID();
 		when(jdbcTemplate.queryForObject(contains("from users"), eq(Boolean.class), eq(userId)))
 			.thenThrow(new EmptyResultDataAccessException(1));
-		WishlistService wishlistService = new WishlistService(jdbcTemplate, new ObjectMapper(), new WishlistQueries(jdbcTemplate));
+		WishlistService wishlistService = new WishlistService(new WishlistJdbcRepository(jdbcTemplate), new ObjectMapper(), new WishlistQueries(jdbcTemplate));
 
 		assertThatThrownBy(() -> wishlistService.create(userId, null))
 			.isInstanceOf(WishlistItemNotFoundException.class);
@@ -55,7 +55,7 @@ class WishlistServiceUserValidationTest {
 		UUID userId = UUID.randomUUID();
 		when(jdbcTemplate.queryForObject(contains("from users"), eq(Boolean.class), eq(userId)))
 			.thenReturn(Boolean.FALSE);
-		WishlistService wishlistService = new WishlistService(jdbcTemplate, new ObjectMapper(), new WishlistQueries(jdbcTemplate));
+		WishlistService wishlistService = new WishlistService(new WishlistJdbcRepository(jdbcTemplate), new ObjectMapper(), new WishlistQueries(jdbcTemplate));
 
 		assertThatThrownBy(() -> wishlistService.create(userId, null))
 			.isInstanceOf(WishlistForbiddenException.class);
