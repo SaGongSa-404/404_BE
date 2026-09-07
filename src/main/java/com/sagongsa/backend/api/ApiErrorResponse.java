@@ -1,4 +1,4 @@
-package com.sagongsa.backend.wishlist;
+package com.sagongsa.backend.api;
 
 public record ApiErrorResponse(String code, String message) {
 }
