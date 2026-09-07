@@ -1,0 +1,20 @@
+백엔드 리팩토링 로컬 검증
+
+실제 구현은 아래 별도 작업 트리에 있다. 원래 폴더의 기존 변경은 유지했다.
+cd /tmp/404-be-refactor-20260907
+git status --short --branch
+git log -5 --oneline
+git diff a4a66e0456113f7a5d397400496ca5d90a74cc14 --stat
+
+Docker와 Java 21이 필요하다. Testcontainers는 로컬 테스트 DB를 생성한다.
+./gradlew test jacocoTestReport --no-daemon
+./gradlew bootJar --no-daemon
+git diff --check
+
+테스트 보고서: build/reports/tests/test/index.html
+커버리지 보고서: build/reports/jacoco/test/html/index.html
+구조 설명: docs/understanding.html
+구현 및 남은 범위: docs/BACKEND_REFACTOR_RESULT_2026-09-07.md
+
+원격 push, PR 생성, 병합, 배포는 이 작업에서 실행하지 않았다.
+배포 시 구버전 worker를 배출/종료하고 전환해야 attempt 기반 보호가 완전히 적용된다.
