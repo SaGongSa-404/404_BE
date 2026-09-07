@@ -1,0 +1,14 @@
+job 저장 경계 후속 검증
+작업 트리: /tmp/404-be-refactor-next-20260907
+기준: f565eea
+
+./gradlew test jacocoTestReport bootJar --no-daemon
+node scripts/check-backend-dependencies.cjs
+RUN_BACKEND_BENCHMARK=true ./gradlew test --tests '*ShoppingImportJobReadBenchmarkTest' --rerun-tasks --no-daemon
+
+벤치마크는 순차 실행한다. 원시 결과: build/reports/job-read-benchmark.csv
+동일 테스트 파일을 기준 작업 트리 /tmp/404-be-job-baseline-20260908에도 적용했다.
+초기 측정 보류 사유와 후속 판정: docs/JOB_POLLING_CAUSE_CHECK_2026-09-08.md
+통제된 교차 비교에서 기존 큰 지연 증가가 재현되지 않아 해당 보류를 해제했다.
+RUN_BACKEND_BENCHMARK=true ./gradlew test --tests '*ShoppingImportJobPairedBenchmarkTest' --rerun-tasks --no-daemon
+node scripts/analyze-job-paired.cjs build/reports/job-paired-benchmark.csv
