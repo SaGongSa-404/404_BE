@@ -2,6 +2,7 @@ package com.sagongsa.backend.auth;
 
 import com.sagongsa.backend.domain.auth.UserAccount;
 import com.sagongsa.backend.domain.auth.UserAccountRepository;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -14,9 +15,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class UserAccessService {
 
 	private final UserAccountRepository userAccountRepository;
+	private final Clock clock;
 
-	public UserAccessService(UserAccountRepository userAccountRepository) {
+	public UserAccessService(UserAccountRepository userAccountRepository, Clock clock) {
 		this.userAccountRepository = userAccountRepository;
+		this.clock = clock;
 	}
 
 	@Transactional
@@ -43,7 +46,7 @@ public class UserAccessService {
 
 	@Transactional
 	public boolean isAccessible(UserAccount user) {
-		Instant now = Instant.now();
+		Instant now = clock.instant();
 		user.activateIfSuspensionExpiredAt(now);
 		return user.canAccessAt(now);
 	}
