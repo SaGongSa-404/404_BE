@@ -885,7 +885,8 @@
       <section id="backend-refactor-actual" class="searchable">
         <div class="eyebrow">2026-09-07 · 로컬 구현 결과 · 확인됨</div>
         <h2>머릿속에서 바꿔야 할 것</h2>
-        <p>아래 구조는 <code>refactor/backend-boundaries-20260907</code> 작업 트리의 실제 코드입니다. 원래 작업 폴더와 운영 서버가 자동으로 바뀐 것은 아닙니다. <a href="BACKEND_REFACTOR_RESULT_2026-09-07.md">구현 근거와 남은 범위</a>를 함께 확인하세요.</p>
+        <p>2026-09-08 후속 job 경계 변경은 성능 비악화 조건을 아직 확인하지 못해 병합·배포를 보류합니다. <a href="BACKEND_JOB_BOUNDARY_2026-09-08.md">검증 결과와 원시 성능 비교</a>를 확인하세요.</p>
+        <p>1·2차 변경은 PR #260으로 병합·QA 배포했습니다. 아래 구조에는 2026-09-08의 job 등록·조회 저장 경계 후속 구현도 포함됩니다. 후속 변경의 배포 상태는 해당 PR을 별도로 확인해야 합니다. <a href="BACKEND_REFACTOR_RESULT_2026-09-07.md">구현 근거와 남은 범위</a>를 함께 확인하세요.</p>
         <ol>
           <li>결정의 트랜잭션은 <code>DecisionCommands</code>가 소유합니다. HTTP DTO는 어댑터에서 내부 명령으로 바뀌며, 예산 지출은 같은 트랜잭션의 <code>BudgetLedger</code>를 거칩니다.</li>
           <li>쇼핑 worker는 수집 실행을 조정하고 저장소가 작업 상태를 바꿉니다. 완료 권한은 작업 ID뿐 아니라 해당 claim의 <code>attempt_count</code>로 확인합니다.</li>
@@ -895,12 +896,13 @@
           <li>마이페이지의 소셜 목록·건수는 <code>SocialActivityQueries</code>가 소유합니다. 프로필 변경·탈퇴·통계, 홈 조회·버블 변경도 나뉘었습니다. 조회 이름만 보고 순수 읽기라고 가정하면 안 됩니다. 일부 조회는 월 예산을 생성합니다.</li>
         </ol>
         <p>2차 진행: 알림 worker는 대상 조회·정책·발행을 조정합니다. 계정 접근 검사는 기존 <code>UserAccessService</code>를 유지하고 <code>Clock</code>으로 정지 만료 경계를 검증합니다. API와 토큰 발급의 없는 사용자 처리·예외 차이는 의도적으로 보존했습니다.</p>
+        <p>후속 변경: <code>ShoppingImportJobService</code>가 등록 트랜잭션·용량 제한·응답 개인화를 조정하고 <code>ShoppingImportSubmissionRepository</code>가 등록 잠금·SQL를 담당합니다. 소유자별 polling 조회는 쓰기 트랜잭션 프록시와 분리한 <code>ShoppingImportJobQueries</code>가 담당합니다. 저장소 분리가 등록 트랜잭션 분리를 뜻하지는 않습니다.</p>
         <h3>변경안과 실제 구현 비교</h3>
         <div class="table-wrap"><table>
           <thead><tr><th>영역</th><th>변경 전</th><th>변경안</th><th>실제 구현</th></tr></thead>
           <tbody>
             <tr><td>결정</td><td>하나의 서비스에 DTO·정책·SQL 집중</td><td>명령·조회·정책·저장 경계 분리</td><td>예상대로. <code>DecisionCommands → DecisionJdbcRepository / BudgetLedger</code>, 응답 조회는 <code>DecisionQueries</code></td></tr>
-            <tr><td>작업</td><td>worker가 SQL과 외부 호출 처리, 완료 시 실행 차수 미검사</td><td>저장 경계와 실행 소유권 분리</td><td>예상대로. <code>claim → crawl → attempt 검사 → leader/follower 완료</code>. submit/get SQL은 기존 서비스에 유지</td></tr>
+            <tr><td>작업</td><td>worker가 SQL과 외부 호출 처리, 완료 시 실행 차수 미검사</td><td>저장 경계와 실행 소유권 분리</td><td>예상대로. <code>claim → crawl → attempt 검사 → leader/follower 완료</code>. 후속 구현에서 submit SQL은 <code>ShoppingImportSubmissionRepository</code>, get SQL은 <code>ShoppingImportJobQueries</code>로 분리. 등록 트랜잭션과 재사용 판정 순서는 서비스에 유지</td></tr>
             <tr><td>크롤링</td><td>URL·페이지·JSON·정책 혼합</td><td>후보 추출과 정책 분리</td><td>예상대로. <code>ShoppingUrlNormalizer</code>, <code>ShoppingPageExtractor</code>, <code>ProductJsonMetadataReader</code>, <code>ShoppingProductPolicy</code>. 후보 우선순위 보존</td></tr>
             <tr><td>조회</td><td>여러 화면의 조회와 변경 혼합</td><td>화면별 조회·명령 분리 및 소셜 경계 정리</td><td>구현 중 조정. 마이페이지는 <code>SocialActivityQueries</code>의 목록·건수 계약을 호출하며 JPA 엔티티를 넘겨받지 않음. 내부 join/batch와 API 의미는 보존</td></tr>
             <tr><td>알림</td><td>커밋 이후 push 서비스에서 SQL·전송 혼합</td><td>저장·전송 및 정책 경계 분리</td><td>예상대로. <code>NotificationTriggerQueries</code>의 대상 조회와 <code>NotificationTriggerPolicy</code>의 문구·경로·중복 키를 분리. worker는 발행 순서 조정. outbox 없음</td></tr>
@@ -909,6 +911,7 @@
         </table></div>
         <h3>고장 났을 때 · 이걸 바꾸면?</h3>
         <details><summary>예산이나 결정 결과가 어긋난다</summary><p><code>DecisionCommands.complete/updateResult</code>의 잠금·변경 순서부터 확인합니다. <code>BudgetLedger</code>의 <code>MANDATORY</code>는 독립 커밋을 막습니다. SQL은 <code>DecisionJdbcRepository</code>, 계산은 <code>DecisionPolicy</code>, 응답은 <code>DecisionWebMapper</code>로 좁혀 조사합니다. 원장 변경 시 결정·통계·홈 버블이 간접 영향을 받으므로 <code>DecisionApiIntegrationTest</code>의 롤백과 중복 완료 테스트를 함께 실행합니다.</p></details>
+        <details><summary>등록이 429로 거부되거나 다른 사용자의 결과가 보인다</summary><p>등록은 전역 advisory lock 안에서 기존 요청 → active leader → cache → 신규 작업 순서로 판정합니다. 잠금과 등록은 같은 트랜잭션이며 저장소의 <code>MANDATORY</code>가 독립 호출을 거부합니다. 용량 제한 판단은 서비스에 남고, <code>ShoppingImportJobQueries</code>의 조회 SQL은 <code>id</code>와 <code>user_id</code>를 함께 검사합니다. 결과 개인화는 조회 후 서비스에서 수행합니다. 이 경계를 수정하면 동시 등록·캐시 재사용·소유자 제한 테스트를 함께 확인하세요.</p></details>
         <details><summary>작업 완료가 무시되거나 follower가 기다린다</summary><p><code>ignored stale shopping import completion</code> 로그의 jobId·attempt를 현재 행과 비교합니다. 이전 실행의 완료 거부는 정상입니다. <code>ShoppingImportJobRepository</code>에서 leader 변경 성공 여부와 follower 전파를 같은 트랜잭션으로 유지해야 합니다. 수정 시 <code>ShoppingImportJobOwnershipIntegrationTest</code>로 복구 전후 순서를 확인합니다.</p></details>
         <details><summary>푸시가 없거나 잘못된 토큰이 계속 사용된다</summary><p><code>notifications</code> 저장, afterCommit 실행, 사용자 설정, 활성 토큰, FCM 결과, 토큰 비활성화 커밋을 나눠 확인합니다. <code>PushDeliveryTransactionIntegrationTest</code>가 이 DB 경계를 검사하지만 실제 Firebase 전달은 대역으로 처리합니다. 현재 구현에는 영속적인 푸시 재시도 경로가 없습니다.</p></details>
         <details><summary>화면 조회나 탈퇴를 확장한다</summary><p>통계는 <code>MypageStatsQueries</code>, 소셜 목록은 <code>SocialActivityQueries</code>, 탈퇴 삭제 순서는 <code>AccountWithdrawalService</code>에서 확인합니다. 기존 batch 조회를 개별 조회 반복으로 바꾸면 쿼리 수가 늘어납니다. <code>MypageQueryCountIntegrationTest</code>의 5/4회 제한과 탈퇴 통합 테스트를 유지하세요. 홈은 <code>HomeSummaryQueries</code>와 <code>HomeBubbleCommands</code>, 위시는 <code>WishlistQueries</code>와 <code>WishlistService</code>를 함께 확인합니다.</p></details>
@@ -1001,7 +1004,7 @@
         id: "jobs", name: "쇼핑 import 작업 큐", kind: "백그라운드 작업",
         summary: "DB queue에서 작업을 claim·실행·복구·정리하고 동일 crawl을 공유합니다.",
         role: "느린 외부 수집의 동시성, capacity, 재사용, 실패 상태를 관리합니다.",
-        files: ["src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobService.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobWorker.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobRepository.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobScheduler.java"],
+        files: ["src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobService.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportSubmissionRepository.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobQueries.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobWorker.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobRepository.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobScheduler.java"],
         input: "job submit, scheduled tick",
         output: "PENDING/RUNNING/SUCCEEDED/FAILED, result_json 또는 error",
         dependencies: "shopping_import_jobs, ShoppingLinkImportService, TaskScheduler, Executor",
@@ -1099,7 +1102,7 @@
         id: "import", name: "동기 쇼핑 링크 가져오기",
         steps: [
           ["요청 수신", "ItemImportController.importLink", "userId, ShoppingLinkImportRequest", "사용자 컨텍스트와 요청을 동기 브리지로 전달합니다.", "service call", "request log context", "ShoppingImportSyncService"],
-          ["작업 등록", "ShoppingImportJobService.submit", "userId, request", "중복 요청·동일 crawl leader·cache를 확인하고 job을 생성 또는 재사용합니다.", "jobId, PENDING 또는 재사용 상태", "shopping_import_jobs insert/lock", "Scheduler"],
+          ["작업 등록", "ShoppingImportJobService.submit", "userId, request", "서비스가 하나의 등록 트랜잭션을 열고 ShoppingImportSubmissionRepository에서 advisory lock·중복·leader·cache SQL을 수행합니다. 용량 판정과 순서는 서비스가 조정합니다.", "jobId, PENDING 또는 재사용 상태", "shopping_import_jobs insert/lock", "Scheduler"],
           ["작업 claim", "ShoppingImportJobRepository.claimNextJob", "PENDING leader job", "FOR UPDATE SKIP LOCKED로 한 worker가 RUNNING 상태를 소유합니다.", "ClaimedJob", "leader와 follower 상태 갱신", "ShoppingLinkImportService"],
           ["페이지 수집", "FallbackPageFetcher → BrowserPageFetcher", "정규화된 공개 URL", "HTTP 우선 수집 후 상태·error shell에 따라 브라우저 fallback을 사용합니다.", "FetchedPage", "외부 HTTP·Chromium", "메타데이터 추출"],
           ["초안 생성", "ShoppingLinkImportService.importSharedLink", "FetchedPage HTML", "title·price·image·category를 검증·정규화해 save draft를 만듭니다.", "ShoppingLinkImportResponse", "영속 저장 없음", "worker 결과 저장"],
@@ -1158,10 +1161,10 @@
       },
 
       {
-        q: "동기 쇼핑 링크 API가 기본 설정에서 실제 크롤링을 시작하기 전에 거치는 핵심 상태 저장소는?",
-        choices: ["HTTP session", "shopping_import_jobs", "saved_items"],
+        q: "job 등록 SQL을 저장소로 분리한 뒤에도 중복 판정과 등록이 하나의 잠금 범위에 남는 이유는?",
+        choices: ["각 SQL이 자동으로 같은 잠금을 공유한다", "서비스의 등록 트랜잭션에 저장소가 MANDATORY로 참여한다", "조회 응답의 jobId가 같기 때문이다"],
         answer: 1,
-        why: "ShoppingImportSyncService는 job을 submit하고 shopping_import_jobs 상태를 polling합니다.",
+        why: "서비스의 TransactionTemplate 안에서 advisory lock과 중복·용량 판정·등록이 이어집니다. 저장소의 MANDATORY는 이 트랜잭션 없이 잠금이나 등록을 호출하는 실수를 거부합니다.",
         topic: "실행 흐름"
       },
       {

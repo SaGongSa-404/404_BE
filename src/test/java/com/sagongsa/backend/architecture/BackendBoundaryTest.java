@@ -25,7 +25,7 @@ class BackendBoundaryTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"decision/DecisionService.java", "decision/DecisionCommands.java", "home/HomeSummaryService.java", "mypage/MypageService.java", "itemimport/job/ShoppingImportJobWorker.java", "notification/PushNotificationService.java", "wishlist/WishlistService.java", "notification/NotificationTriggerWorker.java"})
+	@ValueSource(strings = {"decision/DecisionService.java", "decision/DecisionCommands.java", "home/HomeSummaryService.java", "mypage/MypageService.java", "itemimport/job/ShoppingImportJobWorker.java", "itemimport/job/ShoppingImportJobService.java", "notification/PushNotificationService.java", "wishlist/WishlistService.java", "notification/NotificationTriggerWorker.java"})
 	void orchestrationDoesNotExecuteSql(String file) throws Exception {
 		assertThat(Files.readString(SOURCE.resolve(file))).doesNotContain("JdbcTemplate", "EntityManager", "createNativeQuery");
 	}

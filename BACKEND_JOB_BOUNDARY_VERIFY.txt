@@ -1,0 +1,12 @@
+job 저장 경계 후속 검증
+작업 트리: /tmp/404-be-refactor-next-20260907
+기준: f565eea
+
+./gradlew test jacocoTestReport bootJar --no-daemon
+node scripts/check-backend-dependencies.cjs
+RUN_BACKEND_BENCHMARK=true ./gradlew test --tests '*ShoppingImportJobReadBenchmarkTest' --rerun-tasks --no-daemon
+
+벤치마크는 순차 실행한다. 원시 결과: build/reports/job-read-benchmark.csv
+동일 테스트 파일을 기준 작업 트리 /tmp/404-be-job-baseline-20260908에도 적용했다.
+docs/BACKEND_JOB_BOUNDARY_2026-09-08.md의 성능 보류 사유를 확인한다.
+성능 비악화 조건 확인 전에는 병합·배포하지 않는다.
