@@ -27,7 +27,7 @@ class PushNotificationServiceTest extends PostgreSqlContainerTest {
 	void setUp() {
 		jdbcTemplate.execute("truncate table users cascade");
 		fcmMessageSender = new RecordingFcmMessageSender();
-		pushNotificationService = new PushNotificationService(jdbcTemplate, fcmMessageSender);
+		pushNotificationService = new PushNotificationService(new PushDeliveryRepository(jdbcTemplate), fcmMessageSender);
 	}
 
 	@Test
