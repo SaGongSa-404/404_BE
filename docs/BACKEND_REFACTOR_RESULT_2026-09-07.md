@@ -1,5 +1,7 @@
 # 백엔드 책임 경계 리팩토링 — 구현 결과
 
+2차 구현은 [후속 결과](BACKEND_REFACTOR_CONTINUATION_2026-09-07.md)를 참조한다. 아래 검증 수치는 1차 시점 기록이며 책임 경계는 최신 구현을 반영했다.
+
 ## 기준과 범위
 
 - 기준: `origin/develop@a4a66e0456113f7a5d397400496ca5d90a74cc14`.
@@ -17,8 +19,8 @@
 | 내부 결정 호출 | `ConsumptionService`가 결정 HTTP DTO 사용 | `ChangeDecisionCommand`와 `DecisionOutcome` 사용. 웹 변환은 `DecisionWebMapper` |
 | 크롤링 | 하나의 서비스에서 URL·HTML·JSON·정책 처리 | `ShoppingUrlNormalizer`, `ShoppingPageExtractor`, `ProductJsonMetadataReader`, `ShoppingProductPolicy`, 공통 값/문자열 도구 분리 |
 | 작업 실행 | worker가 실행과 상태 SQL 함께 소유 | worker는 외부 수집 조정, `ShoppingImportJobRepository`는 claim·완료·복구·정리 및 follower 전파 |
-| 마이페이지 | 프로필·통계·목록·탈퇴 집중 | `ProfileCommands`, `MypageStatsQueries`, `MypageSocialQueries`, `AccountWithdrawalService`로 분리 |
-| 홈·위시 | 조회와 변경 혼합 | `HomeSummaryQueries`/`HomeBubbleCommands`, `WishlistQueries`/`WishlistPolicy` 분리. `WishlistService`에 변경 SQL 유지 |
+| 마이페이지 | 프로필·통계·목록·탈퇴 집중 | `ProfileCommands`, `MypageStatsQueries`, `SocialActivityQueries`, `AccountWithdrawalService`로 분리 |
+| 홈·위시 | 조회와 변경 혼합 | `HomeSummaryQueries`/`HomeBubbleCommands`, `WishlistQueries`/`WishlistPolicy` 분리. 변경 SQL은 `WishlistJdbcRepository`, 트랜잭션은 `WishlistService`에 유지 |
 | 푸시 | 토큰 SQL과 FCM 호출 혼합 | `PushDeliveryRepository`가 설정·토큰 접근, `PushNotificationService`가 외부 전송 담당 |
 | 오류·경계 검사 | 동일 오류 record 중복, 분리 경계 검사 없음 | 공통 `api.ApiErrorResponse`, 새 책임 경계에 대한 `BackendBoundaryTest` 추가 |
 
@@ -46,8 +48,8 @@ HTTP 경로·요청/응답 필드·예외 핸들러의 상태 코드·오류 본
 
 - 예상대로: 큰 서비스 책임 분리, 결정 내부 DTO 분리, 예산 지출 원장 경계, stale 실행 소유권 검사, 푸시 경계 테스트, 아키텍처 가드.
 - 구현 중 조정: 패키지를 일괄 `application/domain/infrastructure`로 옮기지 않고 기존 도메인 패키지 안에서 역할을 나눴다. 조회용 JPA join/batch를 인터페이스 체인으로 교체하지 않았다. 기존 쿼리와 계약을 보존하면서 변경 단위를 줄이기 위한 선택이다.
-- 이번 구현에서 제외: job submit/get SQL의 별도 저장소 분리, 전체 소셜 도메인 포트 도입, 알림 trigger 전체 정책 분리, 모든 접근 예외의 일괄 통합. 기존 접근 정책과 API별 오류 의미를 동일하다고 가정하지 않는다. 이 항목들은 원래 계획의 후속 작업으로 남는다.
-- 새 검증 기반: `Clock` 주입은 결정 흐름에 적용했다. 전역 시간 추상화 완료는 아니다. 소스 기반 경계 테스트는 새 경계만 검사하며 전체 의존성 그래프의 무순환을 증명하지 않는다.
+- 이번 구현에서 제외: job submit/get SQL의 별도 저장소 분리, 전체 소셜 도메인 포트 도입, 모든 접근 예외의 일괄 통합(기존 의미가 달라 보존). 기존 접근 정책과 API별 오류 의미를 동일하다고 가정하지 않는다. 2차에서 마이페이지→소셜 공개 조회 경계와 알림 trigger 대상/정책 분리를 추가했다. 나머지 항목은 후속 후보이며 접근 예외를 무조건 합치지는 않는다.
+- 새 검증 기반: `Clock` 주입은 결정 흐름과 계정 접근 검사에 적용했다. 전역 시간 추상화 완료는 아니다. 소스 기반 경계 테스트에 더해 2차에서 컴파일된 프로젝트 클래스의 의존성 순환 검사를 추가했다. 런타임 리플렉션 의존성까지 증명하지는 않는다.
 - 원래 13개 PR 계획을 13개 원격 PR로 실행한 결과가 아니다. 이번 브랜치는 그중 핵심 책임 분리와 두 실패 경계 보강을 묶은 로컬 구현이다.
 
 ## 검증 결과

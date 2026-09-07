@@ -891,8 +891,10 @@
           <li>쇼핑 worker는 수집 실행을 조정하고 저장소가 작업 상태를 바꿉니다. 완료 권한은 작업 ID뿐 아니라 해당 claim의 <code>attempt_count</code>로 확인합니다.</li>
           <li>늦게 끝난 이전 실행은 새 실행과 follower의 결과를 덮어쓸 수 없습니다. 외부 수집의 중복 실행 자체를 취소하는 기능은 아닙니다.</li>
           <li>FCM 전송은 활성 DB 트랜잭션 밖에서 실행하고, 잘못된 토큰 비활성화는 별도 트랜잭션으로 커밋합니다. 알림 저장 성공과 기기 전달 성공은 여전히 다릅니다.</li>
-          <li>프로필 변경·탈퇴·통계·소셜 목록, 홈 조회·버블 변경, 위시 조회·정책이 나뉘었습니다. 조회 이름만 보고 순수 읽기라고 가정하면 안 됩니다. 일부 조회는 월 예산을 생성합니다.</li>
+          <li>위시 변경은 <code>WishlistService → WishlistJdbcRepository</code>의 같은 트랜잭션입니다. 메타데이터 저장 실패 시 위시와 멱등 키도 롤백됩니다.</li>
+          <li>마이페이지의 소셜 목록·건수는 <code>SocialActivityQueries</code>가 소유합니다. 프로필 변경·탈퇴·통계, 홈 조회·버블 변경도 나뉘었습니다. 조회 이름만 보고 순수 읽기라고 가정하면 안 됩니다. 일부 조회는 월 예산을 생성합니다.</li>
         </ol>
+        <p>2차 진행: 알림 worker는 대상 조회·정책·발행을 조정합니다. 계정 접근 검사는 기존 <code>UserAccessService</code>를 유지하고 <code>Clock</code>으로 정지 만료 경계를 검증합니다. API와 토큰 발급의 없는 사용자 처리·예외 차이는 의도적으로 보존했습니다.</p>
         <h3>변경안과 실제 구현 비교</h3>
         <div class="table-wrap"><table>
           <thead><tr><th>영역</th><th>변경 전</th><th>변경안</th><th>실제 구현</th></tr></thead>
@@ -900,21 +902,23 @@
             <tr><td>결정</td><td>하나의 서비스에 DTO·정책·SQL 집중</td><td>명령·조회·정책·저장 경계 분리</td><td>예상대로. <code>DecisionCommands → DecisionJdbcRepository / BudgetLedger</code>, 응답 조회는 <code>DecisionQueries</code></td></tr>
             <tr><td>작업</td><td>worker가 SQL과 외부 호출 처리, 완료 시 실행 차수 미검사</td><td>저장 경계와 실행 소유권 분리</td><td>예상대로. <code>claim → crawl → attempt 검사 → leader/follower 완료</code>. submit/get SQL은 기존 서비스에 유지</td></tr>
             <tr><td>크롤링</td><td>URL·페이지·JSON·정책 혼합</td><td>후보 추출과 정책 분리</td><td>예상대로. <code>ShoppingUrlNormalizer</code>, <code>ShoppingPageExtractor</code>, <code>ProductJsonMetadataReader</code>, <code>ShoppingProductPolicy</code>. 후보 우선순위 보존</td></tr>
-            <tr><td>조회</td><td>여러 화면의 조회와 변경 혼합</td><td>화면별 조회·명령 분리 및 소셜 경계 정리</td><td>구현 중 조정. 기존 JPA join/batch와 API 의미를 보존. 전체 소셜 포트 재설계는 제외됨</td></tr>
-            <tr><td>알림</td><td>커밋 이후 push 서비스에서 SQL·전송 혼합</td><td>저장·전송 및 정책 경계 분리</td><td>구현 중 조정. 푸시 저장 접근과 전송 분리, trigger 전체 정책 분리는 제외됨. outbox 없음</td></tr>
-            <tr><td>데이터·API</td><td>기존 테이블과 HTTP 계약</td><td>외부 계약 유지</td><td>예상대로. 스키마·상태 값·HTTP 필드 유지. 공통 오류 record만 <code>api.ApiErrorResponse</code>로 이동</td></tr>
+            <tr><td>조회</td><td>여러 화면의 조회와 변경 혼합</td><td>화면별 조회·명령 분리 및 소셜 경계 정리</td><td>구현 중 조정. 마이페이지는 <code>SocialActivityQueries</code>의 목록·건수 계약을 호출하며 JPA 엔티티를 넘겨받지 않음. 내부 join/batch와 API 의미는 보존</td></tr>
+            <tr><td>알림</td><td>커밋 이후 push 서비스에서 SQL·전송 혼합</td><td>저장·전송 및 정책 경계 분리</td><td>예상대로. <code>NotificationTriggerQueries</code>의 대상 조회와 <code>NotificationTriggerPolicy</code>의 문구·경로·중복 키를 분리. worker는 발행 순서 조정. outbox 없음</td></tr>
+            <tr><td>데이터·API</td><td>기존 테이블과 HTTP 계약</td><td>외부 계약 유지</td><td>예상대로. 스키마·상태 값·HTTP 필드 유지. 공통 오류 record는 <code>api.ApiErrorResponse</code>로 이동. 마이페이지 응답 record도 독립시켜 서비스 간 역참조 제거</td></tr>
           </tbody>
         </table></div>
         <h3>고장 났을 때 · 이걸 바꾸면?</h3>
         <details><summary>예산이나 결정 결과가 어긋난다</summary><p><code>DecisionCommands.complete/updateResult</code>의 잠금·변경 순서부터 확인합니다. <code>BudgetLedger</code>의 <code>MANDATORY</code>는 독립 커밋을 막습니다. SQL은 <code>DecisionJdbcRepository</code>, 계산은 <code>DecisionPolicy</code>, 응답은 <code>DecisionWebMapper</code>로 좁혀 조사합니다. 원장 변경 시 결정·통계·홈 버블이 간접 영향을 받으므로 <code>DecisionApiIntegrationTest</code>의 롤백과 중복 완료 테스트를 함께 실행합니다.</p></details>
         <details><summary>작업 완료가 무시되거나 follower가 기다린다</summary><p><code>ignored stale shopping import completion</code> 로그의 jobId·attempt를 현재 행과 비교합니다. 이전 실행의 완료 거부는 정상입니다. <code>ShoppingImportJobRepository</code>에서 leader 변경 성공 여부와 follower 전파를 같은 트랜잭션으로 유지해야 합니다. 수정 시 <code>ShoppingImportJobOwnershipIntegrationTest</code>로 복구 전후 순서를 확인합니다.</p></details>
         <details><summary>푸시가 없거나 잘못된 토큰이 계속 사용된다</summary><p><code>notifications</code> 저장, afterCommit 실행, 사용자 설정, 활성 토큰, FCM 결과, 토큰 비활성화 커밋을 나눠 확인합니다. <code>PushDeliveryTransactionIntegrationTest</code>가 이 DB 경계를 검사하지만 실제 Firebase 전달은 대역으로 처리합니다. 현재 구현에는 영속적인 푸시 재시도 경로가 없습니다.</p></details>
-        <details><summary>화면 조회나 탈퇴를 확장한다</summary><p>통계는 <code>MypageStatsQueries</code>, 소셜 목록은 <code>MypageSocialQueries</code>, 탈퇴 삭제 순서는 <code>AccountWithdrawalService</code>에서 확인합니다. 기존 batch 조회를 개별 조회 반복으로 바꾸면 쿼리 수가 늘어납니다. <code>MypageQueryCountIntegrationTest</code>의 5/4회 제한과 탈퇴 통합 테스트를 유지하세요. 홈은 <code>HomeSummaryQueries</code>와 <code>HomeBubbleCommands</code>, 위시는 <code>WishlistQueries</code>와 <code>WishlistService</code>를 함께 확인합니다.</p></details>
+        <details><summary>화면 조회나 탈퇴를 확장한다</summary><p>통계는 <code>MypageStatsQueries</code>, 소셜 목록은 <code>SocialActivityQueries</code>, 탈퇴 삭제 순서는 <code>AccountWithdrawalService</code>에서 확인합니다. 기존 batch 조회를 개별 조회 반복으로 바꾸면 쿼리 수가 늘어납니다. <code>MypageQueryCountIntegrationTest</code>의 5/4회 제한과 탈퇴 통합 테스트를 유지하세요. 홈은 <code>HomeSummaryQueries</code>와 <code>HomeBubbleCommands</code>, 위시는 <code>WishlistQueries</code>와 <code>WishlistService</code>를 함께 확인합니다.</p></details>
+        <details><summary>알림을 추가하거나 계정 접근 정책을 바꾼다</summary><p>대상 조건·join·50건 상한은 <code>NotificationTriggerQueries</code>, 알림 문구·이동 경로·중복 키·월초 09시 기준은 <code>NotificationTriggerPolicy</code>, 발행 순서는 <code>NotificationTriggerWorker</code>에서 확인합니다. 실제 저장 중복 방지와 커밋 후 전송은 <code>NotificationPublisher</code> 책임입니다. <code>UserAccessService</code>의 API 접근과 토큰 발급은 예외 의미가 다르므로 <code>UserAccessServiceTest</code>와 인증 통합 테스트를 함께 확인하세요.</p></details>
         <h3>위험은 실제로 어떻게 달라졌나</h3>
         <p><span class="badge confirmed">확인됨</span> 기존 stale 완료 문제는 실제 PostgreSQL 재현에서 수정 전 2개 실패, 수정 후 통과로 확인했습니다. 그러나 구버전 worker가 섞여 실행되면 구버전 쓰기까지 막지는 못합니다. 배포할 때 기존 worker를 배출하거나 종료해야 합니다. 스키마 롤백은 필요 없지만 코드 롤백은 이 보호도 되돌립니다.</p>
         <p><span class="badge unknown">알 수 없음</span> 운영 p95·실제 사이트 수집률·실제 FCM 전달·운영 DB pool 대기는 측정하지 않았습니다. afterCommit과 외부 전송 사이의 프로세스 종료에 따른 푸시 유실 위험도 남습니다.</p>
         <h3>검증 결과</h3>
-        <p>완료: 변경 전 668개 / 변경 후 695개 테스트, 각각 실패·오류 0개와 건너뜀 9개. 변경 후 <code>test jacocoTestReport</code> 통과. 결정 후반 실패 롤백·동시 완료, stale 소유권, 푸시 커밋/롤백, 파싱 fixture, 기존 소셜 조회 문장 제한 및 새 경계 검사 통과. 하지 못함: 운영 성능·실제 외부 전달, 원격 CI·배포 검증.</p>
+        <p>1차 검증 기록: 변경 전 668개 / 변경 후 695개 테스트, 각각 실패·오류 0개와 건너뜀 9개. 변경 후 <code>test jacocoTestReport</code> 통과. 결정 후반 실패 롤백·동시 완료, stale 소유권, 푸시 커밋/롤백, 파싱 fixture, 기존 소셜 조회 문장 제한 및 새 경계 검사 통과. 하지 못함: 운영 성능·실제 외부 전달, 원격 CI·배포 검증.</p>
+        <p>2차 검증·성능 비교·남은 범위: <a href="BACKEND_REFACTOR_CONTINUATION_2026-09-07.md">후속 구현 결과</a>. 컴파일된 클래스 의존성은 <code>BackendDependencyCycleTest</code>와 <code>scripts/check-backend-dependencies.cjs</code>로 검사합니다. 내부 클래스는 외부 클래스와 합쳐 분석하며 리플렉션·인라인 상수·운영 의존성까지 증명하는 검사는 아닙니다.</p>
         <p>이해 모델 변경 기록: 2026-09-07, <code>a4a66e0</code> 기반. 큰 서비스를 책임별로 나누되 트랜잭션 원자성과 외부 계약을 유지하고, 실행 차수와 커밋 이후 전송의 경계를 명시했습니다.</p>
       </section>
 
@@ -967,7 +971,7 @@
         id: "wishlist", name: "위시리스트·결정", kind: "도메인",
         summary: "SavedItem을 저장하고 구매 결정과 예산·후속 상태를 함께 갱신합니다.",
         role: "사용자의 위시 항목 생명주기와 GO/STOP 결정을 처리합니다.",
-        files: ["src/main/java/com/sagongsa/backend/wishlist/WishlistService.java", "src/main/java/com/sagongsa/backend/decision/DecisionService.java", "src/main/java/com/sagongsa/backend/decision/DecisionCommands.java", "src/main/java/com/sagongsa/backend/decision/DecisionQueries.java", "src/main/java/com/sagongsa/backend/domain/budget/BudgetLedger.java", "src/main/java/com/sagongsa/backend/domain/budget/BudgetCycleRolloverService.java"],
+        files: ["src/main/java/com/sagongsa/backend/wishlist/WishlistService.java", "src/main/java/com/sagongsa/backend/wishlist/WishlistJdbcRepository.java", "src/main/java/com/sagongsa/backend/decision/DecisionService.java", "src/main/java/com/sagongsa/backend/decision/DecisionCommands.java", "src/main/java/com/sagongsa/backend/decision/DecisionQueries.java", "src/main/java/com/sagongsa/backend/domain/budget/BudgetLedger.java", "src/main/java/com/sagongsa/backend/domain/budget/BudgetCycleRolloverService.java"],
         input: "WishlistItemCreateRequest, DecisionCompleteRequest, DecisionResultUpdateRequest",
         output: "WishlistItemResponse, DecisionResultResponse",
         dependencies: "users, saved_items, purchase_decisions, budget_cycles, self_check_*, mascot_*, reminder_schedules",
@@ -1012,7 +1016,7 @@
         id: "notification", name: "알림·리마인더·푸시", kind: "백그라운드 작업",
         summary: "도메인 조건을 찾아 알림을 저장하고 커밋 뒤 FCM으로 보냅니다.",
         role: "예약 리마인더와 주기적 조건 알림을 idempotent하게 생성합니다.",
-        files: ["src/main/java/com/sagongsa/backend/notification/NotificationTriggerWorker.java", "src/main/java/com/sagongsa/backend/notification/ReminderNotificationWorker.java", "src/main/java/com/sagongsa/backend/notification/NotificationPublisher.java", "src/main/java/com/sagongsa/backend/notification/PushNotificationService.java", "src/main/java/com/sagongsa/backend/notification/PushDeliveryRepository.java"],
+        files: ["src/main/java/com/sagongsa/backend/notification/NotificationTriggerWorker.java", "src/main/java/com/sagongsa/backend/notification/NotificationTriggerQueries.java", "src/main/java/com/sagongsa/backend/notification/NotificationTriggerPolicy.java", "src/main/java/com/sagongsa/backend/notification/ReminderNotificationWorker.java", "src/main/java/com/sagongsa/backend/notification/NotificationPublisher.java", "src/main/java/com/sagongsa/backend/notification/PushNotificationService.java", "src/main/java/com/sagongsa/backend/notification/PushDeliveryRepository.java"],
         input: "scheduled tick, NotificationPublishRequest, reminder_schedules",
         output: "notifications 행, 선택적 FCM message",
         dependencies: "notifications, reminder_schedules, device_push_tokens, Firebase FCM",
@@ -1027,7 +1031,7 @@
         id: "social", name: "소셜 피드", kind: "도메인",
         summary: "위시·결정에 연결된 게시물, 투표, 댓글, 신고와 차단을 다룹니다.",
         role: "사용자가 위시 고민을 공유하고 다른 사용자의 반응을 받는 흐름을 제공합니다.",
-        files: ["src/main/java/com/sagongsa/backend/social/SocialPostService.java", "src/main/java/com/sagongsa/backend/social/CreatePostRequest.java", "src/main/resources/static/app.html", "src/main/java/com/sagongsa/backend/social/VoteService.java", "src/main/java/com/sagongsa/backend/social/CommentService.java", "src/main/java/com/sagongsa/backend/social/ReportService.java"],
+        files: ["src/main/java/com/sagongsa/backend/social/SocialPostService.java", "src/main/java/com/sagongsa/backend/social/SocialActivityQueries.java", "src/main/java/com/sagongsa/backend/social/CreatePostRequest.java", "src/main/resources/static/app.html", "src/main/java/com/sagongsa/backend/social/VoteService.java", "src/main/java/com/sagongsa/backend/social/CommentService.java", "src/main/java/com/sagongsa/backend/social/ReportService.java"],
         input: "게시물·투표·댓글·신고 API 요청",
         output: "feed_posts, post_votes, post_comments, post_reports",
         dependencies: "users, saved_items, purchase_decisions, FileUploadService",
@@ -1118,7 +1122,7 @@
         id: "push", name: "예약 조건 → 인앱 알림 → FCM",
         steps: [
           ["주기 실행", "NotificationTriggerScheduler 또는 ReminderNotificationScheduler", "scheduled tick", "기한이 된 조건이나 reminder를 worker에 위임합니다.", "worker call", "scheduler thread", "대상 조회"],
-          ["대상 선택", "NotificationTriggerWorker / ReminderNotificationWorker", "현재 시각·DB 상태", "활성 사용자, 설정, 기존 알림, 기한을 기준으로 대상을 찾습니다.", "NotificationPublishRequest", "DB read, reminder row lock 가능", "NotificationPublisher"],
+          ["대상 선택", "NotificationTriggerQueries / ReminderNotificationWorker", "현재 시각·DB 상태", "활성 사용자, 기존 알림, 기한을 기준으로 대상을 찾습니다. trigger는 정책에서 문구·경로·중복 키를 구성한 뒤 publisher로 보냅니다.", "NotificationPublishRequest", "DB read, reminder row lock 가능", "NotificationPublisher"],
           ["중복 방지 저장", "NotificationPublisher.publish", "userId, type, dedupeKey", "unique 조건과 ON CONFLICT DO NOTHING으로 인앱 알림을 한 번만 저장합니다.", "created 또는 duplicate", "notifications insert", "commit"],
           ["커밋 뒤 전송", "NotificationPublisher.sendAfterCommit", "NotificationPushMessage", "DB 트랜잭션이 성공한 뒤 push service를 호출합니다.", "push send call", "DB와 외부 전송 경계 분리", "PushNotificationService"],
           ["설정·토큰 확인", "PushNotificationService.send", "userId, message", "PushDeliveryRepository의 별도 트랜잭션으로 설정과 토큰을 조회합니다. FCM 호출은 활성 트랜잭션 밖에서 실행합니다.", "FcmSendRequest 목록", "DB read", "FirebaseFcmMessageSender"],
@@ -1161,11 +1165,11 @@
         topic: "실행 흐름"
       },
       {
-        q: "구매 결정을 완료할 때 DecisionCommands가 함께 바꾸지 않는 것은?",
-        choices: ["월 예산", "SavedItem 상태", "OAuth provider 계정"],
+        q: "위시 저장 뒤 메타데이터 저장이 실패하면?",
+        choices: ["위시만 남긴다", "메타데이터만 다시 저장한다", "같은 트랜잭션의 위시와 멱등 키도 롤백한다"],
         answer: 2,
-        why: "결정 흐름은 item·budget·self-check·mascot·reminder를 바꾸지만 외부 OAuth 계정은 건드리지 않습니다.",
-        topic: "상태 소유권"
+        why: "WishlistJdbcRepository는 MANDATORY로 WishlistService의 트랜잭션에 참여합니다. 저장소를 나눠도 커밋은 나누지 않습니다.",
+        topic: "저장 책임과 원자성"
       },
       {
         q: "알림 DB 저장이 실패했는데 FCM이 먼저 전송되는 일을 막는 경계는?",
