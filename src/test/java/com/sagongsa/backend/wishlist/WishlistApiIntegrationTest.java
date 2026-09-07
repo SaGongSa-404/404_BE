@@ -1,6 +1,7 @@
 package com.sagongsa.backend.wishlist;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -42,6 +43,36 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Autowired
+	private WishlistService wishlistService;
+
+	@Autowired
+	private WishlistJdbcRepository wishlistRepository;
+
+	@Test
+	void metadataFailureRollsBackItemAndIdempotencyKey() {
+		UUID userId = createUser();
+		jdbcTemplate.execute("alter table item_source_metadata add constraint refactor_metadata_failure check (source_domain <> 'rollback.example')");
+		var request = new WishlistItemCreateRequest("DIRECT_INPUT", null, null, "원자성 검사", null,
+			1000, "KRW", "DIGITAL", null, false, "rollback.example", null, null, null, null);
+		try {
+			assertThatThrownBy(() -> wishlistService.create(userId, request, "rollback-key"))
+				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+			assertThat(jdbcTemplate.queryForObject("select count(*) from saved_items where user_id = ?", Integer.class, userId)).isZero();
+		} finally {
+			jdbcTemplate.execute("alter table item_source_metadata drop constraint refactor_metadata_failure");
+		}
+		var created = wishlistService.create(userId, request, "rollback-key");
+		assertThat(wishlistService.create(userId, request, "rollback-key").id()).isEqualTo(created.id());
+		assertThat(jdbcTemplate.queryForObject("select count(*) from item_source_metadata where item_id = ?", Integer.class, created.id())).isEqualTo(1);
+	}
+
+	@Test
+	void wishlistWritesRequireAnApplicationTransaction() {
+		assertThatThrownBy(() -> wishlistRepository.drop(UUID.randomUUID(), UUID.randomUUID(), OffsetDateTime.now()))
+			.isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+	}
 
 	@BeforeEach
 	void setUp() {

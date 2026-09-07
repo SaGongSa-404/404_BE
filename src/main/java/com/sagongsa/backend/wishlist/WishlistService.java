@@ -1,29 +1,18 @@
 package com.sagongsa.backend.wishlist;
 
+import static com.sagongsa.backend.wishlist.WishlistPolicy.*;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemInputSource;
+import com.sagongsa.backend.wishlist.WishlistJdbcRepository.MetadataFields;
 import java.math.BigDecimal;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,20 +20,17 @@ import org.springframework.util.StringUtils;
 @Service
 public class WishlistService {
 
-	private static final BigDecimal MIN_CONFIDENCE = BigDecimal.ZERO;
-	private static final BigDecimal MAX_CONFIDENCE = BigDecimal.valueOf(100);
-	private static final int DEFAULT_LIST_LIMIT = 20;
-	private static final int MAX_LIST_LIMIT = 50;
-	private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 120;
-	private static final Set<String> TRACKING_QUERY_KEYS = Set.of(
-		"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "n_media", "n_query", "n_rank", "n_ad_group"
-	);
-
-	private final JdbcTemplate jdbcTemplate;
+	private final WishlistJdbcRepository repository;
 	private final ObjectMapper objectMapper;
+	private final WishlistQueries queries;
 
-	public WishlistService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
-		this.jdbcTemplate = jdbcTemplate;
+	public WishlistService(
+		WishlistJdbcRepository repository,
+		ObjectMapper objectMapper,
+		WishlistQueries queries
+	) {
+		this.queries = queries;
+		this.repository = repository;
 		this.objectMapper = objectMapper;
 	}
 
@@ -55,7 +41,7 @@ public class WishlistService {
 
 	@Transactional
 	public WishlistItemResponse create(UUID userId, WishlistItemCreateRequest request, String rawIdempotencyKey) {
-		ensureWishlistUserAllowed(userId);
+		queries.ensureWishlistUserAllowed(userId);
 		if (request == null) {
 			throw new BadRequestException("Request body is required.");
 		}
@@ -73,12 +59,12 @@ public class WishlistService {
 		boolean categoryLockedByUser = Boolean.TRUE.equals(request.categoryLockedByUser());
 		MetadataFields metadata = metadataFields(request);
 
-		Optional<WishlistItemResponse> idempotentItem = findByIdempotencyKey(userId, idempotencyKey);
+		Optional<WishlistItemResponse> idempotentItem = queries.findByIdempotencyKey(userId, idempotencyKey);
 		if (idempotentItem.isPresent()) {
 			return idempotentItem.get();
 		}
 
-		Optional<WishlistItemResponse> existingItem = findExistingSavedNormalizedUrl(userId, normalizedUrl);
+		Optional<WishlistItemResponse> existingItem = queries.findExistingSavedNormalizedUrl(userId, normalizedUrl);
 		if (existingItem.isPresent()) {
 			throw new DuplicateSavedItemException(
 				"Saved wishlist item already exists for the normalized URL.",
@@ -90,159 +76,52 @@ public class WishlistService {
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
 		try {
-			jdbcTemplate.update(
-				"""
-				insert into saved_items (
-					id, user_id, input_source, original_url, normalized_url, title, image_url,
-					listed_price, currency_code, category, category_confidence, category_locked_by_user,
-					idempotency_key, status, created_at, updated_at
-				)
-				values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SAVED', ?, ?)
-				""",
-				itemId,
-				userId,
-				inputSource.name(),
-				originalUrl,
-				normalizedUrl,
-				title,
-				imageUrl,
-				listedPrice,
-				currencyCode,
-				category.name(),
-				categoryConfidence,
-				categoryLockedByUser,
-				idempotencyKey,
-				now,
-				now
-			);
+			repository.insertItem(itemId, userId, inputSource, originalUrl, normalizedUrl, title, imageUrl, listedPrice, currencyCode, category, categoryConfidence, categoryLockedByUser, idempotencyKey, now);
 		}
 		catch (DuplicateKeyException exception) {
-			Optional<WishlistItemResponse> duplicateIdempotentItem = findByIdempotencyKey(userId, idempotencyKey);
+			Optional<WishlistItemResponse> duplicateIdempotentItem = queries.findByIdempotencyKey(userId, idempotencyKey);
 			if (duplicateIdempotentItem.isPresent()) {
 				return duplicateIdempotentItem.get();
 			}
 			throw new DuplicateSavedItemException(
 				"Saved wishlist item already exists for the normalized URL.",
-				findExistingSavedNormalizedUrl(userId, normalizedUrl).orElse(null)
+				queries.findExistingSavedNormalizedUrl(userId, normalizedUrl).orElse(null)
 			);
 		}
 
 		if (metadata.hasAnyValue()) {
-			jdbcTemplate.update(
-				"""
-				insert into item_source_metadata (
-					item_id, source_domain, raw_title, raw_description, raw_price_text,
-					raw_payload_json, extracted_at
-				)
-				values (?, ?, ?, ?, ?, cast(? as jsonb), ?)
-				""",
-				itemId,
-				metadata.sourceDomain(),
-				metadata.rawTitle(),
-				metadata.rawDescription(),
-				metadata.rawPriceText(),
-				metadata.rawPayloadJson(),
-				now
-			);
+			repository.insertMetadata(itemId, metadata, now);
 		}
 
-		return findByUserAndId(userId, itemId);
-	}
-
-	@Transactional(readOnly = true)
-	public WishlistItemPageResponse list(UUID userId, String rawCategory, Integer requestedLimit, WishlistCursor cursor) {
-		ensureWishlistUserAllowed(userId);
-
-		String category = null;
-		if (StringUtils.hasText(rawCategory)) {
-			category = parseRequiredEnum(rawCategory, ItemCategory.class, "category").name();
-		}
-		int limit = normalizeLimit(requestedLimit);
-		List<Object> parameters = new ArrayList<>();
-		parameters.add(userId);
-
-		StringBuilder query = new StringBuilder(summarySelect());
-		query.append("""
-			where si.user_id = ?
-			  and si.status = 'SAVED'
-			""");
-		if (category != null) {
-			query.append("  and si.category = ?\n");
-			parameters.add(category);
-		}
-		if (cursor != null && cursor.hasTieBreaker()) {
-			query.append("  and (si.created_at < ? or (si.created_at = ? and si.id < ?))\n");
-			OffsetDateTime cursorCreatedAt = cursor.createdAt().atOffset(ZoneOffset.UTC);
-			parameters.add(cursorCreatedAt);
-			parameters.add(cursorCreatedAt);
-			parameters.add(cursor.id());
-		} else if (cursor != null) {
-			query.append("  and si.created_at < ?\n");
-			parameters.add(cursor.createdAt().atOffset(ZoneOffset.UTC));
-		}
-		query.append("""
-			order by si.created_at desc, si.id desc
-			limit ?
-			""");
-		parameters.add(limit + 1);
-
-		List<WishlistItemSummaryResponse> fetched = jdbcTemplate.query(
-			query.toString(),
-			this::mapSummaryRow,
-			parameters.toArray()
-		);
-		boolean hasMore = fetched.size() > limit;
-		List<WishlistItemSummaryResponse> items = hasMore ? fetched.subList(0, limit) : fetched;
-		String nextCursor = hasMore ? WishlistCursor.encode(items.getLast()) : null;
-		return new WishlistItemPageResponse(List.copyOf(items), nextCursor, hasMore);
-	}
-
-	@Transactional(readOnly = true)
-	public WishlistItemResponse get(UUID userId, UUID itemId) {
-		ensureWishlistUserAllowed(userId);
-		return findSavedByUserAndId(userId, itemId);
+		return queries.findByUserAndId(userId, itemId);
 	}
 
 	@Transactional
 	public WishlistItemResponse updateCategory(UUID userId, UUID itemId, WishlistCategoryUpdateRequest request) {
-		ensureWishlistUserAllowed(userId);
+		queries.ensureWishlistUserAllowed(userId);
 		if (request == null) {
 			throw new BadRequestException("Request body is required.");
 		}
 		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
-		int updated = jdbcTemplate.update(
-			"""
-			update saved_items
-			set category = ?,
-				category_locked_by_user = true,
-				updated_at = ?
-			where user_id = ?
-			  and id = ?
-			  and status = 'SAVED'
-			""",
-			category.name(),
-			now,
-			userId,
-			itemId
-		);
+		int updated = repository.updateCategory(userId, itemId, category, now);
 
 		if (updated == 0) {
 			throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
 		}
 
-		return findByUserAndId(userId, itemId);
+		return queries.findByUserAndId(userId, itemId);
 	}
 
 	@Transactional
 	public WishlistItemResponse update(UUID userId, UUID itemId, WishlistItemUpdateRequest request) {
-		ensureWishlistUserAllowed(userId);
+		queries.ensureWishlistUserAllowed(userId);
 		if (request == null) {
 			throw new BadRequestException("Request body is required.");
 		}
 
-		WishlistItemResponse current = findSavedByUserAndId(userId, itemId);
+		WishlistItemResponse current = queries.findSavedByUserAndId(userId, itemId);
 		ItemInputSource inputSource = parseRequiredEnum(current.inputSource(), ItemInputSource.class, "inputSource");
 		ItemCategory category = parseRequiredEnum(request.category(), ItemCategory.class, "category");
 		String title = cleanRequired(request.title(), "title", 255);
@@ -258,7 +137,7 @@ public class WishlistService {
 			normalizedUrl = current.normalizedUrl();
 		} else {
 			normalizedUrl = normalizeSavedUrl(inputSource, originalUrl, normalizedUrl);
-			findExistingSavedNormalizedUrl(userId, normalizedUrl, itemId)
+			queries.findExistingSavedNormalizedUrl(userId, normalizedUrl, itemId)
 				.ifPresent(existingItem -> {
 					throw new DuplicateSavedItemException(
 						"Saved wishlist item already exists for the normalized URL.",
@@ -269,29 +148,7 @@ public class WishlistService {
 
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		try {
-			int updated = jdbcTemplate.update(
-				"""
-				update saved_items
-				set original_url = ?,
-					normalized_url = ?,
-					title = ?,
-					listed_price = ?,
-					category = ?,
-					category_locked_by_user = true,
-					updated_at = ?
-				where user_id = ?
-				  and id = ?
-				  and status = 'SAVED'
-				""",
-				originalUrl,
-				normalizedUrl,
-				title,
-				listedPrice,
-				category.name(),
-				now,
-				userId,
-				itemId
-			);
+			int updated = repository.updateItem(userId, itemId, originalUrl, normalizedUrl, title, listedPrice, category, now);
 
 			if (updated == 0) {
 				throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
@@ -300,392 +157,21 @@ public class WishlistService {
 		catch (DuplicateKeyException exception) {
 			throw new DuplicateSavedItemException(
 				"Saved wishlist item already exists for the normalized URL.",
-				findExistingSavedNormalizedUrl(userId, normalizedUrl, itemId).orElse(null)
+				queries.findExistingSavedNormalizedUrl(userId, normalizedUrl, itemId).orElse(null)
 			);
 		}
 
-		return findByUserAndId(userId, itemId);
+		return queries.findByUserAndId(userId, itemId);
 	}
 
 	@Transactional
 	public void drop(UUID userId, UUID itemId) {
-		ensureWishlistUserAllowed(userId);
-		int updated = jdbcTemplate.update(
-			"""
-			update saved_items
-			set status = 'DROPPED',
-				updated_at = ?
-			where user_id = ?
-			  and id = ?
-			  and status = 'SAVED'
-			""",
-			OffsetDateTime.now(ZoneOffset.UTC),
-			userId,
-			itemId
-		);
+		queries.ensureWishlistUserAllowed(userId);
+		int updated = repository.drop(userId, itemId, OffsetDateTime.now(ZoneOffset.UTC));
 
 		if (updated == 0) {
 			throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
 		}
-	}
-
-	private WishlistItemResponse findByUserAndId(UUID userId, UUID itemId) {
-		List<WishlistItemResponse> items = jdbcTemplate.query(
-			baseSelect() + """
-			where si.user_id = ?
-			  and si.id = ?
-			""",
-			this::mapRow,
-			userId,
-			itemId
-		);
-
-		if (items.isEmpty()) {
-			throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
-		}
-
-		return items.getFirst();
-	}
-
-	private WishlistItemResponse findSavedByUserAndId(UUID userId, UUID itemId) {
-		List<WishlistItemResponse> items = jdbcTemplate.query(
-			baseSelect() + """
-			where si.user_id = ?
-			  and si.id = ?
-			  and si.status = 'SAVED'
-			""",
-			this::mapRow,
-			userId,
-			itemId
-		);
-
-		if (items.isEmpty()) {
-			throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
-		}
-
-		return items.getFirst();
-	}
-
-	private void ensureWishlistUserAllowed(UUID userId) {
-		Boolean allowed;
-		try {
-			allowed = jdbcTemplate.queryForObject(
-				"""
-				select status = 'ACTIVE' and onboarding_status = 'COMPLETED'
-				from users
-				where id = ?
-				""",
-				Boolean.class,
-				userId
-			);
-		}
-		catch (EmptyResultDataAccessException exception) {
-			throw new WishlistItemNotFoundException("User was not found.");
-		}
-
-		if (!Boolean.TRUE.equals(allowed)) {
-			throw new WishlistForbiddenException("Wishlist can be used only by active users who completed onboarding.");
-		}
-	}
-
-	private Optional<WishlistItemResponse> findExistingSavedNormalizedUrl(UUID userId, String normalizedUrl) {
-		return findExistingSavedNormalizedUrl(userId, normalizedUrl, null);
-	}
-
-	private Optional<WishlistItemResponse> findExistingSavedNormalizedUrl(UUID userId, String normalizedUrl, UUID excludedItemId) {
-		if (!StringUtils.hasText(normalizedUrl)) {
-			return Optional.empty();
-		}
-		List<Object> parameters = new ArrayList<>();
-		parameters.add(userId);
-		parameters.add(normalizedUrl);
-		StringBuilder query = new StringBuilder(baseSelect());
-		query.append("""
-			where si.user_id = ?
-			  and si.normalized_url = ?
-			  and si.status = 'SAVED'
-			""");
-		if (excludedItemId != null) {
-			query.append("  and si.id <> ?\n");
-			parameters.add(excludedItemId);
-		}
-		query.append("limit 1\n");
-		List<WishlistItemResponse> items = jdbcTemplate.query(
-			query.toString(),
-			this::mapRow,
-			parameters.toArray()
-		);
-		return items.stream().findFirst();
-	}
-
-	private Optional<WishlistItemResponse> findByIdempotencyKey(UUID userId, String idempotencyKey) {
-		if (!StringUtils.hasText(idempotencyKey)) {
-			return Optional.empty();
-		}
-		List<WishlistItemResponse> items = jdbcTemplate.query(
-			baseSelect() + """
-			where si.user_id = ?
-			  and si.idempotency_key = ?
-			limit 1
-			""",
-			this::mapRow,
-			userId,
-			idempotencyKey
-		);
-		return items.stream().findFirst();
-	}
-
-	private String baseSelect() {
-		return """
-			select
-				si.id,
-				si.user_id,
-				si.input_source,
-				si.original_url,
-				si.normalized_url,
-				si.title,
-				si.image_url,
-				si.listed_price,
-				trim(si.currency_code) as currency_code,
-				si.category,
-				si.category_confidence,
-				si.category_locked_by_user,
-				si.status,
-				si.created_at,
-				si.updated_at,
-				ism.source_domain,
-				ism.raw_title,
-				ism.raw_description,
-				ism.raw_price_text,
-				ism.raw_payload_json::text as raw_payload_json,
-				ism.extracted_at
-			from saved_items si
-			left join item_source_metadata ism on ism.item_id = si.id
-			""";
-	}
-
-	private String summarySelect() {
-		return """
-			select
-				si.id,
-				si.user_id,
-				si.input_source,
-				si.original_url,
-				si.normalized_url,
-				si.title,
-				si.image_url,
-				si.listed_price,
-				trim(si.currency_code) as currency_code,
-				si.category,
-				si.category_confidence,
-				si.category_locked_by_user,
-				exists (
-					select 1
-					from feed_posts fp
-					where fp.item_id = si.id
-					  and fp.user_id = si.user_id
-					  and fp.deleted_at is null
-					  and fp.moderation_status = 'ACTIVE'
-				) as selected,
-				si.status,
-				si.created_at,
-				si.updated_at
-			from saved_items si
-			""";
-	}
-
-	private WishlistItemResponse mapRow(ResultSet resultSet, int rowNumber) throws SQLException {
-		return new WishlistItemResponse(
-			resultSet.getObject("id", UUID.class),
-			resultSet.getObject("user_id", UUID.class),
-			resultSet.getString("input_source"),
-			resultSet.getString("original_url"),
-			resultSet.getString("normalized_url"),
-			resultSet.getString("title"),
-			resultSet.getString("image_url"),
-			getInteger(resultSet, "listed_price"),
-			resultSet.getString("currency_code"),
-			resultSet.getString("category"),
-			resultSet.getBigDecimal("category_confidence"),
-			resultSet.getBoolean("category_locked_by_user"),
-			resultSet.getString("status"),
-			getInstant(resultSet, "created_at"),
-			getInstant(resultSet, "updated_at"),
-			resultSet.getString("source_domain"),
-			resultSet.getString("raw_title"),
-			resultSet.getString("raw_description"),
-			resultSet.getString("raw_price_text"),
-			resultSet.getString("raw_payload_json"),
-			getInstant(resultSet, "extracted_at")
-		);
-	}
-
-	private WishlistItemSummaryResponse mapSummaryRow(ResultSet resultSet, int rowNumber) throws SQLException {
-		return new WishlistItemSummaryResponse(
-			resultSet.getObject("id", UUID.class),
-			resultSet.getObject("user_id", UUID.class),
-			resultSet.getString("input_source"),
-			resultSet.getString("original_url"),
-			resultSet.getString("normalized_url"),
-			resultSet.getString("title"),
-			resultSet.getString("image_url"),
-			getInteger(resultSet, "listed_price"),
-			resultSet.getString("currency_code"),
-			resultSet.getString("category"),
-			resultSet.getBigDecimal("category_confidence"),
-			resultSet.getBoolean("category_locked_by_user"),
-			resultSet.getBoolean("selected"),
-			resultSet.getString("status"),
-			getInstant(resultSet, "created_at"),
-			getInstant(resultSet, "updated_at")
-		);
-	}
-
-	private Integer getInteger(ResultSet resultSet, String columnName) throws SQLException {
-		int value = resultSet.getInt(columnName);
-		return resultSet.wasNull() ? null : value;
-	}
-
-	private Instant getInstant(ResultSet resultSet, String columnName) throws SQLException {
-		OffsetDateTime value = resultSet.getObject(columnName, OffsetDateTime.class);
-		return value == null ? null : value.toInstant();
-	}
-
-	private <T extends Enum<T>> T parseRequiredEnum(String value, Class<T> enumType, String fieldName) {
-		String cleaned = cleanRequired(value, fieldName, 80).toUpperCase(Locale.ROOT);
-		try {
-			return Enum.valueOf(enumType, cleaned);
-		}
-		catch (IllegalArgumentException exception) {
-			throw new BadRequestException(fieldName + " has an unsupported value.");
-		}
-	}
-
-	private String cleanRequired(String value, String fieldName, int maxLength) {
-		String cleaned = cleanOptional(value, fieldName);
-		if (cleaned == null) {
-			throw new BadRequestException(fieldName + " is required.");
-		}
-		if (cleaned.length() > maxLength) {
-			throw new BadRequestException(fieldName + " must be " + maxLength + " characters or fewer.");
-		}
-		return cleaned;
-	}
-
-	private String cleanOptional(String value, String fieldName) {
-		if (!StringUtils.hasText(value)) {
-			return null;
-		}
-		return value.trim();
-	}
-
-	private String cleanOptional(String value, String fieldName, int maxLength) {
-		String cleaned = cleanOptional(value, fieldName);
-		if (cleaned != null && cleaned.length() > maxLength) {
-			throw new BadRequestException(fieldName + " must be " + maxLength + " characters or fewer.");
-		}
-		return cleaned;
-	}
-
-	private Integer validateListedPrice(Integer listedPrice) {
-		if (listedPrice != null && listedPrice <= 0) {
-			throw new BadRequestException("listedPrice must be greater than zero.");
-		}
-		return listedPrice;
-	}
-
-	private String cleanCurrencyCode(String currencyCode) {
-		String cleaned = cleanOptional(currencyCode, "currencyCode");
-		if (cleaned == null) {
-			return null;
-		}
-
-		cleaned = cleaned.toUpperCase(Locale.ROOT);
-		if (cleaned.length() != 3) {
-			throw new BadRequestException("currencyCode must be 3 characters.");
-		}
-		return cleaned;
-	}
-
-	private String normalizeSavedUrl(ItemInputSource inputSource, String originalUrl, String normalizedUrl) {
-		if (!StringUtils.hasText(originalUrl) && !StringUtils.hasText(normalizedUrl)) {
-			if (inputSource == ItemInputSource.DIRECT_INPUT) {
-				return null;
-			}
-			throw new BadRequestException("originalUrl or normalizedUrl is required.");
-		}
-		if (StringUtils.hasText(originalUrl)) {
-			parseHttpUrl(originalUrl, "originalUrl");
-		}
-		return canonicalizeHttpUrl(StringUtils.hasText(normalizedUrl) ? normalizedUrl : originalUrl, "normalizedUrl");
-	}
-
-	private URI parseHttpUrl(String rawUrl, String fieldName) {
-		try {
-			URI uri = URI.create(rawUrl.trim());
-			String scheme = Optional.ofNullable(uri.getScheme()).orElse("").toLowerCase(Locale.ROOT);
-			if (!Objects.equals(scheme, "http") && !Objects.equals(scheme, "https")) {
-				throw new BadRequestException(fieldName + " must use http or https.");
-			}
-			if (!StringUtils.hasText(uri.getHost())) {
-				throw new BadRequestException(fieldName + " host is required.");
-			}
-			if (StringUtils.hasText(uri.getUserInfo())) {
-				throw new BadRequestException(fieldName + " must not include user info.");
-			}
-			return uri;
-		} catch (IllegalArgumentException exception) {
-			throw new BadRequestException(fieldName + " must be a valid URL.");
-		}
-	}
-
-	private int normalizeLimit(Integer requestedLimit) {
-		if (requestedLimit == null) {
-			return DEFAULT_LIST_LIMIT;
-		}
-		if (requestedLimit < 1 || requestedLimit > MAX_LIST_LIMIT) {
-			throw new BadRequestException("limit must be between 1 and " + MAX_LIST_LIMIT + ".");
-		}
-		return requestedLimit;
-	}
-
-	private String canonicalizeHttpUrl(String rawUrl, String fieldName) {
-		URI uri = parseHttpUrl(rawUrl, fieldName);
-		String filteredQuery = uri.getRawQuery() == null ? null : removeTrackingQueryParameters(uri.getRawQuery());
-		try {
-			return new URI(
-				uri.getScheme().toLowerCase(Locale.ROOT),
-				uri.getAuthority().toLowerCase(Locale.ROOT),
-				uri.getPath(),
-				filteredQuery,
-				null
-			).toString();
-		} catch (URISyntaxException exception) {
-			throw new BadRequestException(fieldName + " must be a valid URL.");
-		}
-	}
-
-	private String removeTrackingQueryParameters(String rawQuery) {
-		String filtered = Arrays.stream(rawQuery.split("&"))
-			.filter(parameter -> !isTrackingQueryParameter(parameter))
-			.collect(Collectors.joining("&"));
-		return filtered.isBlank() ? null : filtered;
-	}
-
-	private boolean isTrackingQueryParameter(String parameter) {
-		String key = parameter.split("=", 2)[0].toLowerCase(Locale.ROOT);
-		return key.startsWith("utm_") || TRACKING_QUERY_KEYS.contains(key);
-	}
-
-	private BigDecimal validateCategoryConfidence(BigDecimal categoryConfidence) {
-		if (categoryConfidence == null) {
-			return null;
-		}
-
-		if (categoryConfidence.compareTo(MIN_CONFIDENCE) < 0 || categoryConfidence.compareTo(MAX_CONFIDENCE) > 0) {
-			throw new BadRequestException("categoryConfidence must be between 0 and 100.");
-		}
-		return categoryConfidence;
 	}
 
 	private MetadataFields metadataFields(WishlistItemCreateRequest request) {
@@ -708,20 +194,8 @@ public class WishlistService {
 		);
 	}
 
-	private record MetadataFields(
-		String sourceDomain,
-		String rawTitle,
-		String rawDescription,
-		String rawPriceText,
-		String rawPayloadJson
-	) {
-
-		boolean hasAnyValue() {
-			return sourceDomain != null
-				|| rawTitle != null
-				|| rawDescription != null
-				|| rawPriceText != null
-				|| rawPayloadJson != null;
-		}
-	}
+	@Transactional(readOnly = true)
+	public WishlistItemPageResponse list(UUID userId, String category, Integer limit, WishlistCursor cursor) { return queries.list(userId, category, limit, cursor); }
+	@Transactional(readOnly = true)
+	public WishlistItemResponse get(UUID userId, UUID itemId) { return queries.get(userId, itemId); }
 }

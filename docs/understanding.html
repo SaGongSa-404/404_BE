@@ -181,6 +181,8 @@
     .edge-legend .store::before { background: var(--good); }
     .edge-legend .external::before { background: var(--danger); }
     .flow-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; }
+    .flow-layout > * { min-width: 0; }
+    .flow-step { overflow-wrap: anywhere; }
     .flow-list button {
       width: 100%; text-align: left; margin-bottom: 7px; padding: 10px;
       border: 1px solid var(--line); border-radius: 9px; background: var(--panel-soft); cursor: pointer;
@@ -219,6 +221,7 @@
     }
     summary { padding: 11px 13px; cursor: pointer; font-weight: 750; }
     details > div { padding: 0 13px 13px; }
+    #backend-refactor-actual details > p { padding: 0 13px 13px; }
     .quiz-question { padding: 15px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-soft); }
     .quiz-question h3 { margin-top: 0; }
     .choice { display: block; width: 100%; text-align: left; padding: 8px 10px; margin: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; }
@@ -280,7 +283,7 @@
       <div class="brand-mark">위</div>
       <div>
         <strong>위굴 Backend 이해 관제실</strong>
-        <small>origin/develop@019d77c · 구매 전후 의사결정 지원</small>
+        <small>a4a66e0 기반 리팩토링 · 구매 전후 의사결정 지원</small>
       </div>
     </div>
     <label class="search">
@@ -306,13 +309,14 @@
       <a href="#risks">위험</a>
       <a href="#debug">디버깅</a>
       <a href="#extension">확장</a>
+      <a href="#backend-refactor-actual">리팩토링 구현 결과</a>
       <a href="#changes">최근 변화</a>
       <a href="#quiz">퀴즈</a>
       <div class="baseline">
         <strong>분석 기준</strong><br>
-        <code>origin/develop</code><br>
-        Git <code>019d77c</code><br>
-        2026-08-07<br><br>
+        <code>refactor/backend-boundaries-20260907</code><br>
+        기준 Git <code>a4a66e0</code><br>
+        2026-09-07<br><br>
         <span class="badge confirmed">확인됨</span>
         작업 트리 소스·설정·테스트·Git 이력으로 확인했습니다.
       </div>
@@ -320,7 +324,7 @@
 
     <main>
       <section id="overview" class="hero searchable">
-        <div class="eyebrow">최신 origin/develop · 확인됨</div>
+        <div class="eyebrow">리팩토링 작업 트리 · 확인됨</div>
         <h1>갖고 싶은 물건을 수집하고, 고민하고, 결정하고, 돌아보게 만드는 백엔드</h1>
         <p class="summary">
           위굴 Backend는 쇼핑 링크나 직접 입력으로 <code>SavedItem</code>을 만들고, 예산과 자기 점검을 반영한 구매 결정을 기록하며,
@@ -353,7 +357,7 @@
             <li>알림은 먼저 <code>notifications</code>에 중복 방지 키와 함께 저장되고, 커밋 뒤 FCM 전송을 시도합니다.</li>
             <li>외부 요청은 인증보다 먼저 <code>ApiRateLimitFilter</code>를 지나며, 인증·일반 API·쇼핑 import·health 정책이 중첩 적용될 수 있습니다.</li>
             <li>운영 구성은 백엔드 loopback bind와 Caddy·fail2ban·애플리케이션 rate limit의 계층 방어를 전제로 합니다.</li>
-            <li>현재 문서는 2026-08-07에 fetch한 최신 <code>origin/develop@019d77c</code>를 설명합니다.</li>
+            <li>현재 문서는 2026-09-07에 확인한 <code>origin/develop@a4a66e0</code> 기반 리팩토링 작업 트리를 설명합니다. 운영 배포 상태는 별도로 확인해야 합니다.</li>
           </ol>
         </div>
       </section>
@@ -464,7 +468,7 @@
               <tr>
                 <td>사용자 접근 상태</td>
                 <td><code>users.status</code>, <code>users.onboarding_status</code></td>
-                <td><code>OnboardingService</code>, <code>MypageService</code></td>
+                <td><code>OnboardingService</code>, <code>ProfileCommands</code></td>
                 <td><code>UserAccessService</code>, 각 도메인 서비스</td>
                 <td>API·토큰 발급 전에 반복 검증</td>
               </tr>
@@ -478,7 +482,7 @@
               <tr>
                 <td>위시 항목</td>
                 <td><code>saved_items</code></td>
-                <td><code>WishlistService</code>, <code>DecisionService</code></td>
+                <td><code>WishlistService</code>, <code>DecisionCommands</code></td>
                 <td>홈·마이페이지·소셜·알림·회고</td>
                 <td><code>normalized_url</code>과 <code>idempotency_key</code>로 중복 제한</td>
               </tr>
@@ -492,7 +496,7 @@
               <tr>
                 <td>구매 결정과 월 예산</td>
                 <td><code>purchase_decisions</code>, <code>budget_cycles</code></td>
-                <td><code>DecisionService</code>, <code>BudgetCycleRolloverService</code></td>
+                <td><code>BudgetLedger</code>, <code>BudgetCycleRolloverService</code></td>
                 <td>홈·마이페이지 통계·알림</td>
                 <td>사용자 timezone 기준 월, 행 잠금과 트랜잭션으로 갱신</td>
               </tr>
@@ -540,12 +544,12 @@
         </div>
         <div class="hotspot">
           <span class="badge confirmed">핵심 로직</span>
-          <div><code>DecisionService.complete</code></div>
+          <div><code>DecisionCommands.complete</code></div>
           <div>위시 잠금부터 결정·예산·자기 점검·마스코트·리마인더까지 한 흐름을 소유합니다.</div>
         </div>
         <div class="hotspot">
           <span class="badge confirmed">상태</span>
-          <div><code>ShoppingImportJobWorker.claimNextJob</code></div>
+          <div><code>ShoppingImportJobRepository.claimNextJob</code></div>
           <div><code>FOR UPDATE SKIP LOCKED</code>로 여러 worker가 같은 작업을 중복 처리하지 않도록 합니다.</div>
         </div>
         <div class="hotspot">
@@ -565,7 +569,7 @@
         </div>
         <div class="hotspot">
           <span class="badge confirmed">성능</span>
-          <div><code>ShoppingImportJobScheduler.processNextJob</code></div>
+          <div><code>ShoppingImportJobScheduler</code></div>
           <div>claim 가능한 작업이 있을 때만 concurrency 수만큼 worker를 실행합니다. 빈 큐 polling 비용의 핵심 지점입니다.</div>
         </div>
         <div class="hotspot">
@@ -598,7 +602,7 @@
           <div class="card">
             <span class="badge confirmed">확인됨</span>
             <h3>결정 시 여러 상태를 한 트랜잭션에서 갱신</h3>
-            <p><strong>선택:</strong> <code>DecisionService</code>가 item·budget·self-check·mascot·reminder를 조정합니다.</p>
+            <p><strong>선택:</strong> <code>DecisionCommands</code>가 item·budget·self-check·mascot·reminder를 하나의 트랜잭션에서 조정합니다. <code>DecisionService</code>는 HTTP 호환 어댑터입니다.</p>
             <p><strong>이유:</strong> 사용자에게 보이는 결정 결과와 파생 상태의 원자성을 지킵니다.</p>
             <p><strong>트레이드오프:</strong> 서비스가 크고 결합도가 높아 변경 영향 범위가 넓습니다.</p>
             <p><strong>바꿀 경우:</strong> API integration test와 DB 제약·변경 이력을 같이 검증해야 합니다.</p>
@@ -672,7 +676,7 @@
             <h3>결정 변경의 영향 범위가 넓다</h3>
             <p><strong>왜 위험한가:</strong> 결과 변경은 budget delta, item status, reminder, self-check, change log를 함께 바꿉니다.</p>
             <p><strong>증상:</strong> 통계·홈 예산·회고 대상·리마인더가 서로 맞지 않습니다.</p>
-            <p><strong>먼저 확인:</strong> <code>DecisionService.updateResult</code>, transaction rollback, 관련 integration test.</p>
+            <p><strong>먼저 확인:</strong> <code>DecisionCommands.updateResult</code>, transaction rollback, 관련 integration test.</p>
           </div>
           <div class="card risk-card" data-severity="중간">
             <span class="badge medium">중간 · 숨은 결합</span>
@@ -877,6 +881,47 @@
         <div id="quizContainer"></div>
         <div class="quiz-score">이해도 점수: <strong id="quizScore">0 / 10</strong> · <span id="quizTopic">아직 답하지 않은 문제가 있습니다.</span></div>
       </section>
+
+      <section id="backend-refactor-actual" class="searchable">
+        <div class="eyebrow">2026-09-07 · 로컬 구현 결과 · 확인됨</div>
+        <h2>머릿속에서 바꿔야 할 것</h2>
+        <p>아래 구조는 <code>refactor/backend-boundaries-20260907</code> 작업 트리의 실제 코드입니다. 원래 작업 폴더와 운영 서버가 자동으로 바뀐 것은 아닙니다. <a href="BACKEND_REFACTOR_RESULT_2026-09-07.md">구현 근거와 남은 범위</a>를 함께 확인하세요.</p>
+        <ol>
+          <li>결정의 트랜잭션은 <code>DecisionCommands</code>가 소유합니다. HTTP DTO는 어댑터에서 내부 명령으로 바뀌며, 예산 지출은 같은 트랜잭션의 <code>BudgetLedger</code>를 거칩니다.</li>
+          <li>쇼핑 worker는 수집 실행을 조정하고 저장소가 작업 상태를 바꿉니다. 완료 권한은 작업 ID뿐 아니라 해당 claim의 <code>attempt_count</code>로 확인합니다.</li>
+          <li>늦게 끝난 이전 실행은 새 실행과 follower의 결과를 덮어쓸 수 없습니다. 외부 수집의 중복 실행 자체를 취소하는 기능은 아닙니다.</li>
+          <li>FCM 전송은 활성 DB 트랜잭션 밖에서 실행하고, 잘못된 토큰 비활성화는 별도 트랜잭션으로 커밋합니다. 알림 저장 성공과 기기 전달 성공은 여전히 다릅니다.</li>
+          <li>위시 변경은 <code>WishlistService → WishlistJdbcRepository</code>의 같은 트랜잭션입니다. 메타데이터 저장 실패 시 위시와 멱등 키도 롤백됩니다.</li>
+          <li>마이페이지의 소셜 목록·건수는 <code>SocialActivityQueries</code>가 소유합니다. 프로필 변경·탈퇴·통계, 홈 조회·버블 변경도 나뉘었습니다. 조회 이름만 보고 순수 읽기라고 가정하면 안 됩니다. 일부 조회는 월 예산을 생성합니다.</li>
+        </ol>
+        <p>2차 진행: 알림 worker는 대상 조회·정책·발행을 조정합니다. 계정 접근 검사는 기존 <code>UserAccessService</code>를 유지하고 <code>Clock</code>으로 정지 만료 경계를 검증합니다. API와 토큰 발급의 없는 사용자 처리·예외 차이는 의도적으로 보존했습니다.</p>
+        <h3>변경안과 실제 구현 비교</h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th>영역</th><th>변경 전</th><th>변경안</th><th>실제 구현</th></tr></thead>
+          <tbody>
+            <tr><td>결정</td><td>하나의 서비스에 DTO·정책·SQL 집중</td><td>명령·조회·정책·저장 경계 분리</td><td>예상대로. <code>DecisionCommands → DecisionJdbcRepository / BudgetLedger</code>, 응답 조회는 <code>DecisionQueries</code></td></tr>
+            <tr><td>작업</td><td>worker가 SQL과 외부 호출 처리, 완료 시 실행 차수 미검사</td><td>저장 경계와 실행 소유권 분리</td><td>예상대로. <code>claim → crawl → attempt 검사 → leader/follower 완료</code>. submit/get SQL은 기존 서비스에 유지</td></tr>
+            <tr><td>크롤링</td><td>URL·페이지·JSON·정책 혼합</td><td>후보 추출과 정책 분리</td><td>예상대로. <code>ShoppingUrlNormalizer</code>, <code>ShoppingPageExtractor</code>, <code>ProductJsonMetadataReader</code>, <code>ShoppingProductPolicy</code>. 후보 우선순위 보존</td></tr>
+            <tr><td>조회</td><td>여러 화면의 조회와 변경 혼합</td><td>화면별 조회·명령 분리 및 소셜 경계 정리</td><td>구현 중 조정. 마이페이지는 <code>SocialActivityQueries</code>의 목록·건수 계약을 호출하며 JPA 엔티티를 넘겨받지 않음. 내부 join/batch와 API 의미는 보존</td></tr>
+            <tr><td>알림</td><td>커밋 이후 push 서비스에서 SQL·전송 혼합</td><td>저장·전송 및 정책 경계 분리</td><td>예상대로. <code>NotificationTriggerQueries</code>의 대상 조회와 <code>NotificationTriggerPolicy</code>의 문구·경로·중복 키를 분리. worker는 발행 순서 조정. outbox 없음</td></tr>
+            <tr><td>데이터·API</td><td>기존 테이블과 HTTP 계약</td><td>외부 계약 유지</td><td>예상대로. 스키마·상태 값·HTTP 필드 유지. 공통 오류 record는 <code>api.ApiErrorResponse</code>로 이동. 마이페이지 응답 record도 독립시켜 서비스 간 역참조 제거</td></tr>
+          </tbody>
+        </table></div>
+        <h3>고장 났을 때 · 이걸 바꾸면?</h3>
+        <details><summary>예산이나 결정 결과가 어긋난다</summary><p><code>DecisionCommands.complete/updateResult</code>의 잠금·변경 순서부터 확인합니다. <code>BudgetLedger</code>의 <code>MANDATORY</code>는 독립 커밋을 막습니다. SQL은 <code>DecisionJdbcRepository</code>, 계산은 <code>DecisionPolicy</code>, 응답은 <code>DecisionWebMapper</code>로 좁혀 조사합니다. 원장 변경 시 결정·통계·홈 버블이 간접 영향을 받으므로 <code>DecisionApiIntegrationTest</code>의 롤백과 중복 완료 테스트를 함께 실행합니다.</p></details>
+        <details><summary>작업 완료가 무시되거나 follower가 기다린다</summary><p><code>ignored stale shopping import completion</code> 로그의 jobId·attempt를 현재 행과 비교합니다. 이전 실행의 완료 거부는 정상입니다. <code>ShoppingImportJobRepository</code>에서 leader 변경 성공 여부와 follower 전파를 같은 트랜잭션으로 유지해야 합니다. 수정 시 <code>ShoppingImportJobOwnershipIntegrationTest</code>로 복구 전후 순서를 확인합니다.</p></details>
+        <details><summary>푸시가 없거나 잘못된 토큰이 계속 사용된다</summary><p><code>notifications</code> 저장, afterCommit 실행, 사용자 설정, 활성 토큰, FCM 결과, 토큰 비활성화 커밋을 나눠 확인합니다. <code>PushDeliveryTransactionIntegrationTest</code>가 이 DB 경계를 검사하지만 실제 Firebase 전달은 대역으로 처리합니다. 현재 구현에는 영속적인 푸시 재시도 경로가 없습니다.</p></details>
+        <details><summary>화면 조회나 탈퇴를 확장한다</summary><p>통계는 <code>MypageStatsQueries</code>, 소셜 목록은 <code>SocialActivityQueries</code>, 탈퇴 삭제 순서는 <code>AccountWithdrawalService</code>에서 확인합니다. 기존 batch 조회를 개별 조회 반복으로 바꾸면 쿼리 수가 늘어납니다. <code>MypageQueryCountIntegrationTest</code>의 5/4회 제한과 탈퇴 통합 테스트를 유지하세요. 홈은 <code>HomeSummaryQueries</code>와 <code>HomeBubbleCommands</code>, 위시는 <code>WishlistQueries</code>와 <code>WishlistService</code>를 함께 확인합니다.</p></details>
+        <details><summary>알림을 추가하거나 계정 접근 정책을 바꾼다</summary><p>대상 조건·join·50건 상한은 <code>NotificationTriggerQueries</code>, 알림 문구·이동 경로·중복 키·월초 09시 기준은 <code>NotificationTriggerPolicy</code>, 발행 순서는 <code>NotificationTriggerWorker</code>에서 확인합니다. 실제 저장 중복 방지와 커밋 후 전송은 <code>NotificationPublisher</code> 책임입니다. <code>UserAccessService</code>의 API 접근과 토큰 발급은 예외 의미가 다르므로 <code>UserAccessServiceTest</code>와 인증 통합 테스트를 함께 확인하세요.</p></details>
+        <h3>위험은 실제로 어떻게 달라졌나</h3>
+        <p><span class="badge confirmed">확인됨</span> 기존 stale 완료 문제는 실제 PostgreSQL 재현에서 수정 전 2개 실패, 수정 후 통과로 확인했습니다. 그러나 구버전 worker가 섞여 실행되면 구버전 쓰기까지 막지는 못합니다. 배포할 때 기존 worker를 배출하거나 종료해야 합니다. 스키마 롤백은 필요 없지만 코드 롤백은 이 보호도 되돌립니다.</p>
+        <p><span class="badge unknown">알 수 없음</span> 운영 p95·실제 사이트 수집률·실제 FCM 전달·운영 DB pool 대기는 측정하지 않았습니다. afterCommit과 외부 전송 사이의 프로세스 종료에 따른 푸시 유실 위험도 남습니다.</p>
+        <h3>검증 결과</h3>
+        <p>1차 검증 기록: 변경 전 668개 / 변경 후 695개 테스트, 각각 실패·오류 0개와 건너뜀 9개. 변경 후 <code>test jacocoTestReport</code> 통과. 결정 후반 실패 롤백·동시 완료, stale 소유권, 푸시 커밋/롤백, 파싱 fixture, 기존 소셜 조회 문장 제한 및 새 경계 검사 통과. 하지 못함: 운영 성능·실제 외부 전달, 원격 CI·배포 검증.</p>
+        <p>2차 검증·성능 비교·남은 범위: <a href="BACKEND_REFACTOR_CONTINUATION_2026-09-07.md">후속 구현 결과</a>. 컴파일된 클래스 의존성은 <code>BackendDependencyCycleTest</code>와 <code>scripts/check-backend-dependencies.cjs</code>로 검사합니다. 내부 클래스는 외부 클래스와 합쳐 분석하며 리플렉션·인라인 상수·운영 의존성까지 증명하는 검사는 아닙니다.</p>
+        <p>이해 모델 변경 기록: 2026-09-07, <code>a4a66e0</code> 기반. 큰 서비스를 책임별로 나누되 트랜잭션 원자성과 외부 계약을 유지하고, 실행 차수와 커밋 이후 전송의 경계를 명시했습니다.</p>
+      </section>
+
     </main>
 
     <aside id="contextPanel" class="context" aria-live="polite">
@@ -926,7 +971,7 @@
         id: "wishlist", name: "위시리스트·결정", kind: "도메인",
         summary: "SavedItem을 저장하고 구매 결정과 예산·후속 상태를 함께 갱신합니다.",
         role: "사용자의 위시 항목 생명주기와 GO/STOP 결정을 처리합니다.",
-        files: ["src/main/java/com/sagongsa/backend/wishlist/WishlistService.java", "src/main/java/com/sagongsa/backend/decision/DecisionService.java", "src/main/java/com/sagongsa/backend/domain/budget/BudgetCycleRolloverService.java"],
+        files: ["src/main/java/com/sagongsa/backend/wishlist/WishlistService.java", "src/main/java/com/sagongsa/backend/wishlist/WishlistJdbcRepository.java", "src/main/java/com/sagongsa/backend/decision/DecisionService.java", "src/main/java/com/sagongsa/backend/decision/DecisionCommands.java", "src/main/java/com/sagongsa/backend/decision/DecisionQueries.java", "src/main/java/com/sagongsa/backend/domain/budget/BudgetLedger.java", "src/main/java/com/sagongsa/backend/domain/budget/BudgetCycleRolloverService.java"],
         input: "WishlistItemCreateRequest, DecisionCompleteRequest, DecisionResultUpdateRequest",
         output: "WishlistItemResponse, DecisionResultResponse",
         dependencies: "users, saved_items, purchase_decisions, budget_cycles, self_check_*, mascot_*, reminder_schedules",
@@ -934,14 +979,14 @@
         state: "SavedItem.status, PurchaseDecision.result, 월 예산, 자기 점검 요약",
         effects: "다수 테이블 갱신, 리마인더 예약, 마스코트 반응 생성",
         risk: "결정 변경 시 여러 파생 상태가 함께 바뀌는 높은 결합",
-        evidence: "WishlistService.create/update/drop, DecisionService.complete/updateResult",
+        evidence: "WishlistService.create/update/drop, DecisionCommands.complete/updateResult",
         impact: "직접 영향: 위시·결정 API와 DB. 간접 영향: 홈 버블, 통계, 알림, 소셜 피드. 확인할 테스트: WishlistApiIntegrationTest, DecisionApiIntegrationTest, HomeSummaryIntegrationTest."
       },
       {
         id: "import", name: "쇼핑 링크 수집", kind: "도메인",
         summary: "URL을 정규화하고 외부 페이지에서 상품 초안을 추출합니다.",
         role: "SHARE 링크 또는 DIRECT_INPUT을 WishlistSaveDraft로 변환합니다.",
-        files: ["src/main/java/com/sagongsa/backend/itemimport/item/ShoppingLinkImportService.java", "src/main/java/com/sagongsa/backend/itemimport/item/FallbackPageFetcher.java", "src/main/java/com/sagongsa/backend/itemimport/item/BrowserPageFetcher.java"],
+        files: ["src/main/java/com/sagongsa/backend/itemimport/item/ShoppingLinkImportService.java", "src/main/java/com/sagongsa/backend/itemimport/item/ShoppingPageExtractor.java", "src/main/java/com/sagongsa/backend/itemimport/item/ProductJsonMetadataReader.java", "src/main/java/com/sagongsa/backend/itemimport/item/ShoppingProductPolicy.java", "src/main/java/com/sagongsa/backend/itemimport/item/FallbackPageFetcher.java", "src/main/java/com/sagongsa/backend/itemimport/item/BrowserPageFetcher.java"],
         input: "ShoppingLinkImportRequest",
         output: "ShoppingLinkImportResponse, WishlistSaveDraft",
         dependencies: "Jsoup, Playwright Chromium, 외부 쇼핑몰, ShoppingUrlSafety",
@@ -956,22 +1001,22 @@
         id: "jobs", name: "쇼핑 import 작업 큐", kind: "백그라운드 작업",
         summary: "DB queue에서 작업을 claim·실행·복구·정리하고 동일 crawl을 공유합니다.",
         role: "느린 외부 수집의 동시성, capacity, 재사용, 실패 상태를 관리합니다.",
-        files: ["src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobService.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobWorker.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobScheduler.java"],
+        files: ["src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobService.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobWorker.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobRepository.java", "src/main/java/com/sagongsa/backend/itemimport/job/ShoppingImportJobScheduler.java"],
         input: "job submit, scheduled tick",
         output: "PENDING/RUNNING/SUCCEEDED/FAILED, result_json 또는 error",
         dependencies: "shopping_import_jobs, ShoppingLinkImportService, TaskScheduler, Executor",
         dependents: "import-link 동기 브리지, import-jobs API, Prometheus metrics",
-        state: "shopping_import_jobs가 최종 소유. leader/follower와 crawl_key로 공유",
+        state: "shopping_import_jobs가 최종 소유. leader/follower와 crawl_key로 공유하며 완료 시 claim의 attempt_count를 검사",
         effects: "행 잠금, 외부 crawl, stale recovery, retention cleanup",
         risk: "queue backlog, worker 중단, follower 상태 동기화, 동기 polling timeout",
-        evidence: "ShoppingImportJobService.submit, ShoppingImportJobWorker.claimNextJob, ShoppingImportJobScheduler.processNextJob",
-        impact: "직접 영향: 모든 링크 수집 API. 간접 영향: DB 부하, 외부 사이트 요청량, 응답 지연. 확인할 테스트: ShoppingImportJobApiIntegrationTest, ShoppingImportJobSchedulerTest."
+        evidence: "ShoppingImportJobService.submit, ShoppingImportJobRepository.claimNextJob, ShoppingImportJobScheduler",
+        impact: "직접 영향: 모든 링크 수집 API. 간접 영향: DB 부하, 외부 사이트 요청량, 응답 지연. 확인할 테스트: ShoppingImportJobApiIntegrationTest, ShoppingImportJobSchedulerTest, ShoppingImportJobOwnershipIntegrationTest."
       },
       {
         id: "notification", name: "알림·리마인더·푸시", kind: "백그라운드 작업",
         summary: "도메인 조건을 찾아 알림을 저장하고 커밋 뒤 FCM으로 보냅니다.",
         role: "예약 리마인더와 주기적 조건 알림을 idempotent하게 생성합니다.",
-        files: ["src/main/java/com/sagongsa/backend/notification/NotificationTriggerWorker.java", "src/main/java/com/sagongsa/backend/notification/ReminderNotificationWorker.java", "src/main/java/com/sagongsa/backend/notification/NotificationPublisher.java", "src/main/java/com/sagongsa/backend/notification/PushNotificationService.java"],
+        files: ["src/main/java/com/sagongsa/backend/notification/NotificationTriggerWorker.java", "src/main/java/com/sagongsa/backend/notification/NotificationTriggerQueries.java", "src/main/java/com/sagongsa/backend/notification/NotificationTriggerPolicy.java", "src/main/java/com/sagongsa/backend/notification/ReminderNotificationWorker.java", "src/main/java/com/sagongsa/backend/notification/NotificationPublisher.java", "src/main/java/com/sagongsa/backend/notification/PushNotificationService.java", "src/main/java/com/sagongsa/backend/notification/PushDeliveryRepository.java"],
         input: "scheduled tick, NotificationPublishRequest, reminder_schedules",
         output: "notifications 행, 선택적 FCM message",
         dependencies: "notifications, reminder_schedules, device_push_tokens, Firebase FCM",
@@ -979,14 +1024,14 @@
         state: "알림 읽음 상태·dedupe, reminder status, push token 활성 상태",
         effects: "DB insert/update, FCM 외부 전송, 잘못된 토큰 비활성화",
         risk: "FCM 일반 실패의 자동 재시도 경로가 코드에서 확인되지 않음",
-        evidence: "NotificationPublisher.publish/sendAfterCommit, PushNotificationService.send",
-        impact: "직접 영향: 인앱 알림과 푸시. 간접 영향: 사용자 재방문, FE targetPath 계약. 확인할 테스트: NotificationTriggerWorkerIntegrationTest, PushNotificationServiceTest."
+        evidence: "NotificationPublisher.publish/sendAfterCommit, PushNotificationService.send, PushDeliveryRepository.deactivateToken",
+        impact: "직접 영향: 인앱 알림과 푸시. 간접 영향: 사용자 재방문, FE targetPath 계약. 확인할 테스트: NotificationTriggerWorkerIntegrationTest, PushNotificationServiceTest, PushDeliveryTransactionIntegrationTest."
       },
       {
         id: "social", name: "소셜 피드", kind: "도메인",
         summary: "위시·결정에 연결된 게시물, 투표, 댓글, 신고와 차단을 다룹니다.",
         role: "사용자가 위시 고민을 공유하고 다른 사용자의 반응을 받는 흐름을 제공합니다.",
-        files: ["src/main/java/com/sagongsa/backend/social/SocialPostService.java", "src/main/java/com/sagongsa/backend/social/CreatePostRequest.java", "src/main/resources/static/app.html", "src/main/java/com/sagongsa/backend/social/VoteService.java", "src/main/java/com/sagongsa/backend/social/CommentService.java", "src/main/java/com/sagongsa/backend/social/ReportService.java"],
+        files: ["src/main/java/com/sagongsa/backend/social/SocialPostService.java", "src/main/java/com/sagongsa/backend/social/SocialActivityQueries.java", "src/main/java/com/sagongsa/backend/social/CreatePostRequest.java", "src/main/resources/static/app.html", "src/main/java/com/sagongsa/backend/social/VoteService.java", "src/main/java/com/sagongsa/backend/social/CommentService.java", "src/main/java/com/sagongsa/backend/social/ReportService.java"],
         input: "게시물·투표·댓글·신고 API 요청",
         output: "feed_posts, post_votes, post_comments, post_reports",
         dependencies: "users, saved_items, purchase_decisions, FileUploadService",
@@ -1055,10 +1100,10 @@
         steps: [
           ["요청 수신", "ItemImportController.importLink", "userId, ShoppingLinkImportRequest", "사용자 컨텍스트와 요청을 동기 브리지로 전달합니다.", "service call", "request log context", "ShoppingImportSyncService"],
           ["작업 등록", "ShoppingImportJobService.submit", "userId, request", "중복 요청·동일 crawl leader·cache를 확인하고 job을 생성 또는 재사용합니다.", "jobId, PENDING 또는 재사용 상태", "shopping_import_jobs insert/lock", "Scheduler"],
-          ["작업 claim", "ShoppingImportJobWorker.claimNextJob", "PENDING leader job", "FOR UPDATE SKIP LOCKED로 한 worker가 RUNNING 상태를 소유합니다.", "ClaimedJob", "leader와 follower 상태 갱신", "ShoppingLinkImportService"],
+          ["작업 claim", "ShoppingImportJobRepository.claimNextJob", "PENDING leader job", "FOR UPDATE SKIP LOCKED로 한 worker가 RUNNING 상태를 소유합니다.", "ClaimedJob", "leader와 follower 상태 갱신", "ShoppingLinkImportService"],
           ["페이지 수집", "FallbackPageFetcher → BrowserPageFetcher", "정규화된 공개 URL", "HTTP 우선 수집 후 상태·error shell에 따라 브라우저 fallback을 사용합니다.", "FetchedPage", "외부 HTTP·Chromium", "메타데이터 추출"],
           ["초안 생성", "ShoppingLinkImportService.importSharedLink", "FetchedPage HTML", "title·price·image·category를 검증·정규화해 save draft를 만듭니다.", "ShoppingLinkImportResponse", "영속 저장 없음", "worker 결과 저장"],
-          ["작업 완료", "ShoppingImportJobWorker.markSucceeded", "result_json", "leader와 follower를 SUCCEEDED로 바꿉니다.", "terminal job state", "shopping_import_jobs update", "동기 polling"],
+          ["작업 완료", "ShoppingImportJobRepository.markSucceeded", "ClaimedJob, result_json", "RUNNING과 attempt_count가 일치할 때만 leader를 갱신하고 같은 트랜잭션에서 follower에 전파합니다. 이전 실행의 완료는 무시합니다.", "terminal job state 또는 오래된 완료 거부", "shopping_import_jobs update", "동기 polling"],
           ["응답 반환", "ShoppingImportSyncService.importLink", "SUCCEEDED job", "polling 중 결과를 발견해 기존 동기 API 응답으로 반환합니다.", "200 ShoppingLinkImportResponse", "대기 중 request thread 사용", "클라이언트"]
         ]
       },
@@ -1066,10 +1111,10 @@
         id: "decision", name: "위시 저장 → 구매 결정",
         steps: [
           ["위시 저장", "WishlistService.create", "WishlistItemCreateRequest, Idempotency-Key", "사용자 상태·필드·중복 URL을 검증하고 saved_items를 만듭니다.", "WishlistItemResponse", "saved_items, item_source_metadata insert", "결정 API"],
-          ["결정 검증", "DecisionService.complete", "DecisionCompleteRequest", "사용자와 위시 행을 잠그고 기존 결정·SAVED 상태를 확인합니다.", "정규화된 결정", "saved_items row lock", "예산 계산"],
+          ["결정 검증", "DecisionService → DecisionCommands.complete", "DecisionWebMapper가 변환한 CompleteDecisionCommand", "사용자를 검증하고 위시 행을 잠근 뒤 기존 결정·SAVED 상태를 확인합니다.", "정규화된 결정", "saved_items row lock", "예산 계산"],
           ["월 예산 확보", "BudgetCycleRolloverService.ensureBudgetCycle", "userId, yearMonth", "현재 월이 없으면 가장 최근 과거 예산을 복사하고 spent를 0으로 시작합니다.", "budget cycle", "budget_cycles insert 가능", "결정 저장"],
-          ["결정 저장", "DecisionService.insertDecision + insertSelfCheck", "GO/STOP, finalPrice, 답변", "결정과 자기 점검 요약·상세를 저장합니다.", "purchase decision", "purchase_decisions, self_check_* insert", "파생 상태"],
-          ["파생 상태 갱신", "DecisionService", "결정 결과", "SavedItem 상태, GO 예산 지출, mascot reaction, regret reminder를 조정합니다.", "DecisionResultResponse 구성 요소", "여러 테이블 update/insert", "응답"],
+          ["결정 저장", "DecisionJdbcRepository.insertDecision + insertSelfCheck", "GO/STOP, finalPrice, 답변", "결정과 자기 점검 요약·상세를 저장합니다.", "purchase decision", "purchase_decisions, self_check_* insert", "파생 상태"],
+          ["파생 상태 갱신", "DecisionCommands → BudgetLedger / DecisionJdbcRepository", "결정 결과", "SavedItem 상태, GO 예산 지출, mascot reaction, regret reminder를 조정합니다.", "DecisionResultResponse 구성 요소", "여러 테이블 update/insert", "응답"],
           ["결과 반환", "DecisionController.complete", "완료된 트랜잭션", "예산 소진·마스코트·리마인더를 포함한 결과를 반환합니다.", "DecisionResultResponse", "트랜잭션 commit", "홈·마이페이지·후속 알림"]
         ]
       },
@@ -1077,10 +1122,10 @@
         id: "push", name: "예약 조건 → 인앱 알림 → FCM",
         steps: [
           ["주기 실행", "NotificationTriggerScheduler 또는 ReminderNotificationScheduler", "scheduled tick", "기한이 된 조건이나 reminder를 worker에 위임합니다.", "worker call", "scheduler thread", "대상 조회"],
-          ["대상 선택", "NotificationTriggerWorker / ReminderNotificationWorker", "현재 시각·DB 상태", "활성 사용자, 설정, 기존 알림, 기한을 기준으로 대상을 찾습니다.", "NotificationPublishRequest", "DB read, reminder row lock 가능", "NotificationPublisher"],
+          ["대상 선택", "NotificationTriggerQueries / ReminderNotificationWorker", "현재 시각·DB 상태", "활성 사용자, 기존 알림, 기한을 기준으로 대상을 찾습니다. trigger는 정책에서 문구·경로·중복 키를 구성한 뒤 publisher로 보냅니다.", "NotificationPublishRequest", "DB read, reminder row lock 가능", "NotificationPublisher"],
           ["중복 방지 저장", "NotificationPublisher.publish", "userId, type, dedupeKey", "unique 조건과 ON CONFLICT DO NOTHING으로 인앱 알림을 한 번만 저장합니다.", "created 또는 duplicate", "notifications insert", "commit"],
           ["커밋 뒤 전송", "NotificationPublisher.sendAfterCommit", "NotificationPushMessage", "DB 트랜잭션이 성공한 뒤 push service를 호출합니다.", "push send call", "DB와 외부 전송 경계 분리", "PushNotificationService"],
-          ["설정·토큰 확인", "PushNotificationService.send", "userId, message", "사용자 push 설정과 활성 device token을 조회합니다.", "FcmSendRequest 목록", "DB read", "FirebaseFcmMessageSender"],
+          ["설정·토큰 확인", "PushNotificationService.send", "userId, message", "PushDeliveryRepository의 별도 트랜잭션으로 설정과 토큰을 조회합니다. FCM 호출은 활성 트랜잭션 밖에서 실행합니다.", "FcmSendRequest 목록", "DB read", "FirebaseFcmMessageSender"],
           ["FCM 결과 처리", "FirebaseFcmMessageSender.send", "token, title, body, data", "Firebase로 보내고 invalid token이면 비활성화합니다.", "success/invalid/failed", "외부 FCM, device_push_tokens update 가능", "모바일 기기"]
         ]
       },
@@ -1098,12 +1143,20 @@
 
     const quiz = [
       {
-        q: "외부 /api 요청이 JWT 인증보다 먼저 통과해야 하는 애플리케이션 경계는?",
-        choices: ["ApiRateLimitFilter", "DecisionService", "Flyway migration"],
-        answer: 0,
-        why: "SecurityConfig는 ApiRateLimitFilter를 OAuth2AuthorizationRequestRedirectFilter보다 앞에 배치합니다.",
-        topic: "보안 경계"
+        q: "stale 복구 뒤 새 실행이 시작됐는데 이전 실행이 성공했다면?",
+        choices: ["이전 결과로 follower까지 완료한다", "attempt_count가 다르면 이전 완료를 거부한다", "기존 결정을 삭제한다"],
+        answer: 1,
+        why: "작업 ID와 RUNNING만으로는 실행 소유권을 구분할 수 없습니다. claim 당시 차수와 일치해야 leader와 follower를 갱신합니다.",
+        topic: "실행 소유권"
       },
+      {
+        q: "푸시 경계 분리 후에도 남는 실패 구간은?",
+        choices: ["FCM 호출이 결정 DB 트랜잭션을 연다", "알림 커밋 뒤 프로세스 종료로 푸시가 유실될 수 있다", "모든 오류 토큰 갱신이 롤백된다"],
+        answer: 1,
+        why: "외부 호출과 토큰 갱신 경계는 분리했지만 outbox나 영속 전송 재시도는 추가하지 않았습니다.",
+        topic: "구현 결과와 남은 위험"
+      },
+
       {
         q: "동기 쇼핑 링크 API가 기본 설정에서 실제 크롤링을 시작하기 전에 거치는 핵심 상태 저장소는?",
         choices: ["HTTP session", "shopping_import_jobs", "saved_items"],
@@ -1112,11 +1165,11 @@
         topic: "실행 흐름"
       },
       {
-        q: "구매 결정을 완료할 때 DecisionService가 함께 바꾸지 않는 것은?",
-        choices: ["월 예산", "SavedItem 상태", "OAuth provider 계정"],
+        q: "위시 저장 뒤 메타데이터 저장이 실패하면?",
+        choices: ["위시만 남긴다", "메타데이터만 다시 저장한다", "같은 트랜잭션의 위시와 멱등 키도 롤백한다"],
         answer: 2,
-        why: "결정 흐름은 item·budget·self-check·mascot·reminder를 바꾸지만 외부 OAuth 계정은 건드리지 않습니다.",
-        topic: "상태 소유권"
+        why: "WishlistJdbcRepository는 MANDATORY로 WishlistService의 트랜잭션에 참여합니다. 저장소를 나눠도 커밋은 나누지 않습니다.",
+        topic: "저장 책임과 원자성"
       },
       {
         q: "알림 DB 저장이 실패했는데 FCM이 먼저 전송되는 일을 막는 경계는?",
@@ -1146,13 +1199,7 @@
         why: "인앱 알림은 DB에 먼저 저장되고 FCM은 커밋 뒤 별도 외부 호출이므로 두 경계의 성공 여부가 다를 수 있습니다.",
         topic: "디버깅"
       },
-      {
-        q: "새 DB 컬럼을 추가할 때 JPA entity만 수정하면 위험한 가장 직접적인 이유는?",
-        choices: ["이 프로젝트는 raw SQL과 Flyway migration도 같은 테이블 계약을 사용하기 때문", "모든 API가 GraphQL이기 때문", "PostgreSQL을 사용하지 않기 때문"],
-        answer: 0,
-        why: "JdbcTemplate SQL, JPA mapping, Flyway migration이 함께 존재하므로 전체 검색과 스키마 검증이 필요합니다.",
-        topic: "확장 경로"
-      },
+
       {
         q: "이미 저장된 악성 imageUrl까지 app.html에서 실행되지 않게 하는 최종 방어는?",
         choices: ["신규 요청의 길이 제한만 적용", "검증된 URL을 img.src DOM 속성으로 할당", "feed_posts를 매 요청마다 삭제"],

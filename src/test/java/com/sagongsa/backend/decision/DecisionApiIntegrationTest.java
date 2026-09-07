@@ -44,6 +44,57 @@ class DecisionApiIntegrationTest extends PostgreSqlContainerTest {
 	@Autowired
 	private ObjectMapper objectMapper;
 
+	@Autowired
+	private DecisionService decisionService;
+
+	@Test
+	void rollsBackEveryDecisionWriteWhenReminderPersistenceFails() throws Exception {
+		UUID userId = createReadyUser();
+		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 90_000);
+		UUID itemId = insertSavedItem(userId, "Rollback target", "FASHION", "SAVED", 15_000);
+		DecisionCompleteRequest request = objectMapper.readValue(
+			decisionRequest(itemId, "GO", null, true, false, false, false), DecisionCompleteRequest.class);
+		jdbcTemplate.execute("alter table reminder_schedules add constraint refactor_test_reject_reminder check (user_id <> '" + userId + "'::uuid)");
+		try {
+			org.assertj.core.api.Assertions.assertThatThrownBy(() -> decisionService.complete(userId, request))
+				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+			assertThat(queryString("select status from saved_items where id = ?", itemId)).isEqualTo("SAVED");
+			assertThat(queryInteger("select spent_amount from budget_cycles where user_id = ?", userId)).isEqualTo(90_000);
+			assertThat(queryInteger("select count(*) from purchase_decisions where user_id = ?", userId)).isZero();
+			assertThat(queryInteger("select count(*) from mascot_state_events where user_id = ?", userId)).isZero();
+			assertThat(queryString("select mascot_state from mascot_profiles where user_id = ?", userId)).isEqualTo("DEFAULT");
+		} finally {
+			jdbcTemplate.execute("alter table reminder_schedules drop constraint refactor_test_reject_reminder");
+		}
+	}
+
+	@Test
+	void concurrentDuplicateCompletionChangesBudgetOnlyOnce() throws Exception {
+		UUID userId = createReadyUser();
+		insertBudgetCycle(userId, YearMonth.now(SEOUL_ZONE).toString(), 500_000, 90_000);
+		UUID itemId = insertSavedItem(userId, "Concurrent target", "FASHION", "SAVED", 15_000);
+		DecisionCompleteRequest request = objectMapper.readValue(
+			decisionRequest(itemId, "GO", null, true, false, false, false), DecisionCompleteRequest.class);
+		var ready = new java.util.concurrent.CountDownLatch(2);
+		var start = new java.util.concurrent.CountDownLatch(1);
+		try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+			java.util.concurrent.Callable<DecisionResultResponse> task = () -> {
+				ready.countDown();
+				if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) throw new IllegalStateException("start timed out");
+				return decisionService.complete(userId, request);
+			};
+			var first = executor.submit(task);
+			var second = executor.submit(task);
+			assertThat(ready.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+			start.countDown();
+			assertThat(first.get(15, java.util.concurrent.TimeUnit.SECONDS).decisionId())
+				.isEqualTo(second.get(15, java.util.concurrent.TimeUnit.SECONDS).decisionId());
+		}
+		assertThat(queryInteger("select spent_amount from budget_cycles where user_id = ?", userId)).isEqualTo(105_000);
+		assertThat(queryInteger("select count(*) from purchase_decisions where user_id = ?", userId)).isEqualTo(1);
+		assertThat(queryInteger("select count(*) from reminder_schedules where user_id = ?", userId)).isEqualTo(1);
+	}
+
 	@BeforeEach
 	void setUp() {
 		jdbcTemplate.execute("truncate table users cascade");

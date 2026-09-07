@@ -1,5 +1,7 @@
 package com.sagongsa.backend.wishlist;
 
+import com.sagongsa.backend.api.ApiErrorResponse;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

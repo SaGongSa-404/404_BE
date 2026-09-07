@@ -102,7 +102,7 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 	void 예산_신규_생성() {
 		UUID userId = insertUser("너굴이", "너구리");
 
-		MypageService.BudgetUpdateResponse response =
+		BudgetUpdateResponse response =
 			mypageService.updateBudget(userId, new UpdateBudgetRequest(300_000));
 
 		assertThat(response.monthlyBudget()).isEqualTo(300_000);
@@ -114,7 +114,7 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 		String yearMonth = YearMonth.now(KST).toString();
 		insertBudgetCycle(userId, yearMonth, 200_000, 0);
 
-		MypageService.BudgetUpdateResponse response =
+		BudgetUpdateResponse response =
 			mypageService.updateBudget(userId, new UpdateBudgetRequest(500_000));
 
 		assertThat(response.monthlyBudget()).isEqualTo(500_000);
@@ -130,7 +130,7 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 	void 알림_설정_조회_프로필_없으면_기본값_true() {
 		UUID userId = insertUserNoProfile();
 
-		MypageService.NotificationSettingsResponse response =
+		NotificationSettingsResponse response =
 			mypageService.getNotificationSettings(userId);
 
 		assertThat(response.notificationEnabled()).isTrue();
@@ -140,7 +140,7 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 	void 알림_설정_변경_반영() {
 		UUID userId = insertUser("너굴이", "너구리");
 
-		MypageService.NotificationSettingsResponse response =
+		NotificationSettingsResponse response =
 			mypageService.updateNotificationSettings(userId,
 				new NotificationSettingsRequest(false));
 
@@ -152,7 +152,7 @@ class MypageServiceTest extends PostgreSqlContainerTest {
 		UUID userId = insertUser("너굴이", "너구리");
 		mypageService.updateNotificationSettings(userId, new NotificationSettingsRequest(false));
 
-		MypageService.NotificationSettingsResponse response =
+		NotificationSettingsResponse response =
 			mypageService.updateNotificationSettings(userId, new NotificationSettingsRequest(true));
 
 		assertThat(response.notificationEnabled()).isTrue();

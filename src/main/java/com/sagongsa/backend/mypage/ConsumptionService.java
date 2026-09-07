@@ -1,8 +1,8 @@
 package com.sagongsa.backend.mypage;
 
-import com.sagongsa.backend.decision.DecisionResultResponse;
-import com.sagongsa.backend.decision.DecisionResultUpdateRequest;
-import com.sagongsa.backend.decision.DecisionService;
+import com.sagongsa.backend.decision.DecisionOutcome;
+import com.sagongsa.backend.decision.ChangeDecisionCommand;
+import com.sagongsa.backend.decision.DecisionCommands;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -19,9 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 class ConsumptionService {
 
 	private final JdbcTemplate jdbcTemplate;
-	private final DecisionService decisionService;
+	private final DecisionCommands decisionService;
 
-	ConsumptionService(JdbcTemplate jdbcTemplate, DecisionService decisionService) {
+	ConsumptionService(JdbcTemplate jdbcTemplate, DecisionCommands decisionService) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.decisionService = decisionService;
 	}
@@ -48,10 +48,10 @@ class ConsumptionService {
 
 	@Transactional
 	ConsumptionRecord changeDecisionResult(UUID userId, UUID decisionId, String newResultStr) {
-		DecisionResultResponse response = decisionService.updateResult(
+		DecisionOutcome response = decisionService.updateResult(
 			userId,
 			decisionId,
-			new DecisionResultUpdateRequest(newResultStr, null, null, null)
+			new ChangeDecisionCommand(newResultStr, null, null, null)
 		);
 
 		int changeCount = jdbcTemplate.queryForObject(

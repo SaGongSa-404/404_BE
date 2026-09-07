@@ -3,9 +3,9 @@ package com.sagongsa.backend.mypage;
 import com.sagongsa.backend.auth.CurrentUserId;
 import com.sagongsa.backend.domain.enums.ItemStatus;
 import com.sagongsa.backend.social.PostListResponse;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -42,20 +42,20 @@ public class MypageController {
 	}
 
 	@PatchMapping("/budget")
-	public ResponseEntity<MypageService.BudgetUpdateResponse> updateBudget(
+	public ResponseEntity<BudgetUpdateResponse> updateBudget(
 		@CurrentUserId UUID userId,
 		@Valid @RequestBody UpdateBudgetRequest request) {
 		return ResponseEntity.ok(mypageService.updateBudget(userId, request));
 	}
 
 	@GetMapping("/notification-settings")
-	public ResponseEntity<MypageService.NotificationSettingsResponse> getNotificationSettings(
+	public ResponseEntity<NotificationSettingsResponse> getNotificationSettings(
 		@CurrentUserId UUID userId) {
 		return ResponseEntity.ok(mypageService.getNotificationSettings(userId));
 	}
 
 	@PatchMapping("/notification-settings")
-	public ResponseEntity<MypageService.NotificationSettingsResponse> updateNotificationSettings(
+	public ResponseEntity<NotificationSettingsResponse> updateNotificationSettings(
 		@CurrentUserId UUID userId,
 		@Valid @RequestBody NotificationSettingsRequest request) {
 		return ResponseEntity.ok(mypageService.updateNotificationSettings(userId, request));

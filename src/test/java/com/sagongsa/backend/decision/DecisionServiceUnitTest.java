@@ -27,7 +27,9 @@ class DecisionServiceUnitTest {
 	void setUp() {
 		jdbcTemplate = mock(JdbcTemplate.class);
 		budgetCycleRolloverService = mock(BudgetCycleRolloverService.class);
-		service = new DecisionService(jdbcTemplate, budgetCycleRolloverService);
+		var repository = new DecisionJdbcRepository(jdbcTemplate);
+		var queries = new DecisionQueries(repository);
+		service = new DecisionService(new DecisionCommands(repository, budgetCycleRolloverService, java.time.Clock.systemUTC(), queries, new com.sagongsa.backend.domain.budget.BudgetLedger(jdbcTemplate)), queries);
 	}
 
 	@Test

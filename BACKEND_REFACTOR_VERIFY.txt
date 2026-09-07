@@ -1,0 +1,28 @@
+백엔드 리팩토링 로컬 검증
+
+실제 구현은 아래 별도 작업 트리에 있다. 원래 폴더의 기존 변경은 유지했다.
+cd /tmp/404-be-refactor-20260907
+git status --short --branch
+git log -5 --oneline
+git diff a4a66e0456113f7a5d397400496ca5d90a74cc14 --stat
+
+Docker와 Java 21이 필요하다. Testcontainers는 로컬 테스트 DB를 생성한다.
+./gradlew test jacocoTestReport --no-daemon
+./gradlew bootJar --no-daemon
+node scripts/check-backend-dependencies.cjs
+git diff --check
+
+선택 실행: 고정 크기 목록의 로컬 직렬 성능 검사(운영 부하 시험 아님)
+RUN_BACKEND_BENCHMARK=true ./gradlew test --tests '*BackendReadBenchmarkTest' --no-daemon
+원시 결과: build/reports/backend-read-benchmark.csv
+기준 비교는 a4a66e0의 별도 작업 트리에서 동일 BackendReadBenchmarkTest.java를 사용한다.
+동시에 두 측정을 실행하지 않는다. 전체 회귀 테스트는 위 선택 실행과 별도로 다시 실행한다.
+
+테스트 보고서: build/reports/tests/test/index.html
+커버리지 보고서: build/reports/jacoco/test/html/index.html
+구조 설명: docs/understanding.html
+구현 및 남은 범위: docs/BACKEND_REFACTOR_RESULT_2026-09-07.md
+2차 진행 및 검증: docs/BACKEND_REFACTOR_CONTINUATION_2026-09-07.md
+
+원격 push, PR 생성, 병합, 배포는 이 작업에서 실행하지 않았다.
+배포 시 구버전 worker를 배출/종료하고 전환해야 attempt 기반 보호가 완전히 적용된다.
