@@ -78,6 +78,10 @@ class DecisionJdbcRepository {
 		}
 	}
 
+	boolean purchaseOutcomeExists(UUID itemId) {
+		return Boolean.TRUE.equals(jdbcTemplate.queryForObject("select exists(select 1 from purchase_outcomes where item_id = ?)", Boolean.class, itemId));
+	}
+
 	boolean decisionExists(UUID itemId) {
 		Boolean exists = jdbcTemplate.queryForObject(
 			"select exists(select 1 from purchase_decisions where item_id = ?)",

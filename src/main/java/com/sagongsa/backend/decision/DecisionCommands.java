@@ -41,6 +41,9 @@ public class DecisionCommands {
 		NormalizedDecisionRequest normalized = normalize(request);
 		UserContext user = repository.requireDecisionUser(userId);
 		SavedItem item = repository.lockSavedItem(userId, normalized.itemId());
+		if (repository.purchaseOutcomeExists(item.id())) {
+			throw new DecisionConflictException("This item uses purchase records. Update it in the purchase comparison screen.");
+		}
 		if (repository.decisionExists(item.id())) {
 			return queries.getResult(userId, repository.findDecisionIdByItemId(item.id()));
 		}

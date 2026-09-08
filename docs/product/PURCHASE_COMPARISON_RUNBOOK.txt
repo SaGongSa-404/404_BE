@@ -1,0 +1,25 @@
+구매 비교 BE 검증 / 출시 준비
+브랜치: feat/purchase-comparison
+기획: https://github.com/SaGongSa-404/404_BE/issues/263
+
+로컬 검증 (Java 21, Docker 필요):
+./gradlew test jacocoTestReport bootJar --console=plain
+
+기본 설정은 새 기능 OFF:
+PURCHASE_COMPARISON_ENABLED=false
+본인 검증 때만 true + PURCHASE_COMPARISON_ALLOWED_USER_IDS=<본인 UUID>
+
+코드 병합은 배포와 다르지만 이 BE 저장소는 develop push에서 CD가 실행된다.
+따라서 develop 병합 전에 CI, DB V25, 기존 앱 호환 및 활성화 설정을 확인해야 한다.
+현재 작업은 PR 작성까지이며 develop 병합이나 서버 배포를 하지 않는다.
+
+검토 후 순서:
+1. BE 호환 API와 V25 배포 / 기능 OFF / 기존 앱 health 및 기능 검증
+2. 본인 UUID 허용 / 새 FE 본인 기기 내부 설치
+3. 비교, 공유, 구매 금액·날짜 정정, 재시도, 예산, 기능 OFF 읽기 검증
+4. Play Console 최대 versionCode / 서명 및 업로드 권한 확인
+5. 새 versionCode의 FE AAB 빌드·내부 설치 후 작은 GA 업데이트
+
+V25 적용 후 운영 데이터가 있으면 테이블을 삭제하지 않는다.
+문제 발생 시 새 쓰기를 OFF로 하고 기존 새 기록 읽기를 유지한다.
+구형 서버로 돌아가면 새 API가 없어지므로 단순 이미지 rollback 전에 별도 검토가 필요하다.

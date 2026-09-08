@@ -51,6 +51,9 @@ logging:
     console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] [requestId=%X{requestId}] [userId=%X{userId}] %logger{36} - %msg%n"
 
 app:
+  purchase-comparison:
+    enabled: ${PURCHASE_COMPARISON_ENABLED:false}
+    allowed-user-ids: ${PURCHASE_COMPARISON_ALLOWED_USER_IDS:}
   security:
     rate-limit:
       enabled: ${APP_API_RATE_LIMIT_ENABLED:true}
