@@ -25,20 +25,20 @@ import org.springframework.transaction.annotation.Transactional;
 class CommentService {
 
 	private final PostCommentRepository postCommentRepository;
-	private final SocialPostService socialPostService;
+	private final SocialPostLookup socialPostLookup;
 	private final UserAccountRepository userAccountRepository;
 	private final UserProfileRepository userProfileRepository;
 	private final BlockService blockService;
 	private final NotificationPublisher notificationPublisher;
 
 	CommentService(PostCommentRepository postCommentRepository,
-		SocialPostService socialPostService,
+		SocialPostLookup socialPostLookup,
 		UserAccountRepository userAccountRepository,
 		UserProfileRepository userProfileRepository,
 		BlockService blockService,
 		NotificationPublisher notificationPublisher) {
 		this.postCommentRepository = postCommentRepository;
-		this.socialPostService = socialPostService;
+		this.socialPostLookup = socialPostLookup;
 		this.userAccountRepository = userAccountRepository;
 		this.userProfileRepository = userProfileRepository;
 		this.blockService = blockService;
@@ -47,7 +47,7 @@ class CommentService {
 
 	@Transactional
 	CommentResponse createComment(UUID userId, UUID postId, CreateCommentRequest request) {
-		FeedPost post = socialPostService.findPostOrThrow(postId);
+		FeedPost post = socialPostLookup.findPostOrThrow(postId);
 		UserAccount user = userAccountRepository.findById(userId)
 			.orElseThrow(() -> new SocialFeedNotFoundException("사용자를 찾을 수 없습니다."));
 
@@ -59,7 +59,7 @@ class CommentService {
 	}
 
 	CommentListResponse getComments(UUID userId, UUID postId, int page, int size) {
-		socialPostService.findPostOrThrow(postId);
+		socialPostLookup.findPostOrThrow(postId);
 
 		List<UUID> blockedIds = userId != null
 			? blockService.getBlockedUserIds(userId)

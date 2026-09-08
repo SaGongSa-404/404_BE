@@ -19,25 +19,25 @@ import org.springframework.transaction.annotation.Transactional;
 class VoteService {
 
 	private final PostVoteRepository postVoteRepository;
-	private final SocialPostService socialPostService;
+	private final SocialPostLookup socialPostLookup;
 	private final UserAccountRepository userAccountRepository;
 	private final EntityManager em;
 	private final NotificationPublisher notificationPublisher;
 
 	VoteService(PostVoteRepository postVoteRepository,
-		SocialPostService socialPostService,
+		SocialPostLookup socialPostLookup,
 		UserAccountRepository userAccountRepository,
 		EntityManager em,
 		NotificationPublisher notificationPublisher) {
 		this.postVoteRepository = postVoteRepository;
-		this.socialPostService = socialPostService;
+		this.socialPostLookup = socialPostLookup;
 		this.userAccountRepository = userAccountRepository;
 		this.em = em;
 		this.notificationPublisher = notificationPublisher;
 	}
 
 	VoteResponse vote(UUID userId, UUID postId, PostVoteType voteType) {
-		FeedPost post = socialPostService.findPostOrThrow(postId);
+		FeedPost post = socialPostLookup.findPostOrThrow(postId);
 		UserAccount user = userAccountRepository.findById(userId)
 			.orElseThrow(() -> new SocialFeedNotFoundException("사용자를 찾을 수 없습니다."));
 		if (post.getUser().getId().equals(userId)) {

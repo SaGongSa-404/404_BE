@@ -11,6 +11,28 @@ class BackendBoundaryTest {
 	private static final Path SOURCE = Path.of("src/main/java/com/sagongsa/backend");
 
 	@ParameterizedTest
+	@ValueSource(strings = {"social/CommentService.java", "social/VoteService.java"})
+	void socialMutationsUseSharedLookupInsteadOfPostFacade(String file) throws Exception {
+		assertThat(Files.readString(SOURCE.resolve(file)))
+			.contains("SocialPostLookup").doesNotContain("SocialPostService");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"social/SocialPostService.java"})
+	void socialPostFacadeOnlyDelegates(String file) throws Exception {
+		assertThat(Files.readString(SOURCE.resolve(file)))
+			.contains("SocialPostCommands", "SocialPostQueries")
+			.doesNotContain("Repository", "@Transactional", "JdbcTemplate", "backend.domain.");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"social/SocialPostCreationPolicy.java"})
+	void socialCreationPolicyDoesNotPerformIo(String file) throws Exception {
+		assertThat(Files.readString(SOURCE.resolve(file)))
+			.doesNotContain("Repository", "JdbcTemplate", "EntityManager", "@Transactional");
+	}
+
+	@ParameterizedTest
 	@ValueSource(strings = {"decision/DecisionCommands.java", "decision/DecisionQueries.java", "decision/DecisionPolicy.java", "decision/DecisionJdbcRepository.java", "mypage/ConsumptionService.java"})
 	void decisionApplicationBoundaryDoesNotDependOnDecisionHttpDtos(String file) throws Exception {
 		assertThat(Files.readString(SOURCE.resolve(file)))

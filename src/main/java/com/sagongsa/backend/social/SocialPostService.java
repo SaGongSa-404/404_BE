@@ -1,317 +1,42 @@
 package com.sagongsa.backend.social;
 
-import com.sagongsa.backend.domain.auth.UserAccount;
-import com.sagongsa.backend.domain.auth.UserAccountRepository;
-import com.sagongsa.backend.domain.enums.PostVoteType;
-import com.sagongsa.backend.domain.item.SavedItem;
-import com.sagongsa.backend.domain.item.SavedItemRepository;
-import com.sagongsa.backend.domain.social.FeedPost;
-import com.sagongsa.backend.domain.social.FeedPostRepository;
-import com.sagongsa.backend.domain.social.PostCommentCount;
-import com.sagongsa.backend.domain.social.PostCommentRepository;
-import com.sagongsa.backend.domain.social.PostVote;
-import com.sagongsa.backend.domain.social.PostVoteRepository;
-import com.sagongsa.backend.domain.user.UserProfile;
-import com.sagongsa.backend.domain.user.UserProfileRepository;
-import java.net.URI;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 @Service
-@Transactional(readOnly = true)
 class SocialPostService {
 
-	private static final Duration POST_DUPLICATE_WINDOW = Duration.ofSeconds(30);
-	private static final int MAX_IMAGE_URL_LENGTH = 2048;
-	private static final Pattern INTERNAL_UPLOAD_IMAGE_PATH = Pattern.compile(
-		"^/uploads/social/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(?:jpg|png|gif)$"
-	);
+	private final SocialPostCommands commands;
+	private final SocialPostQueries queries;
 
-	private final FeedPostRepository feedPostRepository;
-	private final PostVoteRepository postVoteRepository;
-	private final PostCommentRepository postCommentRepository;
-	private final UserAccountRepository userAccountRepository;
-	private final UserProfileRepository userProfileRepository;
-	private final SavedItemRepository savedItemRepository;
-	private final BlockService blockService;
-	private final JdbcTemplate jdbcTemplate;
-
-	SocialPostService(FeedPostRepository feedPostRepository,
-		PostVoteRepository postVoteRepository,
-		PostCommentRepository postCommentRepository,
-		UserAccountRepository userAccountRepository,
-		UserProfileRepository userProfileRepository,
-		SavedItemRepository savedItemRepository,
-		BlockService blockService,
-		JdbcTemplate jdbcTemplate) {
-		this.feedPostRepository = feedPostRepository;
-		this.postVoteRepository = postVoteRepository;
-		this.postCommentRepository = postCommentRepository;
-		this.userAccountRepository = userAccountRepository;
-		this.userProfileRepository = userProfileRepository;
-		this.savedItemRepository = savedItemRepository;
-		this.blockService = blockService;
-		this.jdbcTemplate = jdbcTemplate;
+	SocialPostService(SocialPostCommands commands,
+		SocialPostQueries queries) {
+		this.commands = commands;
+		this.queries = queries;
 	}
 
-	@Transactional
 	PostResponse createPost(UUID userId, CreatePostRequest request) {
-		UserAccount user = findUserOrThrow(userId);
-		SavedItem item = resolveItem(userId, request.itemId());
-		String imageUrl = resolveImageUrl(request.imageUrl(), item);
-		acquireDuplicateLock(postDuplicateLockKey(userId, request, item, imageUrl));
-		FeedPost duplicate = findRecentDuplicatePost(userId, request, item, imageUrl);
-		if (duplicate != null) {
-			String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
-				? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-			return PostResponse.of(duplicate, authorNickname, countVisibleCommentsByPostId(duplicate.getId(), Collections.emptyList()), null, userId);
-		}
-		FeedPost post = new FeedPost(user, item, request.title(), request.body(), imageUrl, request.price());
-		feedPostRepository.save(post);
-		String authorNickname = userProfileRepository.findByUserId(userId).isPresent()
-			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-		return PostResponse.of(post, authorNickname, 0, null, userId);
+		return commands.createPost(userId, request);
+	}
+
+	PostResponse updatePost(UUID userId, UUID postId, UpdatePostRequest request) {
+		return commands.updatePost(userId, postId, request);
+	}
+
+	void deletePost(UUID userId, UUID postId) {
+		commands.deletePost(userId, postId);
 	}
 
 	PostListResponse getPosts(UUID userId, Instant cursor, int size) {
-		PageRequest pageable = PageRequest.of(0, size + 1);
-		List<UUID> blockedIds = blockedIdsFor(userId);
-		List<FeedPost> posts;
-		if (blockedIds.isEmpty()) {
-			posts = cursor != null ? feedPostRepository.findAllVisibleBefore(cursor, pageable) : feedPostRepository.findAllVisible(pageable);
-		} else {
-			posts = cursor != null ? feedPostRepository.findAllVisibleBeforeExcluding(cursor, blockedIds, pageable) : feedPostRepository.findAllVisibleExcluding(blockedIds, pageable);
-		}
-
-		boolean hasMore = posts.size() > size;
-		if (hasMore) posts = posts.subList(0, size);
-
-		List<PostResponse> items = toPostResponses(posts, userId, blockedIds);
-
-		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
-		return new PostListResponse(items, nextCursor, hasMore);
+		return queries.getPosts(userId, cursor, size);
 	}
 
 	PostResponse getPost(UUID userId, UUID postId) {
-		FeedPost post = findPostOrThrow(postId);
-		if (userId != null && blockedIdsFor(userId).contains(post.getUser().getId())) {
-			throw new SocialFeedNotFoundException("게시글을 찾을 수 없습니다.");
-		}
-		long commentCount = countVisibleCommentsByPostId(postId, blockedIdsFor(userId));
-		PostVoteType myVote = resolveMyVote(userId, postId);
-		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
-			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-		return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
-	}
-
-	@Transactional
-	PostResponse updatePost(UUID userId, UUID postId, UpdatePostRequest request) {
-		FeedPost post = findPostOrThrow(postId);
-		if (!post.getUser().getId().equals(userId)) {
-			throw new SocialFeedForbiddenException("본인의 게시글만 수정할 수 있습니다.");
-		}
-		post.updateBody(request.body());
-		long commentCount = countVisibleCommentsByPostId(postId, blockedIdsFor(userId));
-		PostVoteType myVote = resolveMyVote(userId, postId);
-		String authorNickname = userProfileRepository.findByUserId(post.getUser().getId()).isPresent()
-			? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-		return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
-	}
-
-	@Transactional
-	void deletePost(UUID userId, UUID postId) {
-		FeedPost post = findPostOrThrow(postId);
-		if (!post.getUser().getId().equals(userId)) {
-			throw new SocialFeedForbiddenException("본인의 게시글만 삭제할 수 있습니다.");
-		}
-		post.softDelete();
+		return queries.getPost(userId, postId);
 	}
 
 	PostListResponse getMyPosts(UUID userId, Instant cursor, int size) {
-		PageRequest pageable = PageRequest.of(0, size + 1);
-		List<FeedPost> posts = cursor != null
-			? feedPostRepository.findByUserIdVisibleBefore(userId, cursor, pageable)
-			: feedPostRepository.findByUserIdVisible(userId, pageable);
-
-		boolean hasMore = posts.size() > size;
-		if (hasMore) posts = posts.subList(0, size);
-
-		List<PostResponse> items = toPostResponses(posts, userId, blockedIdsFor(userId));
-
-		Instant nextCursor = hasMore && !posts.isEmpty() ? posts.get(posts.size() - 1).getCreatedAt() : null;
-		return new PostListResponse(items, nextCursor, hasMore);
-	}
-
-	FeedPost findPostOrThrow(UUID postId) {
-		FeedPost post = feedPostRepository.findById(postId)
-			.orElseThrow(() -> new SocialFeedNotFoundException("게시글을 찾을 수 없습니다."));
-		if (!post.isVisible()) {
-			throw new SocialFeedNotFoundException("게시글을 찾을 수 없습니다.");
-		}
-		return post;
-	}
-
-	private List<PostResponse> toPostResponses(List<FeedPost> posts, UUID userId, List<UUID> blockedIds) {
-		if (posts.isEmpty()) return Collections.emptyList();
-
-		List<UUID> postIds = posts.stream().map(FeedPost::getId).toList();
-		List<UUID> authorIds = posts.stream().map(p -> p.getUser().getId()).distinct().toList();
-
-		Map<UUID, Long> commentCounts = countVisibleCommentsByPostIds(postIds, blockedIds);
-
-		Map<UUID, PostVote> myVotes = userId == null
-			? Collections.emptyMap()
-			: postVoteRepository.findByPostIdsAndUserId(postIds, userId).stream()
-				.collect(Collectors.toMap(v -> v.getPost().getId(), v -> v));
-
-		java.util.Set<UUID> existingProfileIds = new java.util.HashSet<>(
-				userProfileRepository.findExistingProfileUserIds(authorIds));
-
-		return posts.stream()
-			.map(post -> {
-				long commentCount = commentCounts.getOrDefault(post.getId(), 0L);
-				PostVote vote = myVotes.get(post.getId());
-				PostVoteType myVote = (vote != null && vote.isActive()) ? vote.getVoteType() : null;
-				String authorNickname = existingProfileIds.contains(post.getUser().getId())
-					? UserProfile.POST_AUTHOR_NICKNAME : UserProfile.UNKNOWN_NICKNAME;
-				return PostResponse.of(post, authorNickname, commentCount, myVote, userId);
-			})
-			.toList();
-	}
-
-	private List<UUID> blockedIdsFor(UUID userId) {
-		return userId != null ? blockService.getBlockedUserIds(userId) : Collections.emptyList();
-	}
-
-	private long countVisibleCommentsByPostId(UUID postId, List<UUID> blockedIds) {
-		return countVisibleCommentsByPostIds(List.of(postId), blockedIds).getOrDefault(postId, 0L);
-	}
-
-	private Map<UUID, Long> countVisibleCommentsByPostIds(List<UUID> postIds, List<UUID> blockedIds) {
-		if (postIds.isEmpty()) return Collections.emptyMap();
-
-		List<PostCommentCount> counts = blockedIds.isEmpty()
-			? postCommentRepository.countVisibleByPostIds(postIds)
-			: postCommentRepository.countVisibleByPostIdsExcludingBlockers(postIds, blockedIds);
-		return counts.stream()
-			.collect(Collectors.toMap(PostCommentCount::postId, PostCommentCount::commentCount));
-	}
-
-	private PostVoteType resolveMyVote(UUID userId, UUID postId) {
-		if (userId == null) return null;
-		return postVoteRepository.findByPostIdAndUserId(postId, userId)
-			.filter(PostVote::isActive)
-			.map(PostVote::getVoteType)
-			.orElse(null);
-	}
-
-	private SavedItem resolveItem(UUID userId, UUID itemId) {
-		if (itemId == null) return null;
-		return savedItemRepository.findById(itemId)
-			.filter(item -> item.getUser().getId().equals(userId))
-			.orElse(null);
-	}
-
-	private FeedPost findRecentDuplicatePost(UUID userId, CreatePostRequest request, SavedItem item, String imageUrl) {
-		return feedPostRepository.findRecentDuplicates(
-				userId,
-				item == null ? null : item.getId(),
-				request.title(),
-				request.body(),
-				imageUrl,
-				request.price(),
-				Instant.now().minus(POST_DUPLICATE_WINDOW),
-				PageRequest.of(0, 1)
-			)
-			.stream()
-			.findFirst()
-			.orElse(null);
-	}
-
-	private void acquireDuplicateLock(long lockKey) {
-		jdbcTemplate.query("select pg_advisory_xact_lock(?)", resultSet -> {
-		}, lockKey);
-	}
-
-	private long postDuplicateLockKey(UUID userId, CreatePostRequest request, SavedItem item, String imageUrl) {
-		return lockKey(
-			"social-post-create",
-			userId,
-			item == null ? null : item.getId(),
-			request.title(),
-			request.body(),
-			imageUrl,
-			request.price()
-		);
-	}
-
-	private long lockKey(String namespace, Object... values) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			updateDigest(digest, namespace);
-			for (Object value : values) {
-				updateDigest(digest, value == null ? null : value.toString());
-			}
-			return ByteBuffer.wrap(digest.digest()).getLong();
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("SHA-256 digest is not available", exception);
-		}
-	}
-
-	private void updateDigest(MessageDigest digest, String value) {
-		byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
-		digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
-		digest.update(bytes);
-	}
-
-	private String resolveImageUrl(String requestImageUrl, SavedItem item) {
-		String imageUrl = StringUtils.hasText(requestImageUrl)
-			? requestImageUrl
-			: item != null ? item.getImageUrl() : null;
-		if (!StringUtils.hasText(imageUrl)) {
-			return null;
-		}
-
-		String normalized = imageUrl.trim();
-		if (normalized.length() > MAX_IMAGE_URL_LENGTH) {
-			throw new SocialFeedBadRequestException("이미지 URL은 최대 2048자까지 가능합니다.");
-		}
-		if (INTERNAL_UPLOAD_IMAGE_PATH.matcher(normalized).matches()) {
-			return normalized;
-		}
-
-		try {
-			URI uri = URI.create(normalized);
-			String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-			if (!("http".equals(scheme) || "https".equals(scheme))
-				|| !StringUtils.hasText(uri.getHost())
-				|| StringUtils.hasText(uri.getUserInfo())) {
-				throw new SocialFeedBadRequestException("이미지 URL은 유효한 http/https 주소여야 합니다.");
-			}
-			return normalized;
-		} catch (IllegalArgumentException exception) {
-			throw new SocialFeedBadRequestException("이미지 URL은 유효한 http/https 주소여야 합니다.");
-		}
-	}
-
-	private UserAccount findUserOrThrow(UUID userId) {
-		return userAccountRepository.findById(userId)
-			.orElseThrow(() -> new SocialFeedNotFoundException("사용자를 찾을 수 없습니다."));
+		return queries.getMyPosts(userId, cursor, size);
 	}
 }

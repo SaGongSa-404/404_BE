@@ -1,0 +1,17 @@
+소셜 게시물 책임 경계 검증
+작업 브랜치: refactor/social-boundaries-20260908
+기준: ae91f3f
+전용 작업 트리: /tmp/404-be-social-20260908
+기존 사용자 checkout의 미커밋 변경은 포함하지 않는다.
+
+./gradlew test jacocoTestReport bootJar --console=plain
+node scripts/check-backend-dependencies.cjs
+git diff --check
+
+아래 비교는 다른 부하 시험과 겹치지 않게 순차 실행한다.
+RUN_BACKEND_BENCHMARK=true ./gradlew test --tests '*SocialPostPairedBenchmarkTest' --rerun-tasks --console=plain
+node scripts/analyze-job-paired.cjs build/reports/social-paired-benchmark.csv
+
+CSV 분석기는 scenario/block/lane/samples/p50_ms/p95_ms 공통 형식을 사용한다.
+매 실행 결과를 별도로 보관하고 독립 테스트 JVM 3회 결과와 기준-기준 대조군을 비교한다.
+판정과 제한: docs/BACKEND_SOCIAL_BOUNDARY_2026-09-08.md
