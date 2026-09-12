@@ -69,6 +69,28 @@ class MypageStatsQueries {
 		Integer budgetAmount = budget != null ? budget.getMonthlyBudgetAmount() : null;
 		StatsAggregation stats = getStatsAggregation(userId, from, to);
 		List<CategorySpendAmountResponse> categorySpendAmounts = getCategorySpendAmounts(userId, from, to);
+        // Unrated actual purchases contribute money/counts, never fabricated rationality scores.
+        var actual = jdbcTemplate.queryForMap("""
+            select coalesce(sum(po.actual_price),0)::bigint as amount, count(*) as count
+            from purchase_outcomes po join saved_items si on si.id=po.item_id
+            join budget_cycles bc on bc.id=po.budget_cycle_id
+            where si.user_id=? and po.status='PURCHASED' and bc.year_month=?
+            """, userId, yearMonth);
+        stats = new StatsAggregation(stats.spentAmount()+((Number)actual.get("amount")).longValue(),
+            stats.restrainedAmount(), stats.boughtCount()+((Number)actual.get("count")).longValue(),
+            stats.restrainedCount(), stats.rationalChoiceRate(), stats.irrationalChoiceCount());
+        var categoryTotals = new java.util.EnumMap<ItemCategory,Long>(ItemCategory.class);
+        categorySpendAmounts.forEach(row -> categoryTotals.merge(row.category(),row.amount(),Long::sum));
+        jdbcTemplate.query("""
+            select si.category, sum(po.actual_price)::bigint as amount from purchase_outcomes po
+            join saved_items si on si.id=po.item_id join budget_cycles bc on bc.id=po.budget_cycle_id
+            where si.user_id=? and po.status='PURCHASED' and bc.year_month=? group by si.category
+            """, (rs,n) -> new CategorySpendAmountResponse(ItemCategory.valueOf(rs.getString("category")),rs.getLong("amount")), userId,yearMonth)
+            .forEach(row -> categoryTotals.merge(row.category(),row.amount(),Long::sum));
+        categorySpendAmounts = categoryTotals.entrySet().stream()
+            .map(entry -> new CategorySpendAmountResponse(entry.getKey(),entry.getValue()))
+            .sorted(java.util.Comparator.comparingLong(CategorySpendAmountResponse::amount).reversed()
+                .thenComparing(row -> row.category().name())).toList();
 
 		Double usageRate = null;
 		if (budgetAmount != null && budgetAmount > 0) {
