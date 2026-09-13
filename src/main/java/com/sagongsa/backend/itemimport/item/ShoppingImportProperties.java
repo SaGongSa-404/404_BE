@@ -204,7 +204,7 @@ public class ShoppingImportProperties {
 		}
 
 		public void setConcurrency(int concurrency) {
-			this.concurrency = concurrency <= 0 ? 1 : Math.min(concurrency, 16);
+			this.concurrency = concurrency <= 0 ? 1 : Math.min(concurrency, 24);
 		}
 
 		public int getMaxAttempts() {

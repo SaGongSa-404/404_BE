@@ -24,21 +24,21 @@ class ShoppingImportPropertiesTest {
 	}
 
 	@Test
-	void allowsTwelveConcurrentWorkers() {
+	void allowsTwentyFourConcurrentWorkers() {
 		ShoppingImportProperties properties = new ShoppingImportProperties();
 
-		properties.getJobWorker().setConcurrency(12);
+		properties.getJobWorker().setConcurrency(24);
 
-		assertThat(properties.getJobWorker().getConcurrency()).isEqualTo(12);
+		assertThat(properties.getJobWorker().getConcurrency()).isEqualTo(24);
 	}
 
 	@Test
-	void limitsConcurrentWorkersToSixteen() {
+	void limitsConcurrentWorkersToTwentyFour() {
 		ShoppingImportProperties properties = new ShoppingImportProperties();
 
-		properties.getJobWorker().setConcurrency(17);
+		properties.getJobWorker().setConcurrency(25);
 
-		assertThat(properties.getJobWorker().getConcurrency()).isEqualTo(16);
+		assertThat(properties.getJobWorker().getConcurrency()).isEqualTo(24);
 	}
 
 	@Test
