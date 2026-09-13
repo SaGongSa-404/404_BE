@@ -1,4 +1,5 @@
 results/*.json
+results/*.csv
 !results/.gitkeep
 .secrets/
 *.token

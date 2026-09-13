@@ -6,7 +6,8 @@ import { durationBetween, errorRate, summarizeDurations } from "./metrics.mjs";
 const SCENARIOS = {
   baseline: { totalVus: 100, crawlVus: 10, crawlRequests: 10, generalVus: 90 },
   peak: { totalVus: 100, crawlVus: 20, crawlRequests: 20, generalVus: 80 },
-  backpressure: { totalVus: 100, crawlVus: 100, crawlRequests: 101, generalVus: 0 }
+  backpressure: { totalVus: 100, crawlVus: 100, crawlRequests: 101, generalVus: 0 },
+  "real-users": { totalVus: 100, crawlVus: 100, crawlRequests: 100, generalVus: 0 }
 };
 const TERMINAL = new Set(["SUCCEEDED", "FAILED"]);
 const SAFE_HOSTS = new Set(["34-66-55-165.sslip.io", "localhost", "127.0.0.1"]);
@@ -35,6 +36,7 @@ if (tokenFile && inlineTokens.trim()) {
 }
 const singleUserMode = process.env.SINGLE_USER_MODE === "YES";
 const expandSingleUserUrls = process.env.EXPAND_SINGLE_USER_URLS === "YES";
+const verifyProductCorrectness = process.env.VERIFY_PRODUCT_CORRECTNESS !== "NO";
 const expectedMaxActivePerUser = positiveInt("EXPECTED_MAX_ACTIVE_PER_USER", 3);
 const tokens = await loadTokens(inlineTokens, tokenFile);
 const scenario = SCENARIOS[scenarioName];
@@ -112,6 +114,7 @@ async function runSyncImport(token, url) {
   metrics.import.submitDurations.push(sample.durationMs);
   metrics.statuses[sample.status] = (metrics.statuses[sample.status] || 0) + 1;
   if (sample.status === 200) {
+    metrics.import.terminalJobs++;
     recordSuccessfulImport(url, sample.body);
   } else {
     metrics.import.failed++;
@@ -148,6 +151,7 @@ async function runAsyncImport(token, url) {
     if (!TERMINAL.has(polled.body.status)) {
       continue;
     }
+    metrics.import.terminalJobs++;
     captureJobDurations(polled.body);
     if (polled.body.status === "SUCCEEDED") {
       recordSuccessfulImport(url, polled.body.result);
@@ -163,6 +167,10 @@ async function runAsyncImport(token, url) {
 }
 
 function recordSuccessfulImport(requestedUrl, result) {
+  if (!verifyProductCorrectness) {
+    metrics.import.succeeded++;
+    return;
+  }
   const expected = expectedResults.get(canonicalSourceUrl(requestedUrl));
   const actual = result?.item;
   const mismatchedFields = [];
@@ -237,6 +245,7 @@ async function request(method, endpoint, token, body) {
 }
 
 function buildReport(started, completed) {
+  const elapsedMinutes = Math.max((completed - started) / 60_000, 1 / 60_000);
   return {
     schemaVersion: 2,
     run: {
@@ -248,6 +257,11 @@ function buildReport(started, completed) {
       urlCount: urls.length
     },
     summary: {
+      workload: {
+        elapsedMs: completed - started,
+        terminalJobs: metrics.import.terminalJobs,
+        terminalJobsPerMinute: Math.round(metrics.import.terminalJobs / elapsedMinutes * 100) / 100
+      },
       general: {
         ...summarizeDurations(metrics.general.durations),
         successes: metrics.general.successes,
@@ -281,6 +295,7 @@ function createMetrics() {
     general: { durations: [], successes: 0, failures: 0 },
     import: {
       accepted: 0,
+      terminalJobs: 0,
       succeeded: 0,
       failed: 0,
       timedOut: 0,
@@ -318,7 +333,9 @@ function sanitizedPlan() {
     expectedMaxActivePerUser,
     tokenSource: tokenFile ? "file" : "environment",
     expandedSingleUserUrls: expandSingleUserUrls,
-    correctnessOracle: "exact-title-price-currency-imageUrl"
+    correctnessOracle: verifyProductCorrectness
+      ? "exact-title-price-currency-imageUrl"
+      : "job-terminal-status"
   };
 }
 
@@ -342,6 +359,9 @@ function validateConfig() {
   if (!dryRun && scenario.crawlRequests > 20 && process.env.CONFIRM_EXTERNAL_TRAFFIC !== "YES") {
     throw new Error("More than 20 crawl requests requires CONFIRM_EXTERNAL_TRAFFIC=YES");
   }
+  if (!dryRun && !verifyProductCorrectness && process.env.CONFIRM_PERFORMANCE_ONLY !== "YES") {
+    throw new Error("VERIFY_PRODUCT_CORRECTNESS=NO requires CONFIRM_PERFORMANCE_ONLY=YES");
+  }
 }
 
 function validateExecutionInputs(values, expectations) {
@@ -351,10 +371,12 @@ function validateExecutionInputs(values, expectations) {
   if (values.some((value) => new URL(value).hostname === "example.com")) {
     throw new Error("Replace urls.example.txt placeholders with a QA-approved URL_FILE");
   }
-  const missingExpectations = [...new Set(values.map(canonicalSourceUrl))]
-    .filter((value) => !expectations.has(value));
-  if (missingExpectations.length > 0) {
-    throw new Error(`EXPECTED_RESULTS_FILE is missing ${missingExpectations.length} source URL(s)`);
+  if (verifyProductCorrectness) {
+    const missingExpectations = [...new Set(values.map(canonicalSourceUrl))]
+      .filter((value) => !expectations.has(value));
+    if (missingExpectations.length > 0) {
+      throw new Error(`EXPECTED_RESULTS_FILE is missing ${missingExpectations.length} source URL(s)`);
+    }
   }
   if (importMode === "async") {
     const minimumUsers = Math.ceil(scenario.crawlRequests / 3);
@@ -377,12 +399,26 @@ function validateExecutionInputs(values, expectations) {
         + "to avoid measuring only the per-user active-job limit"
       );
     }
+    if (scenarioName === "real-users" && tokens.length !== scenario.crawlRequests) {
+      throw new Error(
+        `real-users requires exactly ${scenario.crawlRequests} distinct-user tokens; received ${tokens.length}`
+      );
+    }
+    if (scenarioName === "real-users" && new Set(tokens).size !== scenario.crawlRequests) {
+      throw new Error("real-users requires 100 unique access tokens");
+    }
+    if (scenarioName === "real-users") {
+      const distinctUserIds = new Set(tokens.map(jwtUserId));
+      if (distinctUserIds.size !== scenario.crawlRequests) {
+        throw new Error("real-users requires access tokens for 100 distinct userId claims");
+      }
+    }
   }
 }
 
 async function loadExpectedResults(file) {
   if (!file) {
-    if (dryRun) return new Map();
+    if (dryRun || !verifyProductCorrectness) return new Map();
     throw new Error("EXPECTED_RESULTS_FILE is required for exact product correctness validation");
   }
   const parsed = JSON.parse(await readFile(file, "utf8"));
@@ -434,6 +470,17 @@ async function readUrls(file) {
 
 function parseTokens(value) {
   return value.split(/[\r\n,]+/).map((token) => token.trim()).filter(Boolean);
+}
+
+function jwtUserId(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+    const userId = payload.userId || payload.sub;
+    if (typeof userId !== "string" || !userId.trim()) throw new Error("missing userId");
+    return userId;
+  } catch {
+    throw new Error("real-users requires JWT access tokens with a userId or sub claim");
+  }
 }
 
 function expandUrls(values, count) {
