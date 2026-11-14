@@ -1,0 +1,70 @@
+name: Read-only operational query diagnostic
+on:
+  push:
+    branches: [diagnostics/operational-slow-query-20261114]
+    paths: [.github/workflows/operational-query-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read server and DB statistics
+        env:
+          GCP_VM_HOST: ${{ secrets.GCP_VM_HOST }}
+          GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+          GCP_VM_SSH_KEY_B64: ${{ secrets.GCP_VM_SSH_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s' "$GCP_VM_SSH_KEY_B64" | base64 -d > ~/.ssh/diagnostic_key
+          chmod 600 ~/.ssh/diagnostic_key
+          ssh-keyscan -T 10 -H "$GCP_VM_HOST" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/diagnostic_key -o BatchMode=yes -o ConnectTimeout=15 "$GCP_VM_USER@$GCP_VM_HOST" 'bash -s' <<'REMOTE_DIAGNOSTIC'
+          set -euo pipefail
+          printf '=== Service ===\n'
+          systemctl is-active wigul-backend || true
+          printf '=== HTTP metrics ===\n'
+          curl -fsS --max-time 10 http://127.0.0.1:9090/actuator/prometheus | awk '/^(http_server_requests_seconds_(count|sum|max)|hikaricp_connections_(active|pending|timeout_total))/' | head -100 || true
+          printf '=== Access log aggregate (last 20000 records; no raw requests) ===\n'
+          sudo -n tail -n 20000 /var/log/caddy/wigul-access.log 2>/dev/null | python3 -c '
+          import sys,json,re,collections,datetime
+          b=collections.defaultdict(list);times=[]
+          for line in sys.stdin:
+           try:
+            x=json.loads(line); r=x.get("request",{}); path=r.get("uri", "").split("?")[0]
+            path=re.sub(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}", ":id",path)
+            path=re.sub(r"/\d+(?=/|$)","/:id",path)
+            if not path.startswith("/api/"):continue
+            b[(r.get("method","?"),path,x.get("status"))].append(float(x.get("duration",0))*1000)
+            if x.get("ts"):times.append(x["ts"])
+           except (ValueError,TypeError):continue
+          if times:print("window_utc",datetime.datetime.fromtimestamp(min(times),datetime.timezone.utc).isoformat(),datetime.datetime.fromtimestamp(max(times),datetime.timezone.utc).isoformat())
+          for k,v in sorted(b.items(),key=lambda kv:sum(kv[1]),reverse=True)[:30]:
+           v.sort();print(k,"n",len(v),"mean_ms",round(sum(v)/len(v),2),"p95_ms",round(v[int((len(v)-1)*.95)],2),"max_ms",round(v[-1],2))
+          ' || true
+          printf '=== Database read-only statistics ===\n'
+          set -a
+          . "$HOME/404_BE/.env.systemd"
+          set +a
+          jdbc_target="${SPRING_DATASOURCE_URL#jdbc:postgresql://}"
+          jdbc_target="${jdbc_target%%\?*}"
+          db_host_port="${jdbc_target%%/*}"
+          export PGHOST="${db_host_port%%:*}" PGDATABASE="${jdbc_target#*/}" PGUSER="$SPRING_DATASOURCE_USERNAME" PGPASSWORD="${SPRING_DATASOURCE_PASSWORD:-}" PGCONNECT_TIMEOUT=10
+          export PGPORT=5432
+          if [ "$db_host_port" != "$PGHOST" ]; then export PGPORT="${db_host_port##*:}"; fi
+          export PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=1000'
+          psql -X -P pager=off -v ON_ERROR_STOP=1 <<'SQL'
+          select version();
+          show log_min_duration_statement;
+          show shared_preload_libraries;
+          select extname from pg_extension;
+          select relname,n_live_tup,seq_scan,idx_scan from pg_stat_user_tables order by n_live_tup desc limit 20;
+          select state,wait_event_type,wait_event,count(*) from pg_stat_activity where datname=current_database() group by 1,2,3;
+          select exists(select 1 from pg_extension where extname='pg_stat_statements') as has_statements \gset
+          \if :has_statements
+          select queryid,calls,round(total_exec_time::numeric,2) as total_ms,round(mean_exec_time::numeric,2) as mean_ms,round(max_exec_time::numeric,2) as max_ms,rows,shared_blks_hit,shared_blks_read from pg_stat_statements where dbid=(select oid from pg_database where datname=current_database()) order by total_exec_time desc limit 20;
+          \endif
+          SQL
+          REMOTE_DIAGNOSTIC
