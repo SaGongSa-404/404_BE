@@ -31,23 +31,6 @@ jobs:
           systemctl is-active wigul-backend || true
           printf '=== HTTP metrics ===\n'
           curl -fsS --max-time 3 http://127.0.0.1:9090/actuator/prometheus | awk '/^(http_server_requests_seconds_(count|sum|max)|hikaricp_connections_(active|pending|timeout_total))/' | head -100 || true
-          printf '=== Access log aggregate (last 20000 records; no raw requests) ===\n'
-          sudo -n tail -n 20000 /var/log/caddy/wigul-access.log 2>/dev/null | python3 -c '
-          import sys,json,re,collections,datetime
-          b=collections.defaultdict(list);times=[]
-          for line in sys.stdin:
-           try:
-            x=json.loads(line); r=x.get("request",{}); path=r.get("uri", "").split("?")[0]
-            path=re.sub(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}", ":id",path)
-            path=re.sub(r"/\d+(?=/|$)","/:id",path)
-            if not path.startswith("/api/"):continue
-            b[(r.get("method","?"),path,x.get("status"))].append(float(x.get("duration",0))*1000)
-            if x.get("ts"):times.append(x["ts"])
-           except (ValueError,TypeError):continue
-          if times:print("window_utc",datetime.datetime.fromtimestamp(min(times),datetime.timezone.utc).isoformat(),datetime.datetime.fromtimestamp(max(times),datetime.timezone.utc).isoformat())
-          for k,v in sorted(b.items(),key=lambda kv:sum(kv[1]),reverse=True)[:30]:
-           v.sort();print(k,"n",len(v),"mean_ms",round(sum(v)/len(v),2),"p95_ms",round(v[int((len(v)-1)*.95)],2),"max_ms",round(v[-1],2))
-          ' || true
           printf '=== Database read-only statistics ===\n'
           set -a
           . "$HOME/404_BE/.env.systemd"
@@ -61,6 +44,9 @@ jobs:
           export PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=1000'
           psql -X -P pager=off -v ON_ERROR_STOP=1 <<'SQL'
           select version();
+          explain (analyze,buffers) select fp.*,si.* from feed_posts fp left join saved_items si on si.id=fp.item_id where fp.deleted_at is null and fp.moderation_status='ACTIVE' order by fp.created_at desc limit 21;
+          explain (analyze,buffers) select status,onboarding_status from users where id=(select user_id from refresh_tokens limit 1);
+          select name,setting,context from pg_settings where name in ('log_min_duration_statement','log_parameter_max_length','log_parameter_max_length_on_error','logging_collector','log_directory','log_filename');
           show log_min_duration_statement;
           
           select extname from pg_extension;
@@ -72,4 +58,6 @@ jobs:
           select queryid,calls,round(total_exec_time::numeric,2) as total_ms,round(mean_exec_time::numeric,2) as mean_ms,round(max_exec_time::numeric,2) as max_ms,rows,shared_blks_hit,shared_blks_read from pg_stat_statements where dbid=(select oid from pg_database where datname=current_database()) order by total_exec_time desc limit 20;
           \endif
           SQL
+          printf '=== Monitoring permission ===\n'
+          sudo -n -u postgres psql -X -Atc "select current_user; select name,setting from pg_settings where name in ('log_min_duration_statement','log_parameter_max_length','log_parameter_max_length_on_error','logging_collector','log_directory','log_filename');" 2>/dev/null || true
           REMOTE_DIAGNOSTIC
