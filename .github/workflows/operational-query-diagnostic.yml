@@ -23,43 +23,30 @@ jobs:
           ssh-keyscan -T 10 -H "$GCP_VM_HOST" > ~/.ssh/known_hosts
           ssh -i ~/.ssh/diagnostic_key -o BatchMode=yes -o ConnectTimeout=15 "$GCP_VM_USER@$GCP_VM_HOST" 'bash -s' <<'REMOTE_DIAGNOSTIC'
           set -euo pipefail
-          printf '=== Request-specific application log context ===\n'
-          for window in '2026-10-06 05:26:45 UTC|2026-10-06 05:28:00 UTC' '2026-08-19 14:14:45 UTC|2026-08-19 14:16:30 UTC' '2026-10-25 10:14:30 UTC|2026-10-25 10:16:00 UTC'; do
-            start="${window%%|*}"; end="${window#*|}"
-            echo "window $start to $end"
-            sudo -n journalctl -u wigul-backend -u postgresql@15-main -u caddy --since "$start" --until "$end" --no-pager -o json | python3 -c '
-          import sys,json,re,datetime,collections
-          rows=[];counts=collections.Counter()
-          def clean(s):
-           s=re.sub(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+","[JWT]",s)
-           s=re.sub(r"https?://[^\s\x22\x27]+","[URL]",s)
-           s=re.sub(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}","[EMAIL]",s)
-           s=re.sub(r"\b\d{1,3}(?:\.\d{1,3}){3}\b","[IP]",s)
-           s=re.sub(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}","[ID]",s)
-           s=re.sub(r"\x27[^\x27]*\x27|\x22[^\x22]*\x22","[VALUE]",s)
-           s=re.sub(r"(?i)(password|token|secret|authorization|cookie)\s*[=:]\s*[^\s,;]+",r"\1=[REDACTED]",s)
-           return s[:450]
+          printf '=== Historical latency and pool warnings across retained application journal ===\n'
+          sudo -n journalctl -u wigul-backend --since '2026-05-01' --no-pager -o json --grep='request completed|Thread starvation|clock leap|OutOfMemoryError|GC overhead|SQL_SLOW|Slow query' | python3 -c '
+          import sys,json,re,collections,heapq,datetime
+          rows=[];warnings=[];n=0
           for line in sys.stdin:
-           try:x=json.loads(line);msg=x.get("MESSAGE","");counts[x.get("_SYSTEMD_UNIT","?")]+=1
-           except (ValueError,KeyError,TypeError):continue
-           if re.search(r"ERROR|WARN|Exception|SQL|query|duration|elapsed|Hikari|GC\(|OutOfMemory|requestId=|upstream|context canceled",msg,re.I):
-            if msg.lstrip().startswith("{"):continue
-            ts=datetime.datetime.fromtimestamp(int(x["__REALTIME_TIMESTAMP"])/1e6,datetime.timezone.utc).isoformat();rows.append((ts,x.get("_SYSTEMD_UNIT"),clean(msg)))
-          print("total_records_by_service",dict(counts),"relevant_records",len(rows))
-          for row in rows[:75]:print("context",row)
+           try:x=json.loads(line);msg=x.get("MESSAGE","");ts=datetime.datetime.fromtimestamp(int(x["__REALTIME_TIMESTAMP"])/1e6,datetime.timezone.utc).isoformat()
+           except (ValueError,TypeError,KeyError):continue
+           m=re.search(r"request completed method=(\S+) path=(\S+) status=(\d+) durationMs=(\d+)",msg)
+           if m:
+            n+=1;path=m[2].split("?")[0];path=re.sub(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}",":id",path)
+            if path.startswith("/api/"):rows.append((int(m[4]),ts,m[1],path,int(m[3])))
+           elif re.search(r"Thread starvation|clock leap|OutOfMemoryError|GC overhead|SQL_SLOW|Slow query",msg,re.I):
+            msg=re.sub(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}","[ID]",msg);msg=re.sub(r"userId=[^\]]*","userId=[REDACTED]",msg);warnings.append((ts,msg[:350]))
+          print("completed_requests_scanned",n,"api_requests",len(rows),"resource_warning_records",len(warnings))
+          for row in sorted(rows,reverse=True)[:25]:print("historical_app_request",row)
+          for row in warnings[-15:]:print("historical_resource_warning",row)
           '
-          done
-          printf '=== Standalone app.log ===\n'
-          python3 - <<'PY_REMOTE'
-          from pathlib import Path
-          import re,collections
-          p=Path.home()/'404_BE/app.log'
-          if p.exists():
-           s=p.read_text(errors='replace');dates=re.findall(r'\b20\d\d-\d\d-\d\d',s)
-           print('app_log_bytes',p.stat().st_size,'date_range',min(dates) if dates else None,max(dates) if dates else None)
-           for name,pattern in [('slow_sql',r'Slow query|duration:|SQL_SLOW'),('timeout',r'timeout|timed out'),('db_exception',r'PSQLException|SQLState:')]:print('app_log_category',name,len(re.findall(pattern,s,re.I)))
-          PY_REMOTE
-          printf '=== Retained resource records ===\n'
-          command -v sar || true
-          sudo -n find /var/log/sysstat /var/log/sa -maxdepth 1 -type f -printf '%f %s bytes\n' 2>/dev/null | tail -12 || true
+          printf '=== Caddy error context for October 25 ===\n'
+          sudo -n journalctl -u caddy --since '2026-10-25 10:14:30 UTC' --until '2026-10-25 10:16:00 UTC' --no-pager -o json | python3 -c '
+          import sys,json,re,datetime
+          for line in sys.stdin:
+           try:
+            x=json.loads(line);m=json.loads(x.get("MESSAGE","{}"));msg=m.get("msg","");msg=re.sub(r"https?://\S+","[URL]",msg);msg=re.sub(r"\b\d{1,3}(?:\.\d{1,3}){3}\b","[IP]",msg)
+            print("proxy_error",datetime.datetime.fromtimestamp(int(x["__REALTIME_TIMESTAMP"])/1e6,datetime.timezone.utc).isoformat(),"logger",m.get("logger"),"message",msg[:220],"duration",m.get("duration"),"status",m.get("status"))
+           except (ValueError,TypeError,KeyError):continue
+          '
           REMOTE_DIAGNOSTIC
