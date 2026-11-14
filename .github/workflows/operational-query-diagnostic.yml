@@ -55,4 +55,38 @@ jobs:
           for (fp,tables),v in sorted(b.items(),key=lambda kv:max(x[0] for x in kv[1]),reverse=True)[:20]:
            print('sql_fingerprint',fp,'tables',tables,'records',len(v),'max_ms',max(x[0] for x in v),'dates',min(x[1] for x in v),max(x[1] for x in v))
           PY_REMOTE
+          printf '=== Application historical SQL failures ===\n'
+          sudo -n journalctl -u wigul-backend --since '2026-05-01' -n 50000 --no-pager -o json | python3 -c '
+          import sys,json,re,collections,datetime
+          counts=collections.Counter();dates=[];n=0
+          patterns={"hibernate_slow_query":r"Slow query took|HHH000117|SQL_SLOW", "query_timeout":r"QueryTimeoutException|SQLTimeoutException|canceling statement due to statement timeout", "lock_timeout":r"LockAcquisitionException|deadlock detected|CannotAcquireLockException", "db_connection_timeout":r"Connection is not available, request timed out|CannotGetJdbcConnectionException|too many clients", "database_errors":r"PSQLException|SQLState:"}
+          for line in sys.stdin:
+           try:x=json.loads(line);msg=x.get("MESSAGE","");n+=1;ts=int(x["__REALTIME_TIMESTAMP"])/1e6;dates.append(datetime.datetime.fromtimestamp(ts,datetime.timezone.utc).date().isoformat())
+           except (ValueError,KeyError,TypeError):continue
+           for k,pat in patterns.items():
+            if re.search(pat,msg,re.I):counts[k]+=1
+          print("journal_records",n,"date_range",min(dates) if dates else None,max(dates) if dates else None,"sql_related_categories",dict(counts))
+          '
+          printf '=== Archived access logs aggregate ===\n'
+          sudo -n python3 - <<'PY_REMOTE'
+          import pathlib,gzip,json,re,collections,datetime
+          files=sorted(p for p in pathlib.Path('/var/log/caddy').glob('wigul-access*') if p.is_file());b=collections.defaultdict(list);dates=[];total=0;scanned=0
+          for p in files:
+           size=p.stat().st_size
+           if size>64*1024*1024 or total+size>200*1024*1024:print('SKIPPED_SIZE_LIMIT',p.name);continue
+           total+=size;scanned+=1
+           try:
+            with (gzip.open if p.suffix=='.gz' else open)(p,'rt',errors='replace') as f:
+             for line in f:
+              try:
+               x=json.loads(line);r=x.get('request',{});path=r.get('uri','').split('?')[0]
+               if not path.startswith('/api/'):continue
+               path=re.sub(r'[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}',':id',path);path=re.sub(r'/\d+(?=/|$)','/:id',path)
+               ts=float(x['ts']);date=datetime.datetime.fromtimestamp(ts,datetime.timezone.utc).date().isoformat();dates.append(date)
+               b[(r.get('method'),path,x.get('status'))].append(float(x.get('duration',0))*1000)
+              except (ValueError,TypeError,KeyError):continue
+           except (OSError,EOFError) as e:print('archive_read_error',p.name,type(e).__name__)
+          print('access_files_scanned',scanned,'stored_bytes_scanned',total,'api_records',sum(map(len,b.values())),'date_range',min(dates) if dates else None,max(dates) if dates else None)
+          for key,v in sorted(b.items(),key=lambda kv:max(kv[1]),reverse=True)[:12]:print('request_group',key,'n',len(v),'mean_ms',round(sum(v)/len(v),2),'max_ms',round(max(v),2))
+          PY_REMOTE
           REMOTE_DIAGNOSTIC
