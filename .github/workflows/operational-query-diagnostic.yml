@@ -23,7 +23,7 @@ jobs:
           ssh-keyscan -T 10 -H "$GCP_VM_HOST" > ~/.ssh/known_hosts
           ssh -i ~/.ssh/diagnostic_key -o BatchMode=yes -o ConnectTimeout=15 "$GCP_VM_USER@$GCP_VM_HOST" 'bash -s' <<'REMOTE_DIAGNOSTIC'
           set -euo pipefail
-          for window in '2026-07-08 11:18:30 UTC|2026-07-08 11:26:00 UTC' '2026-07-13 10:26:00 UTC|2026-07-13 10:29:00 UTC' '2026-06-19 09:52:45 UTC|2026-06-19 09:54:30 UTC'; do
+          for window in '2026-07-08 11:25:10 UTC|2026-07-08 11:25:16 UTC' '2026-07-13 10:26:00 UTC|2026-07-13 10:29:00 UTC' '2026-06-19 09:52:45 UTC|2026-06-19 09:54:30 UTC'; do
            start="${window%%|*}";end="${window#*|}";echo "historical_window $start to $end"
            sudo -n journalctl -u wigul-backend -u postgresql@15-main --since "$start" --until "$end" --no-pager -o json | python3 -c '
           import sys,json,re,datetime,collections
@@ -39,11 +39,11 @@ jobs:
            try:x=json.loads(line);msg=x.get("MESSAGE","");n+=1
            except (ValueError,TypeError,KeyError):continue
            for e in re.findall(r"\b\w+(?:Exception|Error)\b",msg):types[e]+=1
-           if re.search(r"WARN|ERROR|Caused by:|Thread starvation|OutOfMemory|Timeout.*exceeded|durationMs=\d{5,}|HikariPool.*(Connection|timeout)",msg):
+           if re.search(r"com.sagongsa|select|from |where |constraint|DETAIL|WARN|ERROR|Caused by:|Thread starvation|OutOfMemory|Timeout.*exceeded|durationMs=\d{5,}|HikariPool.*(Connection|timeout)",msg):
             ts=datetime.datetime.fromtimestamp(int(x["__REALTIME_TIMESTAMP"])/1e6,datetime.timezone.utc).isoformat();out.append((ts,clean(msg)))
           print("window_records",n,"exception_types",dict(types),"selected_records",len(out))
-          for row in out[:80]:print("historical_context",row)
+          for row in out[:100]:print("historical_context",row)
           '
-           sudo -n journalctl -k --since "$start" --until "$end" --no-pager -o cat --grep='Out of memory|oom-kill|Killed process|blocked for more than|memory pressure' | python3 -c 'import sys; rows=list(sys.stdin);print("kernel_memory_warning_records",len(rows))'
+           sudo -n journalctl -k --since "$start" --until "$end" --no-pager -o cat --grep='Out of memory|oom-kill|Killed process|blocked for more than|memory pressure' | python3 -c 'import sys; rows=list(sys.stdin);print("kernel_memory_warning_records",len(rows))' || true
           done
           REMOTE_DIAGNOSTIC
