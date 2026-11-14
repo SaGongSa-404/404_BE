@@ -23,48 +23,6 @@ jobs:
           ssh-keyscan -T 10 -H "$GCP_VM_HOST" > ~/.ssh/known_hosts
           ssh -i ~/.ssh/diagnostic_key -o BatchMode=yes -o ConnectTimeout=15 "$GCP_VM_USER@$GCP_VM_HOST" 'bash -s' <<'REMOTE_DIAGNOSTIC'
           set -euo pipefail
-          printf '=== Application memory and actual health request timings ===\n'
-          pid="$(systemctl show wigul-backend -p MainPID --value)"
-          python3 - "$pid" <<'PY_REMOTE'
-          import sys,time,urllib.request,pathlib
-          pid=sys.argv[1];p=pathlib.Path('/proc')/pid
-          for line in (p/'status').read_text().splitlines():
-           if line.startswith(('VmRSS:','VmSwap:','Threads:')):print(line)
-          def faults():
-           fields=(p/'stat').read_text().rsplit(')',1)[1].split()
-           return int(fields[9])
-          for i in range(5):
-           before=faults();t=time.monotonic()
-           try:
-            with urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=15) as r:r.read();status=r.status
-           except Exception as e:status=type(e).__name__
-           print('health',i+1,'status',status,'elapsed_ms',round((time.monotonic()-t)*1000,2),'java_major_page_faults',faults()-before)
-          PY_REMOTE
-          printf '=== Existing QA review account read requests ===\n'
-          set -a
-          . "$HOME/404_BE/.env.systemd"
-          set +a
-          python3 - <<'PY_REMOTE'
-          import os,json,time,urllib.request,urllib.error
-          base='http://127.0.0.1:8080'
-          headers={'X-Reviewer-Token':os.environ.get('APP_REVIEWER_TOKEN_SECRET','')}
-          r=urllib.request.Request(base+'/api/auth/reviewer-token',headers=headers,method='POST')
-          try:
-           with urllib.request.urlopen(r,timeout=20) as response:token=json.load(response)['accessToken']
-          except urllib.error.HTTPError as e:
-           print('reviewer_auth_status',e.code);raise SystemExit(0)
-          print('reviewer_auth_status',200)
-          paths=['/api/v1/social/posts?size=20','/api/v1/users/me','/api/v1/home/summary','/api/v1/notifications','/api/v1/users/me/votes?size=20']
-          for path in paths:
-           for i in range(2):
-            t=time.monotonic()
-            try:
-             req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token})
-             with urllib.request.urlopen(req,timeout=20) as response:response.read();status=response.status
-            except urllib.error.HTTPError as e:status=e.code
-            except Exception as e:status=type(e).__name__
-            print('read_api',path,'sample',i+1,'status',status,'elapsed_ms',round((time.monotonic()-t)*1000,2))
-          PY_REMOTE
           printf '=== Recent slow SQL summaries (literals omitted) ===\n'
           sudo -n tail -n 400 /var/log/postgresql/postgresql-15-main.log | python3 -c '
           import sys,re,hashlib,collections
@@ -82,4 +40,22 @@ jobs:
           print("instrumentation_probe_records",probe,"application_duration_records",n)
           for (fp,t),v in sorted(b.items(),key=lambda kv:sum(kv[1]),reverse=True)[:15]:print("fingerprint",fp,"tables",t,"n",len(v),"mean_ms",round(sum(v)/len(v),3),"max_ms",max(v))
           '
+          printf '=== Exact table sizes and observation settings ===\n'
+          sudo -n -u postgres psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          select datname from pg_stat_database where datname not in ('postgres','template0','template1');
+          select name,setting,pending_restart from pg_settings where name in ('log_min_duration_statement','log_parameter_max_length','log_parameter_max_length_on_error');
+          SQL
+          set -a
+          . "$HOME/404_BE/.env.systemd"
+          set +a
+          jdbc_target="${SPRING_DATASOURCE_URL#jdbc:postgresql://}"
+          jdbc_target="${jdbc_target%%\?*}"
+          db_host_port="${jdbc_target%%/*}"
+          export PGHOST="${db_host_port%%:*}" PGDATABASE="${jdbc_target#*/}" PGUSER="$SPRING_DATASOURCE_USERNAME" PGPASSWORD="${SPRING_DATASOURCE_PASSWORD:-}" PGCONNECT_TIMEOUT=10 PGPORT=5432
+          if [ "$db_host_port" != "$PGHOST" ]; then export PGPORT="${db_host_port##*:}"; fi
+          export PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=5000'
+          psql -X -P pager=off -v ON_ERROR_STOP=1 <<'SQL'
+          select 'users' as table_name,count(*) from users union all select 'feed_posts',count(*) from feed_posts union all select 'saved_items',count(*) from saved_items union all select 'post_votes',count(*) from post_votes;
+          SQL
+          systemctl is-active wigul-backend
           REMOTE_DIAGNOSTIC
