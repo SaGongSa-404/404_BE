@@ -23,20 +23,27 @@ jobs:
           ssh-keyscan -T 10 -H "$GCP_VM_HOST" > ~/.ssh/known_hosts
           ssh -i ~/.ssh/diagnostic_key -o BatchMode=yes -o ConnectTimeout=15 "$GCP_VM_USER@$GCP_VM_HOST" 'bash -s' <<'REMOTE_DIAGNOSTIC'
           set -euo pipefail
-          printf '=== Entire retained journal SQL error search ===\n'
-          sudo -n journalctl -u wigul-backend --since '2026-05-01' --no-pager -o json --grep='Slow query took|HHH000117|SQL_SLOW|QueryTimeoutException|SQLTimeoutException|statement timeout|LockAcquisitionException|deadlock detected|CannotAcquireLockException|Connection is not available|CannotGetJdbcConnectionException|too many clients|PSQLException|SQLState:' | python3 -c '
-          import sys,json,re,collections,datetime
-          counts=collections.Counter();states=collections.Counter();messages=collections.Counter();dates=[];n=0
-          for line in sys.stdin:
-           try:x=json.loads(line);msg=x.get("MESSAGE","");n+=1;ts=int(x["__REALTIME_TIMESTAMP"])/1e6;dates.append(datetime.datetime.fromtimestamp(ts,datetime.timezone.utc).date().isoformat())
-           except (ValueError,KeyError,TypeError):continue
-           for k,pat in {"slow_query":r"Slow query took|HHH000117|SQL_SLOW", "query_timeout":r"QueryTimeoutException|SQLTimeoutException|statement timeout", "lock_timeout":r"LockAcquisitionException|deadlock detected|CannotAcquireLockException", "connection_timeout":r"Connection is not available|CannotGetJdbcConnectionException|too many clients"}.items():
-            if re.search(pat,msg,re.I):counts[k]+=1
-           for state in re.findall(r"SQLState:\s*([0-9A-Z]{5})",msg):states[state]+=1
-           m=re.search(r"PSQLException:\s*(.*)",msg)
-           if m:
-            text=re.sub(r"\x27[^\x27]*\x27|\x22[^\x22]*\x22","?",m[1]);text=re.sub(r"\b\d+\b","?",text);messages[text[:150]]+=1
-          print("matching_records",n,"date_range",min(dates) if dates else None,max(dates) if dates else None,"timing_categories",dict(counts),"sqlstates",dict(states))
-          for msg,n in messages.most_common(12):print("sanitized_error_category",msg,"records",n)
-          '
+          printf '=== Historical log file inventory ===\n'
+          sudo -n find /var/log "$HOME/404_BE" /opt/wigul -maxdepth 4 -type f \( -iname '*.log*' -o -iname '*.out' -o -iname '*metrics*.csv' -o -iname '*slow*' \) -printf '%p %s bytes\n' 2>/dev/null | head -100 || true
+          printf '=== Historical service names ===\n'
+          sudo -n journalctl -F _SYSTEMD_UNIT --no-pager | python3 -c 'import sys;print("".join(x for x in sys.stdin if any(k in x.lower() for k in ["wigul","backend","postgres","caddy"])))'
+          printf '=== Slow request dates and IDs, no personal data ===\n'
+          sudo -n python3 - <<'PY_REMOTE'
+          import pathlib,gzip,json,datetime,re,heapq
+          rows=[];n=0
+          for p in pathlib.Path('/var/log/caddy').glob('wigul-access*'):
+           if not p.is_file():continue
+           with (gzip.open if p.suffix=='.gz' else open)(p,'rt',errors='replace') as f:
+            for line in f:
+             try:
+              x=json.loads(line);r=x.get('request',{});uri=r.get('uri','').split('?')[0];duration=float(x.get('duration',0))
+              if not uri.startswith('/api/') or duration<.5:continue
+              uri=re.sub(r'[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}',':id',uri);uri=re.sub(r'/\d+(?=/|$)','/:id',uri)
+              h=x.get('resp_headers',{});rid=next((v for k,v in h.items() if k.lower()=='x-request-id'),[])
+              if isinstance(rid,list):rid=rid[0] if rid else ''
+              if not re.fullmatch(r'[a-zA-Z0-9._-]{1,100}',str(rid)):rid=''
+              rows.append((duration,datetime.datetime.fromtimestamp(x['ts'],datetime.timezone.utc).isoformat(),r.get('method'),uri,x.get('status'),rid))
+             except (ValueError,TypeError,KeyError):continue
+          for row in sorted(rows,reverse=True)[:35]:print('slow_http',row)
+          PY_REMOTE
           REMOTE_DIAGNOSTIC
