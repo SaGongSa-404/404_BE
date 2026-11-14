@@ -40,6 +40,31 @@ jobs:
            except Exception as e:status=type(e).__name__
            print('health',i+1,'status',status,'elapsed_ms',round((time.monotonic()-t)*1000,2),'java_major_page_faults',faults()-before)
           PY_REMOTE
+          printf '=== Existing QA review account read requests ===\n'
+          set -a
+          . "$HOME/404_BE/.env.systemd"
+          set +a
+          python3 - <<'PY_REMOTE'
+          import os,json,time,urllib.request,urllib.error
+          base='http://127.0.0.1:8080'
+          headers={'X-Reviewer-Token':os.environ.get('APP_REVIEWER_TOKEN_SECRET','')}
+          r=urllib.request.Request(base+'/api/auth/reviewer-token',headers=headers,method='POST')
+          try:
+           with urllib.request.urlopen(r,timeout=20) as response:token=json.load(response)['accessToken']
+          except urllib.error.HTTPError as e:
+           print('reviewer_auth_status',e.code);raise SystemExit(0)
+          print('reviewer_auth_status',200)
+          paths=['/api/v1/social/posts?size=20','/api/v1/users/me','/api/v1/home/summary','/api/v1/notifications','/api/v1/users/me/votes?size=20']
+          for path in paths:
+           for i in range(2):
+            t=time.monotonic()
+            try:
+             req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token})
+             with urllib.request.urlopen(req,timeout=20) as response:response.read();status=response.status
+            except urllib.error.HTTPError as e:status=e.code
+            except Exception as e:status=type(e).__name__
+            print('read_api',path,'sample',i+1,'status',status,'elapsed_ms',round((time.monotonic()-t)*1000,2))
+          PY_REMOTE
           printf '=== Recent slow SQL summaries (literals omitted) ===\n'
           sudo -n tail -n 400 /var/log/postgresql/postgresql-15-main.log | python3 -c '
           import sys,re,hashlib,collections
