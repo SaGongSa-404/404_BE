@@ -7,11 +7,13 @@ import com.sagongsa.backend.home.HomeSummaryResponse.MascotSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.NotificationSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.NotificationsSummary;
 import com.sagongsa.backend.home.HomeSummaryResponse.UserProfileSummary;
+import com.sagongsa.backend.notification.NotificationVisibility;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -29,7 +31,6 @@ public class HomeSummaryQueries {
 
 	private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Seoul");
 	private static final int LATEST_NOTIFICATION_LIMIT = 3;
-	private static final int NOTIFICATION_RETENTION_MONTHS = 1;
 	static final List<String> BUDGET_NEGATIVE_BUBBLE_MESSAGES = List.of(
 		"이번 달 예산을 넘었어요. 잠깐 멈춰볼까요?",
 		"예산보다 더 썼어요. 오늘은 소비를 쉬어가도 좋아요.",
@@ -58,10 +59,12 @@ public class HomeSummaryQueries {
 
 	private final JdbcTemplate jdbcTemplate;
 	private final BudgetCycleRolloverService budgetCycleRolloverService;
+	private final Clock clock;
 
-	public HomeSummaryQueries(JdbcTemplate jdbcTemplate, BudgetCycleRolloverService budgetCycleRolloverService) {
+	public HomeSummaryQueries(JdbcTemplate jdbcTemplate, BudgetCycleRolloverService budgetCycleRolloverService, Clock clock) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.budgetCycleRolloverService = budgetCycleRolloverService;
+		this.clock = clock;
 	}
 
 	public HomeSummaryResponse getSummary(UUID userId) {
@@ -79,13 +82,14 @@ public class HomeSummaryQueries {
 		budgetCycleRolloverService.ensureBudgetCycle(userId, currentYearMonth);
 		MascotSummary mascot = findMascotSummary(userId).orElseGet(HomeSummaryQueries::defaultMascotSummary);
 		BudgetSummary budget = findBudgetSummary(userId, currentYearMonth).orElseGet(() -> defaultBudgetSummary(currentYearMonth));
+		OffsetDateTime notificationCutoff = NotificationVisibility.cutoff(clock.instant());
 
 		return new HomeSummaryResponse(
 			userProfile,
 			mascot,
 			budget,
 			homeBubble(userId, mascot, budget),
-			new NotificationsSummary(countUnreadNotifications(userId), findLatestNotifications(userId)),
+			new NotificationsSummary(countUnreadNotifications(userId, notificationCutoff), findLatestNotifications(userId, notificationCutoff)),
 			findRationalChoiceRate(userId, currentYearMonth, zoneId)
 		);
 	}
@@ -270,7 +274,7 @@ public class HomeSummaryQueries {
 		return Boolean.TRUE.equals(exists);
 	}
 
-	private long countUnreadNotifications(UUID userId) {
+	private long countUnreadNotifications(UUID userId, OffsetDateTime cutoff) {
 		Long count = jdbcTemplate.queryForObject(
 			"""
 			select count(*)
@@ -281,12 +285,12 @@ public class HomeSummaryQueries {
 			""",
 			Long.class,
 			userId,
-			notificationRetentionCutoff()
+			cutoff
 		);
 		return count == null ? 0 : count;
 	}
 
-	private List<NotificationSummary> findLatestNotifications(UUID userId) {
+	private List<NotificationSummary> findLatestNotifications(UUID userId, OffsetDateTime cutoff) {
 		return jdbcTemplate.query(
 			"""
 			select id, notification_type, title, body, target_path, is_read, created_at
@@ -306,13 +310,9 @@ public class HomeSummaryQueries {
 				readInstant(rs, "created_at")
 			),
 			userId,
-			notificationRetentionCutoff(),
+			cutoff,
 			LATEST_NOTIFICATION_LIMIT
 		);
-	}
-
-	private OffsetDateTime notificationRetentionCutoff() {
-		return OffsetDateTime.now(java.time.ZoneOffset.UTC).minusMonths(NOTIFICATION_RETENTION_MONTHS);
 	}
 
 	private BigDecimal findRationalChoiceRate(UUID userId, String yearMonth, ZoneId zoneId) {
