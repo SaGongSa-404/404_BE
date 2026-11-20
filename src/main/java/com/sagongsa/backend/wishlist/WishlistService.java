@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemInputSource;
+import com.sagongsa.backend.wishlist.WishlistJdbcRepository.ItemUpdateResult;
 import com.sagongsa.backend.wishlist.WishlistJdbcRepository.MetadataFields;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -147,14 +148,11 @@ public class WishlistService {
 		}
 
 		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-		try {
-			int updated = repository.updateItem(userId, itemId, originalUrl, normalizedUrl, title, listedPrice, category, now);
-
-			if (updated == 0) {
-				throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
-			}
+		ItemUpdateResult result = repository.updateItem(userId, itemId, originalUrl, normalizedUrl, title, listedPrice, category, now);
+		if (result == ItemUpdateResult.NOT_FOUND) {
+			throw new WishlistItemNotFoundException("Saved wishlist item was not found.");
 		}
-		catch (DuplicateKeyException exception) {
+		if (result == ItemUpdateResult.DUPLICATE_URL) {
 			throw new DuplicateSavedItemException(
 				"Saved wishlist item already exists for the normalized URL.",
 				queries.findExistingSavedNormalizedUrl(userId, normalizedUrl, itemId).orElse(null)
