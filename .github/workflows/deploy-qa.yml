@@ -79,6 +79,7 @@ jobs:
           CADDY_BACKUP="/etc/caddy/Caddyfile.bak.deploy.$TS"
           CADDY_ON_8081=0
           STANDBY_MANAGEMENT_PORT=9091
+          STANDBY_STOP_ATTEMPTS=60
           SYSTEMD_MANAGEMENT_OVERRIDE=0
 
           cleanup() {
@@ -102,8 +103,11 @@ jobs:
               fi
             else
               if [ -f "$STANDBY_PID" ]; then
-                kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
-                rm -f "$STANDBY_PID"
+                standby_pid="$(cat "$STANDBY_PID")"
+                kill "$standby_pid" 2>/dev/null || true
+                if ! kill -0 "$standby_pid" 2>/dev/null; then
+                  rm -f "$STANDBY_PID"
+                fi
               fi
               if [ -f "$CADDY_BACKUP" ]; then
                 sudo -n cp "$CADDY_BACKUP" "$CADDY_FILE" || true
@@ -190,6 +194,7 @@ jobs:
             done
 
             echo "::error::$label is still listening"
+            ss -ltnp "sport = :$port" || true
             return 1
           }
 
@@ -426,11 +431,11 @@ jobs:
             require_sensitive_path_block
 
             kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
-            rm -f "$STANDBY_PID"
-            wait_not_listening 8081 "previous 8081 standby" 20
+            wait_not_listening 8081 "previous 8081 standby" "$STANDBY_STOP_ATTEMPTS"
             if [ "$SYSTEMD_MANAGEMENT_OVERRIDE" = "1" ]; then
-              wait_not_listening 9090 "previous standby management" 20
+              wait_not_listening 9090 "previous standby management" "$STANDBY_STOP_ATTEMPTS"
             fi
+            rm -f "$STANDBY_PID"
           elif grep -Eq 'reverse_proxy (localhost|127\.0\.0\.1):8080' "$CADDY_FILE"; then
             systemctl is-active --quiet wigul-backend
             wait_health 8080 "8080 main" 20
@@ -518,9 +523,9 @@ jobs:
           echo
           echo "===== stop 8081 standby ====="
           kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
+          wait_not_listening 8081 "8081 standby" "$STANDBY_STOP_ATTEMPTS"
+          wait_not_listening "$STANDBY_MANAGEMENT_PORT" "standby management" "$STANDBY_STOP_ATTEMPTS"
           rm -f "$STANDBY_PID"
-          wait_not_listening 8081 "8081 standby" 20
-          wait_not_listening "$STANDBY_MANAGEMENT_PORT" "standby management" 20
           rm -f "$CANDIDATE_JAR"
 
           echo
