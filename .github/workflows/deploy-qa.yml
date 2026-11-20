@@ -176,6 +176,16 @@ jobs:
             echo "Caddy sensitive-path block OK"
           }
 
+          request_standby_stop() {
+            local label="$1"
+            local pid signal_at
+            local signal_exit=0
+            pid="$(cat "$STANDBY_PID" 2>/dev/null)" || pid=""
+            signal_at="$(date -u '+%Y-%m-%dT%H:%M:%S.%3NZ')"
+            kill "$pid" 2>/dev/null || signal_exit=$?
+            printf '%s SIGTERM requested at %s (kill exit=%s)\n' "$label" "$signal_at" "$signal_exit"
+          }
+
           wait_not_listening() {
             port="$1"
             label="$2"
@@ -183,7 +193,8 @@ jobs:
 
             for i in $(seq 1 "$max_attempts"); do
               if ! ss -ltn | grep -q ":$port "; then
-                echo "$label stopped"
+                printf '%s stopped: port %s closed at %s\n' \
+                  "$label" "$port" "$(date -u '+%Y-%m-%dT%H:%M:%S.%3NZ')"
                 return 0
               fi
 
@@ -426,7 +437,7 @@ jobs:
             echo
             require_sensitive_path_block
 
-            kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
+            request_standby_stop "previous 8081 standby"
             rm -f "$STANDBY_PID"
             wait_not_listening 8081 "previous 8081 standby" 20
             if [ "$SYSTEMD_MANAGEMENT_OVERRIDE" = "1" ]; then
@@ -522,7 +533,7 @@ jobs:
 
           echo
           echo "===== stop 8081 standby ====="
-          kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
+          request_standby_stop "8081 standby"
           rm -f "$STANDBY_PID"
           wait_not_listening 8081 "8081 standby" 20
           wait_not_listening "$STANDBY_MANAGEMENT_PORT" "standby management" 20
