@@ -97,7 +97,7 @@ jobs:
               sudo -n sed -n '1,120p' "$CADDY_FILE" || true
               ss -ltnp 2>/dev/null | grep -E ':8080|:8081|:9090|:9091|:9092|:80|:443' || true
               if [ -n "${CADDY_SITE:-}" ]; then
-                curl -skfsS "https://$CADDY_SITE/health" || true
+                wait_for_caddy_health || true
                 echo
               fi
             else
@@ -161,6 +161,9 @@ jobs:
           require_sensitive_path_block() {
             status="$(
               curl -sSko /dev/null \
+                --noproxy "$CADDY_SITE" \
+                --resolve "$CADDY_SITE:443:127.0.0.1" \
+                --connect-timeout 3 --max-time 5 \
                 -w '%{http_code}' \
                 "https://$CADDY_SITE/.env"
             )"
@@ -325,9 +328,11 @@ jobs:
             sudo -n systemctl reload caddy
           }
 
-          wait_for_public_health() {
-            # A connection can be refused briefly after reloading Caddy.
+          wait_for_caddy_health() {
+            # Keep the TLS hostname while checking Caddy directly on this VM.
             curl -skfsS --retry 4 --retry-connrefused --retry-delay 1 \
+              --noproxy "$CADDY_SITE" \
+              --resolve "$CADDY_SITE:443:127.0.0.1" \
               --connect-timeout 3 --max-time 5 "https://$CADDY_SITE/health"
           }
 
@@ -401,23 +406,31 @@ jobs:
             require_loopback_listener 8081 "existing 8081 standby"
 
             STANDBY_MANAGEMENT_PORT=9092
-            sudo -n systemctl set-environment MANAGEMENT_SERVER_PORT=9091
-            SYSTEMD_MANAGEMENT_OVERRIDE=1
-            sudo -n systemctl restart wigul-backend
+            if ! curl -fsS --max-time 5 http://127.0.0.1:8080/health >/dev/null; then
+              if [ -z "$(ss -ltnH 'sport = :9091')" ]; then
+                sudo -n systemctl set-environment MANAGEMENT_SERVER_PORT=9091
+                SYSTEMD_MANAGEMENT_OVERRIDE=1
+              fi
+              sudo -n systemctl restart wigul-backend
+            fi
             wait_health 8080 "8080 recovery" 120
             require_loopback_listener 8080 "8080 recovery"
-            curl -fsS -o /dev/null http://127.0.0.1:9091/actuator/prometheus
+            if [ "$SYSTEMD_MANAGEMENT_OVERRIDE" = "1" ]; then
+              curl -fsS -o /dev/null http://127.0.0.1:9091/actuator/prometheus
+            fi
 
             switch_caddy 8080
             CADDY_ON_8081=0
-            curl -skfsS "https://$CADDY_SITE/health"
+            wait_for_caddy_health
             echo
             require_sensitive_path_block
 
             kill "$(cat "$STANDBY_PID")" 2>/dev/null || true
             rm -f "$STANDBY_PID"
             wait_not_listening 8081 "previous 8081 standby" 20
-            wait_not_listening 9090 "previous standby management" 20
+            if [ "$SYSTEMD_MANAGEMENT_OVERRIDE" = "1" ]; then
+              wait_not_listening 9090 "previous standby management" 20
+            fi
           elif grep -Eq 'reverse_proxy (localhost|127\.0\.0\.1):8080' "$CADDY_FILE"; then
             systemctl is-active --quiet wigul-backend
             wait_health 8080 "8080 main" 20
@@ -477,7 +490,7 @@ jobs:
           echo "===== switch caddy to 8081 ====="
           switch_caddy 8081
           CADDY_ON_8081=1
-          wait_for_public_health
+          wait_for_caddy_health
           echo
           require_sensitive_path_block
 
@@ -498,7 +511,7 @@ jobs:
           echo "===== switch caddy back to 8080 ====="
           switch_caddy 8080
           CADDY_ON_8081=0
-          wait_for_public_health
+          wait_for_caddy_health
           echo
           require_sensitive_path_block
 
@@ -523,10 +536,27 @@ jobs:
           echo
           curl -fsS -o /dev/null http://127.0.0.1:9090/actuator/prometheus
           echo "8080 main metrics OK"
-          curl -skfsS "https://$CADDY_SITE/health"
+          wait_for_caddy_health
           echo
           prune_deploy_artifacts
           df -h /
           free -h
           echo "deploy finished"
           REMOTE_DEPLOY
+
+      - name: Verify public HTTPS from runner
+        shell: bash
+        run: |
+          CADDY_SITE="$(ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
+            'bash -s' <<'REMOTE_SITE'
+          sudo -n awk 'NF && $1 !~ /^#/ && $NF == "{" { print $1; exit }' /etc/caddy/Caddyfile
+          REMOTE_SITE
+          )"
+          test -n "$CADDY_SITE"
+          status="$(curl -fsS -o /dev/null -w '%{http_code}' \
+            --retry 4 --retry-connrefused --retry-delay 1 \
+            --connect-timeout 3 --max-time 5 "https://$CADDY_SITE/health")"
+          echo "Public health check returned HTTP $status"
+          test "$status" = "200"
