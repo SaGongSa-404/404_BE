@@ -19,18 +19,19 @@ public class FallbackPageFetcher implements PageFetcher, AutoCloseable {
 
 	@Override
 	public FetchedPage fetch(URI uri) {
+		FetchedPage page;
 		try {
-			FetchedPage page = primary.fetch(uri);
-			if (shouldFallback(page)) {
-				return fallback.fetch(fallbackUri(uri, page));
-			}
-			return page;
+			page = primary.fetch(uri);
 		} catch (ResponseStatusException exception) {
 			if (!shouldFallback(exception.getStatusCode())) {
 				throw exception;
 			}
 			return fallback.fetch(uri);
 		}
+		if (shouldFallback(page)) {
+			return fallback.fetch(fallbackUri(uri, page));
+		}
+		return page;
 	}
 
 	private boolean shouldFallback(int statusCode) {

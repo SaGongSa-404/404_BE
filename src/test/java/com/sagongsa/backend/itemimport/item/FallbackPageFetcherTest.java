@@ -1,10 +1,17 @@
 package com.sagongsa.backend.itemimport.item;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 class FallbackPageFetcherTest {
 
@@ -20,6 +27,38 @@ class FallbackPageFetcherTest {
 
 		assertThat(page.statusCode()).isEqualTo(200);
 		assertThat(page.body()).contains("rendered");
+	}
+
+	@Test
+	void propagatesBrowserFailureWithoutRetryingWithTheOriginalUrl() {
+		URI originalUri = URI.create("https://shop.example.com/short-link");
+		URI productUri = URI.create("https://m.brand.naver.com/sample/products/1");
+		PageFetcher fallback = mock(PageFetcher.class);
+		var failure = new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Browser fetch failed");
+		when(fallback.fetch(productUri)).thenThrow(failure);
+		var fetcher = new FallbackPageFetcher(
+			uri -> new FetchedPage(uri, productUri, 429, "text/html", ""),
+			fallback
+		);
+
+		assertThatThrownBy(() -> fetcher.fetch(originalUri)).isSameAs(failure);
+		verify(fallback).fetch(productUri);
+		verifyNoMoreInteractions(fallback);
+	}
+
+	@Test
+	void usesOriginalUrlWhenPrimaryThrowsAFallbackEligibleException() {
+		URI uri = URI.create("https://shop.example.com/products/1");
+		PageFetcher fallback = mock(PageFetcher.class);
+		var renderedPage = new FetchedPage(uri, uri, 200, "text/html", "<html>rendered</html>");
+		when(fallback.fetch(uri)).thenReturn(renderedPage);
+		var fetcher = new FallbackPageFetcher(requestedUri -> {
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY);
+		}, fallback);
+
+		assertThat(fetcher.fetch(uri)).isSameAs(renderedPage);
+		verify(fallback).fetch(uri);
+		verifyNoMoreInteractions(fallback);
 	}
 
 	@Test
