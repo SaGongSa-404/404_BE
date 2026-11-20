@@ -3,6 +3,7 @@ package com.sagongsa.backend.notification;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -19,19 +20,19 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class NotificationService {
 
-	private static final int RETENTION_MONTHS = 1;
-
 	private final JdbcTemplate jdbcTemplate;
+	private final Clock clock;
 
-	public NotificationService(JdbcTemplate jdbcTemplate) {
+	public NotificationService(JdbcTemplate jdbcTemplate, Clock clock) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.clock = clock;
 	}
 
 	@Transactional(readOnly = true)
 	public List<NotificationResponse> list(UUID userId, boolean unreadOnly) {
 		requireUsableUser(userId);
 		String unreadFilter = unreadOnly ? "and is_read = false" : "";
-		OffsetDateTime cutoff = retentionCutoff();
+		OffsetDateTime cutoff = NotificationVisibility.cutoff(clock.instant());
 		return jdbcTemplate.query(
 			"""
 			select id, notification_type, title, body, item_id, decision_id, reminder_id,
@@ -51,7 +52,9 @@ public class NotificationService {
 	@Transactional
 	public NotificationResponse markAsRead(UUID userId, UUID notificationId) {
 		requireUsableUser(userId);
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		Instant asOf = clock.instant();
+		OffsetDateTime now = asOf.atOffset(ZoneOffset.UTC);
+		OffsetDateTime cutoff = NotificationVisibility.cutoff(asOf);
 		int updated = jdbcTemplate.update(
 			"""
 			update notifications
@@ -66,18 +69,19 @@ public class NotificationService {
 			now,
 			userId,
 			notificationId,
-			retentionCutoff()
+			cutoff
 		);
 		if (updated == 0) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification was not found.");
 		}
-		return findById(userId, notificationId);
+		return findById(userId, notificationId, cutoff);
 	}
 
 	@Transactional
 	public NotificationReadAllResponse markAllAsRead(UUID userId) {
 		requireUsableUser(userId);
-		OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+		Instant asOf = clock.instant();
+		OffsetDateTime now = asOf.atOffset(ZoneOffset.UTC);
 		int updated = jdbcTemplate.update(
 			"""
 			update notifications
@@ -91,12 +95,12 @@ public class NotificationService {
 			now,
 			now,
 			userId,
-			retentionCutoff()
+			NotificationVisibility.cutoff(asOf)
 		);
 		return new NotificationReadAllResponse(updated);
 	}
 
-	private NotificationResponse findById(UUID userId, UUID notificationId) {
+	private NotificationResponse findById(UUID userId, UUID notificationId, OffsetDateTime cutoff) {
 		try {
 			return jdbcTemplate.queryForObject(
 				"""
@@ -110,7 +114,7 @@ public class NotificationService {
 				this::mapNotification,
 				userId,
 				notificationId,
-				retentionCutoff()
+				cutoff
 			);
 		}
 		catch (EmptyResultDataAccessException exception) {
@@ -153,10 +157,6 @@ public class NotificationService {
 	private Instant readInstant(ResultSet rs, String columnName) throws SQLException {
 		Timestamp timestamp = rs.getTimestamp(columnName);
 		return timestamp == null ? null : timestamp.toInstant();
-	}
-
-	private OffsetDateTime retentionCutoff() {
-		return OffsetDateTime.now(ZoneOffset.UTC).minusMonths(RETENTION_MONTHS);
 	}
 
 	private record UserState(String status, String onboardingStatus) {
