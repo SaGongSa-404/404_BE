@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -17,7 +20,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sagongsa.backend.support.PostgreSqlContainerTest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +34,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,6 +59,9 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 
 	@Autowired
 	private WishlistJdbcRepository wishlistRepository;
+
+	@MockitoSpyBean
+	private WishlistQueries wishlistQueries;
 
 	@Test
 	void metadataFailureRollsBackItemAndIdempotencyKey() {
@@ -177,6 +190,55 @@ class WishlistApiIntegrationTest extends PostgreSqlContainerTest {
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("DUPLICATE_SAVED_ITEM"))
 			.andExpect(jsonPath("$.existingItem.title").value("Duplicated item"));
+	}
+
+	@Test
+	void concurrentUpdatesToTheSameUrlReturnOneSuccessAndOneConflict() throws Exception {
+		UUID userId = createUser();
+		var request = new WishlistItemCreateRequest("DIRECT_INPUT", null, null, "Concurrent update", null,
+			null, null, "ETC", null, false, null, null, null, null, null);
+		UUID firstId = wishlistService.create(userId, request).id();
+		UUID secondId = wishlistService.create(userId, request).id();
+		String url = "https://shop.example.com/products/concurrent-update";
+		var bothPassedLookup = new CyclicBarrier(2);
+		var lookups = new AtomicInteger();
+		doAnswer(invocation -> {
+			Object existingItem = invocation.callRealMethod();
+			if (lookups.incrementAndGet() <= 2) {
+				bothPassedLookup.await(10, TimeUnit.SECONDS);
+			}
+			return existingItem;
+		}).when(wishlistQueries).findExistingSavedNormalizedUrl(eq(userId), eq(url), any(UUID.class));
+
+		try (var executor = Executors.newFixedThreadPool(2)) {
+			var first = executor.submit(() -> updateItemUrl(userId, firstId, url));
+			var second = executor.submit(() -> updateItemUrl(userId, secondId, url));
+			MvcResult firstResult = first.get(20, TimeUnit.SECONDS);
+			MvcResult secondResult = second.get(20, TimeUnit.SECONDS);
+			assertThat(List.of(firstResult.getResponse().getStatus(), secondResult.getResponse().getStatus()))
+				.containsExactlyInAnyOrder(200, 409);
+
+			boolean firstWon = firstResult.getResponse().getStatus() == 200;
+			UUID winnerId = firstWon ? firstId : secondId;
+			UUID loserId = firstWon ? secondId : firstId;
+			MvcResult conflict = firstWon ? secondResult : firstResult;
+			JsonNode body = objectMapper.readTree(conflict.getResponse().getContentAsString());
+			assertThat(body.path("code").asText()).isEqualTo("DUPLICATE_SAVED_ITEM");
+			assertThat(body.path("existingItem").path("id").asText()).isEqualTo(winnerId.toString());
+			assertThat(jdbcTemplate.queryForObject("select normalized_url from saved_items where id = ?", String.class, winnerId))
+				.isEqualTo(url);
+			assertThat(jdbcTemplate.queryForObject("select normalized_url from saved_items where id = ?", String.class, loserId))
+				.isNull();
+		}
+	}
+
+	private MvcResult updateItemUrl(UUID userId, UUID itemId, String url) throws Exception {
+		return mockMvc.perform(patch(WISHLIST_ITEMS_PATH + "/{itemId}", itemId)
+			.header(USER_ID_HEADER, userId)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(objectMapper.writeValueAsString(new WishlistItemUpdateRequest(
+				null, url, "Concurrent update", null, "ETC"))))
+			.andReturn();
 	}
 
 	@Test

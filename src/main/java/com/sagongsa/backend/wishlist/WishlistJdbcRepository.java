@@ -3,9 +3,12 @@ package com.sagongsa.backend.wishlist;
 import com.sagongsa.backend.domain.enums.ItemCategory;
 import com.sagongsa.backend.domain.enums.ItemInputSource;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.springframework.jdbc.core.ArgumentPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 @Transactional(propagation = Propagation.MANDATORY)
 class WishlistJdbcRepository {
+	private static final String UNIQUE_VIOLATION = "23505";
+
 	private final JdbcTemplate jdbcTemplate;
 
 	WishlistJdbcRepository(JdbcTemplate jdbcTemplate) {
@@ -109,7 +114,7 @@ class WishlistJdbcRepository {
 		);
 	}
 
-	public int updateItem(
+	public ItemUpdateResult updateItem(
 		UUID userId,
 		UUID itemId,
 		String originalUrl,
@@ -119,7 +124,10 @@ class WishlistJdbcRepository {
 		ItemCategory category,
 		OffsetDateTime now
 	) {
-		return jdbcTemplate.update(
+		var parameters = new ArgumentPreparedStatementSetter(new Object[] {
+			originalUrl, normalizedUrl, title, listedPrice, category.name(), now, userId, itemId
+		});
+		return jdbcTemplate.execute(
 			"""
 			update saved_items
 			set original_url = ?,
@@ -133,15 +141,30 @@ class WishlistJdbcRepository {
 			  and id = ?
 			  and status = 'SAVED'
 			""",
-			originalUrl,
-			normalizedUrl,
-			title,
-			listedPrice,
-			category.name(),
-			now,
-			userId,
-			itemId
+			(PreparedStatementCallback<ItemUpdateResult>) statement -> {
+				parameters.setValues(statement);
+				var connection = statement.getConnection();
+				var savepoint = connection.setSavepoint();
+				int updated;
+				try {
+					updated = statement.executeUpdate();
+				} catch (SQLException exception) {
+					if (!UNIQUE_VIOLATION.equals(exception.getSQLState())) {
+						throw exception;
+					}
+					// Restore the transaction before the service looks up the conflicting item.
+					connection.rollback(savepoint);
+					connection.releaseSavepoint(savepoint);
+					return ItemUpdateResult.DUPLICATE_URL;
+				}
+				connection.releaseSavepoint(savepoint);
+				return updated == 0 ? ItemUpdateResult.NOT_FOUND : ItemUpdateResult.UPDATED;
+			}
 		);
+	}
+
+	enum ItemUpdateResult {
+		UPDATED, NOT_FOUND, DUPLICATE_URL
 	}
 
 	public int drop(
