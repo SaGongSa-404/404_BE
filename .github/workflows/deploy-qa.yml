@@ -325,6 +325,12 @@ jobs:
             sudo -n systemctl reload caddy
           }
 
+          wait_for_public_health() {
+            # A connection can be refused briefly after reloading Caddy.
+            curl -skfsS --retry 4 --retry-connrefused --retry-delay 1 \
+              --connect-timeout 3 --max-time 5 "https://$CADDY_SITE/health"
+          }
+
           echo "===== deploy start ====="
           echo "ts=$TS"
           echo "candidate=$CANDIDATE_JAR"
@@ -471,7 +477,7 @@ jobs:
           echo "===== switch caddy to 8081 ====="
           switch_caddy 8081
           CADDY_ON_8081=1
-          curl -skfsS "https://$CADDY_SITE/health"
+          wait_for_public_health
           echo
           require_sensitive_path_block
 
@@ -492,7 +498,7 @@ jobs:
           echo "===== switch caddy back to 8080 ====="
           switch_caddy 8080
           CADDY_ON_8081=0
-          curl -skfsS "https://$CADDY_SITE/health"
+          wait_for_public_health
           echo
           require_sensitive_path_block
 
